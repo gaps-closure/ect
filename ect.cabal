@@ -1,0 +1,41 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 1f953a9af72428f022ad4262b7e61ef29e64a9558ade97403e014935636221bd
+
+name:           ect
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/gaps-closure/ect#readme>
+homepage:       https://github.com/gaps-closure/ect#readme
+bug-reports:    https://github.com/gaps-closure/ect/issues
+author:         GAPS CLOSURE project
+maintainer:     sedwards@cs.columbia.edu
+copyright:      2020 GAPS CLOSURE project
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    LICENSE
+
+source-repository head
+  type: git
+  location: https://github.com/gaps-closure/ect
+
+executable ect
+  main-is: Main.hs
+  other-modules:
+      Paths_ect
+  hs-source-dirs:
+      app
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -dynamic
+  build-depends:
+      base >=4.7 && <5
+    , llvm-hs >=9.0.1
+    , llvm-hs-pure >=9.0.0
+    , transformers
+    , z3 >=408.2
+  default-language: Haskell2010
