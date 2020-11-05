@@ -1,6 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
+
 module Main where
 
 import System.Environment (getArgs, getProgName)
@@ -25,12 +26,14 @@ import Control.Monad.IO.Class ( MonadIO )
 import Control.Monad.Trans.Writer.CPS ( WriterT, runWriterT )
 import Control.Monad.Trans.State.Strict ( StateT(..), runStateT )
 import Control.Monad.Trans.Class ( lift )
+import Control.Monad.Trans.Maybe
 
 
 import LLVM.Context (withContext)
 
 import qualified LLVM.Module as M
 import qualified LLVM.AST as A
+import qualified LLVM.AST.Global as A
 import qualified LLVM.AST.Linkage as A
 import qualified LLVM.AST.DLL as A
 import qualified LLVM.AST.CallingConvention as A
@@ -38,7 +41,6 @@ import qualified LLVM.AST.FunctionAttribute as A
 import qualified LLVM.AST.ParameterAttribute as A
 import qualified LLVM.AST.IntegerPredicate as A
 import qualified LLVM.AST.Constant as C
-import qualified LLVM.AST.Global as G
 
 
 
@@ -46,31 +48,170 @@ import Z3.Monad
 
 ----------------------------------------------------------------------
 
-type ProofLog = [String] -- FIXME
+-- | All the LLVMobject types we will consider
+data LLVMObj = Global A.Global
+             | Linkage A.Linkage
+             | StorageClass A.StorageClass
+             | CallingConvention A.CallingConvention
+             | ParameterAttribute A.ParameterAttribute
+             | Type A.Type
+             | Parameter A.Parameter
+             | FunctionAttribute A.FunctionAttribute
+             | GroupID A.GroupID
+             | EitherFuncAttr (Either A.GroupID A.FunctionAttribute)
+             | Constant C.Constant
+             | BasicBlock A.BasicBlock
+             | BasicBlocks [A.BasicBlock]
+             | Instruction A.Instruction
+             | Terminator A.Terminator
+             | Operand A.Operand
+             | Atomicity (A.SynchronizationScope, A.MemoryOrdering)
+             | SynchronizationScope A.SynchronizationScope
+             | MemoryOrdering A.MemoryOrdering
+             | IntegerPredicate A.IntegerPredicate
+             | FastMathFlags A.FastMathFlags
+             | LNothing
+             | LBool Bool
+             | LWord32 Word32
+             | LSBS ShortByteString
+             | LList [LLVMObj]
+             | Named A.Name LLVMObj
+             deriving Eq
 
-data ProofState = ProofState {
-    nextRuleId :: Int
+instance Show LLVMObj where
+  show (Global g) = shortGlobal g
+  show (Linkage _) = "Linkage"
+  show (StorageClass _) = "StorageClass"
+  show (CallingConvention _) = "CallingConvention"
+  show (ParameterAttribute _) = "ParameterAttribute"
+  show (Type _) = "Type"
+  show (Parameter _) = "Parameter"
+  show (FunctionAttribute _) = "FunctionAttribute"
+  show (GroupID _) = "GroupID"
+  show (EitherFuncAttr _) = "EitherFuncAttr"
+  show (Constant _) = "Constant"
+  show (BasicBlock (A.BasicBlock n _ _)) = "BasicBlock " ++ showName n
+  show (BasicBlocks _) = "BasicBlocks"
+  show (Instruction _) = "Instruction"
+  show (Terminator _) = "Terminator"
+  show (Operand _) = "Operand"
+  show (Atomicity (_,_)) = "Atomicity"
+  show (SynchronizationScope _) = "SynchronizationScope"
+  show (MemoryOrdering _) = "MemoryOrdering"
+  show (IntegerPredicate _) = "IntegerPredicate"
+  show (FastMathFlags _) = "FastMathFlags"
+  show (Named _ o) = "Named " ++ show o
+  show LNothing = "Nothing"
+  show (LBool b) = show b
+  show (LWord32 w) = show w
+  show (LSBS s) = show s
+  show (LList _) = "List"
+
+
+
+-- | A proposition: something that's either true or false
+data Proposition = Equiv LLVMObj LLVMObj
+                 | BBIso [A.BasicBlock] [A.BasicBlock] NameMap
+  deriving Eq
+
+instance Show Proposition where
+  show (Equiv a b) = show a ++ "=" ++ show b
+  show (BBIso _ _ i) = "isomorphism " ++ showBBIso i
+
+
+
+
+newtype RuleID = RuleID Int
+
+instance Show RuleID where
+  show (RuleID i) = "r" ++ show i
+
+
+-- | An inference rule: a step in a proof tree
+data IRule = IRule { premises :: [IRule]
+                   , conclusion :: Proposition
+                   , ruleId :: RuleID
+                   , comment :: String
+                   }
+
+
+instance Show IRule where
+  show IRule{ premises = p, conclusion = c, ruleId = rid, comment = cmt} =
+      unlines $
+        (map (indentCenter width) (premises' ++ [separator, conclusion'])) ++
+         ["", "Proof. " ++ cmt ++ " QED"]
+    where
+      premises' =
+        map (\IRule{..} -> show conclusion ++ " [" ++ show ruleId ++ "]") p
+      width = maximum $ map length (conclusion' : premises')
+      separator = replicate width '-' ++ " [" ++ show rid ++ "]"
+      conclusion' = show c
+      indentCenter w s = replicate ((w - length s) `div` 2) ' ' ++ s
+
+
+-- | A mapping from local names in one function, etc. to local names in another
+type NameMap = M.Map A.Name A.Name
+
+
+
+
+
+type ProofLog = [IRule]
+
+showLog :: ProofLog -> String
+showLog rules = unlines $ map show rules
+
+
+data ProofState = ProofState
+  { nextRuleId :: RuleID      -- | Next inference rule
+  , matching :: NameMap       -- | For name isomorphisms
+  , inverse :: NameMap        -- | Inverse of matching
+  , visiting :: S.Set A.Name  -- | For DFS algorithms    
   }
 
+initialState :: ProofState
+initialState = ProofState { nextRuleId = RuleID 1
+                          , matching = M.empty
+                          , inverse = M.empty
+                          , visiting = S.empty
+                          }
+
 newtype ProofM a = ProofM {
-    _unProof2 :: StateT ProofState (WriterT ProofLog Z3) a }
+    _unProof2 :: MaybeT (StateT ProofState (WriterT ProofLog Z3)) a }
   deriving (Functor, Applicative, Monad, MonadIO)
 
-runProofM :: ProofState -> ProofM a -> IO (a, ProofState, ProofLog)
+runProofM :: ProofState -> ProofM a -> IO (Maybe a, ProofState, ProofLog)
 runProofM initial (ProofM m) = do
-  ((x, st), l) <- evalZ3 (runWriterT (runStateT m initial))
+  ((x, st), l) <- evalZ3 (runWriterT (runStateT (runMaybeT m) initial))
   return (x, st, l)
 
 instance MonadZ3 ProofM where
-  getSolver = ProofM $ lift $ lift getSolver
-  getContext = ProofM $ lift $ lift getContext
+  getSolver = ProofM $ lift $ lift $ lift getSolver
+  getContext = ProofM $ lift $ lift $ lift getContext
 
+-- | Indicate a proof has failed; return Nothing in the Maybe monad
+proofFail :: ProofM a
+proofFail = ProofM $ MaybeT $ return Nothing
 
 
 ----------------------------------------------------------------------
+--
+-- The ProveEquiv class, for proving the equivalence of various LLVM objects
+--
+
+class ProveEquiv a where
+  proveEquiv :: a -> a -> ProofM IRule
+
+-- FIXME
+
+instance ProveEquiv A.Global where
+  proveEquiv f1@(A.Function{}) f2@(A.Function{}) = do
+    return $ IRule [] (Equiv (Global f1) (Global f2)) (RuleID 1) "functions"
+
+  proveEquiv _ _ = proofFail
 
 
-
+----------------------------------------------------------------------
 
 buildModel :: ProofM (AST, AST, AST, AST)
 buildModel = do
@@ -117,7 +258,7 @@ findFunction A.Module{..} funcName = case mapMaybe ffh moduleDefinitions of
   f:_ -> Just f
   []  -> Nothing
   where
-    ffh (A.GlobalDefinition g@(A.Function {..})) | name == funcName = Just g
+    ffh (A.GlobalDefinition g@(A.Function {name = n})) | n == funcName = Just g
     ffh _ = Nothing
 
 -- | Convert a string into a name used by the LLVM AST
@@ -143,8 +284,8 @@ showIN _ = "instruction"
 showTERM :: A.Terminator -> String
 showTERM t = show t
 
-showBB :: G.BasicBlock -> String
-showBB (G.BasicBlock name instructions terminator) =
+showBB :: A.BasicBlock -> String
+showBB (A.BasicBlock name instructions terminator) =
   showName name ++ "\n    " ++
   (intercalate "\n    "  $ map (showNamed showIN) instructions) ++ "\n    " ++
   showNamed showTERM terminator
@@ -178,6 +319,12 @@ dumpModule A.Module {..} =
   show moduleTargetTriple ++ "\n" ++
   concatMap (\x -> dumpDefinition x ++ "\n") moduleDefinitions
 
+
+
+showBBIso :: NameMap -> String
+showBBIso m = intercalate " " $
+  map (\(k,v) -> showName k ++ "-" ++ showName v) (M.assocs m)
+
 ----------------------------------------------------------------------
 
 -- | Read a .ll file to produce an LLVM.AST.Module
@@ -187,6 +334,13 @@ readLL filename = do
   withContext $ \ctx ->
     M.withModuleFromLLVMAssembly ctx str $ \llvmMod ->
       M.moduleAST llvmMod
+
+----------------------------------------------------------------------
+unlessJustFail :: Maybe a -> String -> IO a
+unlessJustFail p s = case p of Just x -> return x
+                               Nothing -> do hPutStrLn stderr s
+                                             usageMessage
+                                             exitFailure
 
 ----------------------------------------------------------------------
 data Options = Options { entryFunction :: String
@@ -238,54 +392,20 @@ main = do
   let Options {..} = options  -- Bring options into scope
 
   [leftLl, rightLl, _] <- mapM readLL filenames -- FIXME: do something with third
-  let leftEntry = findFunction leftLl (llvmName entryFunction)
-      rightEntry = findFunction rightLl (llvmName entryFunction)
+  leftEntry <- unlessJustFail
+                 (findFunction leftLl (llvmName entryFunction)) $
+                   "Error: no function " ++ entryFunction ++ " found in left"
 
-  leftEntry' <- case leftEntry of
-    Nothing -> do hPutStrLn stderr $
-                     "Error: no function " ++ entryFunction ++
-                     " found in left"
-                  usageMessage
-                  exitFailure
-    Just fn -> return fn
+  rightEntry <- unlessJustFail
+                 (findFunction rightLl (llvmName entryFunction)) $
+                   "Error: no function " ++ entryFunction ++ " found in right"
 
-  rightEntry' <- case rightEntry of
-    Nothing -> do hPutStrLn stderr $
-                     "Error: no function " ++ entryFunction ++
-                     " found in right"
-                  usageMessage
-                  exitFailure
-    Just fn -> return fn
-
-  when displayFunctions $ do putStrLn (dumpGlobal leftEntry')
-                             putStrLn (dumpGlobal rightEntry')
+  when displayFunctions $ do putStrLn (dumpGlobal leftEntry)
+                             putStrLn (dumpGlobal rightEntry)
                              exitSuccess
 
-  putStrLn "FIXME"
---  putStrLn $ showProofM $
---    runEitherState (proveEquivMaybe leftEntry rightEntry) emptyEnv
-
-
-{-
-main :: IO ()
-main = do
-         [filename] <- getArgs
-         llfile <- readLL filename
-         print llfile
-         (s, _, _) <- runProofM (ProofState 0) $ do _ <- buildModel
-                                                    solverToString
-         putStrLn "; Put the following in a file queens.smt2"
-         putStrLn "; And run with z3 queens.smt2"
-         putStrLn s
-         putStrLn "(check-sat)\n(get-model)\n; Cut here"
-         (solution, _, _) <- runProofM (ProofState 0) $
-           do (q1, q2, q3, q4) <- buildModel
-              fmap snd $ withModel $ \m ->
-                catMaybes <$> mapM (evalInt m) [q1,q2,q3,q4]
-         case solution of
-             Nothing  -> error "No solution found."
-             Just sol -> putStr "Solution: " >> print sol
--}
-
-
+  (rule, _, proofLog) <-
+    runProofM initialState $ proveEquiv leftEntry rightEntry
+  print rule
+  putStrLn $ showLog proofLog 
 
