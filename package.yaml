@@ -1,0 +1,44 @@
+name:                ect
+version:             0.1.0.0
+github:              "gaps-closure/ect"
+license:             BSD3
+author:              "GAPS CLOSURE project"
+maintainer:          "sedwards@cs.columbia.edu"
+copyright:           "2020 GAPS CLOSURE project"
+
+extra-source-files:
+- README.md
+- LICENSE
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/gaps-closure/ect#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+
+executables:
+  ect:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -dynamic
+    
+    dependencies:
+    - z3 >= 408.2
+    - llvm-hs-pure >= 9.0.0
+    - llvm-hs >= 9.0.1
+    - transformers
+    - bytestring
+    - utf8-string
+    - containers
+    

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1f953a9af72428f022ad4262b7e61ef29e64a9558ade97403e014935636221bd
+-- hash: ad0ce5efef3b9d05ed83ff9f8b893a8591a1628137b61f480a2cb511c614c306
 
 name:           ect
 version:        0.1.0.0
@@ -34,8 +34,11 @@ executable ect
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -dynamic
   build-depends:
       base >=4.7 && <5
+    , bytestring
+    , containers
     , llvm-hs >=9.0.1
     , llvm-hs-pure >=9.0.0
     , transformers
+    , utf8-string
     , z3 >=408.2
   default-language: Haskell2010
