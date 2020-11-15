@@ -114,6 +114,21 @@ data Proposition = Equiv LLVMObj LLVMObj
                  | BBIso [A.BasicBlock] [A.BasicBlock] NameMap
   deriving Eq
 
+-- Critial thing: for the conclusion, need to know the Z3 constants that
+-- the proposition is constraining.  Add fields to Equiv?
+
+-- Also need a Z3 AST that represents the assertion of the proposition
+--
+-- develop-prop33 branch
+
+-- See his checkIRule function: check a particular proposition by running
+-- Z3
+-- Assume all the propositions are true
+-- assert that not (premises => conclusion) is unsatisfiable
+
+-- WriterT should be accumulating the individual steps (i.e., without
+-- push/pop)
+
 instance Show Proposition where
   show (Equiv a b) = show a ++ "=" ++ show b
   show (BBIso _ _ i) = "isomorphism " ++ showBBIso i
@@ -179,6 +194,8 @@ initialState = ProofState { nextRuleId = RuleID 1
 newtype ProofM a = ProofM {
     _unProof2 :: MaybeT (StateT ProofState (WriterT ProofLog Z3)) a }
   deriving (Functor, Applicative, Monad, MonadIO)
+
+-- FIXME: Want a ReaderT with mapping from LLVM types to Z3 types
 
 runProofM :: ProofState -> ProofM a -> IO (Maybe a, ProofState, ProofLog)
 runProofM initial (ProofM m) = do
@@ -406,6 +423,11 @@ main = do
 
   (rule, _, proofLog) <-
     runProofM initialState $ proveEquiv leftEntry rightEntry
+  -- FIXME: add "print Z3 string" here
   print rule
-  putStrLn $ showLog proofLog 
+  putStrLn $ showLog proofLog
 
+
+
+-- Make all the "generate types" stuff dynamic so that each proof step
+-- only brings in what it needs

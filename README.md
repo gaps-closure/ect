@@ -35,6 +35,12 @@ unzip z3-4.8.8-x64-ubuntu-16.04.zip
 stack install
 ```
 
+If the LLVM library builds or links improperly, you may remove it to force a rebuild with
+
+```
+stack exec -- ghc-pkg unregister --force llvm-hs
+```
+
 ## Running
 
 This version of the code merely checks whether LLVM and Z3 can be successfully linked into a single executable.
