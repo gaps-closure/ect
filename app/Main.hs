@@ -14,7 +14,7 @@ import qualified Data.Traversable as T
 import Data.Maybe
 import Data.ByteString.UTF8 (fromString,toString)
 import Data.ByteString.Short (ShortByteString, toShort,fromShort)
-import Data.Maybe (mapMaybe)
+--import Data.Maybe (mapMaybe)
 import Data.List (intercalate)
 import Data.Word ( Word32 )
 import qualified Data.Map.Strict as M
@@ -22,9 +22,10 @@ import qualified Data.Set as S
 
 
 import Control.Monad ( join, when, unless )
-import Control.Monad.IO.Class ( MonadIO )
+import Control.Monad.IO.Class ( MonadIO, liftIO )
 import Control.Monad.Trans.Writer.CPS ( WriterT, runWriterT )
 import Control.Monad.Trans.State.Strict ( StateT(..), runStateT )
+import Control.Monad.Trans.Reader ( ReaderT, runReaderT, withReaderT, asks )
 import Control.Monad.Trans.Class ( lift )
 import Control.Monad.Trans.Maybe
 
@@ -191,15 +192,30 @@ initialState = ProofState { nextRuleId = RuleID 1
                           , visiting = S.empty
                           }
 
+data ProofEnv = ProofEnv
+  { z3Int :: Sort
+  , z3Bool :: Sort
+  }
+
+initialEnv :: Z3 ProofEnv
+initialEnv = do
+  z3Int <- mkIntSort
+  z3Bool <- mkBoolSort
+  return ProofEnv{..}
+
+
 newtype ProofM a = ProofM {
-    _unProof2 :: MaybeT (StateT ProofState (WriterT ProofLog Z3)) a }
+    _unProofM :: MaybeT (StateT ProofState
+                         (WriterT ProofLog (ReaderT ProofEnv Z3))) a }
   deriving (Functor, Applicative, Monad, MonadIO)
 
 -- FIXME: Want a ReaderT with mapping from LLVM types to Z3 types
 
-runProofM :: ProofState -> ProofM a -> IO (Maybe a, ProofState, ProofLog)
+runProofM :: ProofState -> ProofM a
+          -> IO (Maybe a, ProofState, ProofLog)
 runProofM initial (ProofM m) = do
-  ((x, st), l) <- evalZ3 (runWriterT (runStateT (runMaybeT m) initial))
+  ((x, st), l) <-
+    evalZ3 (runReaderT (runWriterT (runStateT (runMaybeT m) initial)) undefined )
   return (x, st, l)
 
 instance MonadZ3 ProofM where
@@ -390,6 +406,9 @@ usageMessage = do prg <- getProgName
 
 main :: IO ()
 main = do
+  rpm2'
+  _ <- exitSuccess
+  
   args <- getArgs
   let (actions, filenames, errors) =
         getOpt RequireOrder optionDescriptions args
@@ -422,7 +441,21 @@ main = do
                              exitSuccess
 
   (rule, _, proofLog) <-
-    runProofM initialState $ proveEquiv leftEntry rightEntry
+    runProofM initialState $ do
+      _ <- proveEquiv leftEntry rightEntry
+      bool <- ProofM $ lift $ lift $ lift $ asks z3Bool
+      -- bool <- mkBoolSort
+      equivType <- mkFreshFuncDecl "equiv-datatypes" [bool, bool] bool
+      x  <- mkFreshConst "x" bool
+      y  <- mkFreshConst "y" bool
+      qx <- toApp x
+      qy <- toApp y
+      builtinEq <- mkEq x y
+      eqType <- mkApp equivType [x, y]
+      assert =<< mkForallConst [] [qx, qy] =<< mkEq builtinEq eqType
+      s <- solverToString
+      liftIO $ putStrLn s
+      
   -- FIXME: add "print Z3 string" here
   print rule
   putStrLn $ showLog proofLog
@@ -431,3 +464,82 @@ main = do
 
 -- Make all the "generate types" stuff dynamic so that each proof step
 -- only brings in what it needs
+
+
+
+newtype ProofM2 a = ProofM2 {
+  _runProofM2 :: (ReaderT ProofEnv Z3) a }
+  deriving (Functor, Applicative, Monad, MonadIO)
+
+instance MonadZ3 ProofM2 where
+  getSolver = ProofM2 $ lift getSolver
+  getContext = ProofM2 $ lift getContext
+
+makeEnv :: ProofM2 ProofEnv
+makeEnv = do
+  z3Int <- mkIntSort
+  z3Bool <- mkBoolSort
+  return ProofEnv{..}
+
+prepareEnv :: ProofM2 ProofEnv -> ProofM2 a -> ProofM2 a
+prepareEnv initf (ProofM2 actions) = do
+  env' <- initf
+  ProofM2 $ withReaderT (\_ -> env') actions
+
+runProofM2 :: ProofM2 a -> IO a
+runProofM2 actions = do
+  v <- evalZ3 (runReaderT (_runProofM2 actions) undefined)
+  return v
+
+rpm2 :: ProofM2 a -> IO a
+rpm2 actions = runProofM2 (prepareEnv makeEnv actions)
+
+rpm2' :: IO ()
+rpm2' = rpm2 $ do
+  bool <- ProofM2 $ asks z3Bool
+
+  equivType <- mkFreshFuncDecl "equiv-datatypes" [bool, bool] bool
+  x  <- mkFreshConst "x" bool
+  y  <- mkFreshConst "y" bool
+  qx <- toApp x
+  qy <- toApp y
+  builtinEq <- mkEq x y
+  eqType <- mkApp equivType [x, y]
+  assert =<< mkForallConst [] [qx, qy] =<< mkEq builtinEq eqType
+  
+  s <- solverToString
+  liftIO $ putStrLn s
+  liftIO $ putStrLn "Hello"
+
+
+-- Might actually be working: needs to be greatly cleaned up and
+-- more functionality added, but the pieces seem to be there
+  
+
+
+{-
+newtype ProofM2 a = ProofM2 {
+  _runProofM2 :: (ReaderT ProofEnv Z3) a }
+  deriving (Functor, Applicative, Monad, MonadIO)
+
+instance MonadZ3 ProofM2 where
+  getSolver = ProofM2 $ lift getSolver
+  getContext = ProofM2 $ lift getContext
+
+makeEnv :: ProofM2 ProofEnv
+makeEnv = do
+  z3Int <- mkIntSort
+  z3Bool <- mkBoolSort
+  return ProofEnv{..}
+
+prepareEnv :: ProofM2 ProofEnv -> ProofM2 a -> ProofM2 a
+prepareEnv initf (ProofM2 actions) = do
+  env' <- initf
+  ProofM2 $ withReaderT (\_ -> env') actions
+
+runProofM2 :: ProofM2 a -> IO a
+runProofM2 actions = do
+  v <- evalZ3 (runReaderT (_runProofM2 actions) undefined)
+  return v
+
+-}
