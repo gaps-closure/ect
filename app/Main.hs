@@ -206,27 +206,85 @@ initialEnv = do
   return ProofEnv{..}
 
 
+
 newtype ProofM a = ProofM {
-    _unProofM :: MaybeT (StateT ProofState
-                         (WriterT ProofLog (ReaderT ProofEnv Z3))) a }
+  runProofM :: MaybeT
+                (StateT ProofState
+                  (WriterT ProofLog
+                    (ReaderT ProofEnv Z3))) a }
   deriving (Functor, Applicative, Monad, MonadIO)
-
--- FIXME: Want a ReaderT with mapping from LLVM types to Z3 types
-
-runProofM :: ProofState -> ProofM a
-          -> IO (Maybe a, ProofState, ProofLog)
-runProofM initial (ProofM m) = do
-  ((x, st), l) <-
-    evalZ3 (runReaderT (runWriterT (runStateT (runMaybeT m) initial)) undefined )
-  return (x, st, l)
 
 instance MonadZ3 ProofM where
   getSolver = ProofM $ lift $ lift $ lift getSolver
   getContext = ProofM $ lift $ lift $ lift getContext
 
+-- | Initialize Z3 types, etc. that will be made available during
+--   execution of the proof monad
+makeEnv :: ProofM ProofEnv
+makeEnv = do
+  z3Int <- mkIntSort
+  z3Bool <- mkBoolSort
+  return ProofEnv{..}
+
+-- | Extract the result from a WriterT, discarding any log
+evalWriterT :: (Monad m, Monoid w) => WriterT w m a -> m a
+evalWriterT m = liftM fst $ runWriterT m
+
+-- | Run initialization code to get a new ProofEnv, then run
+--   the actions with that environment.  Any log generated during
+--   initialization is discarded
+initializeRun :: ProofM ProofEnv -> ProofM a -> ProofM (Maybe a)
+initializeRun initialization actions = do
+  env' <- initialization
+  state <- ProofM $ lift get
+  ProofM $ lift $ lift $ lift $
+            withReaderT (\_ -> env') $
+            evalWriterT $
+            evalStateT (runMaybeT $ runProofM actions) state
+
+
+-- | In the proof environment, run the intitialization code to set
+-- up a ProofEnv, then run the given actions with that environment
+runProofEnvironment :: ProofState -> ProofM ProofEnv -> ProofM a -> IO (Maybe a, ProofState, ProofLog)
+runProofEnvironment initialSt initializeEnv actions = do
+  ((Just result, st), l) <- evalZ3 $
+            runReaderT (runWriterT $ runStateT (runMaybeT $ runProofM $
+                         initializeRun initializeEnv actions) initialSt)
+              undefined
+  return (result, st, l)
+  --  return result
+
+-- | Return a field from the proof environment (ProofEnv)
+--
+-- e.g., bool <- fromEnv z3Bool
+fromEnv :: (ProofEnv -> a) -> ProofM a
+fromEnv selector = ProofM $ lift $ lift $ lift $ asks selector
+
+
 -- | Indicate a proof has failed; return Nothing in the Maybe monad
 proofFail :: ProofM a
 proofFail = ProofM $ MaybeT $ return Nothing
+
+
+{-
+rpm2' :: IO (Maybe (), ProofState, ProofLog)
+rpm2' = runProofEnvironment initialState makeEnv $ do
+  bool <- fromEnv z3Bool
+
+  equivType <- mkFreshFuncDecl "equiv-datatypes" [bool, bool] bool
+  x  <- mkFreshConst "x" bool
+  y  <- mkFreshConst "y" bool
+  qx <- toApp x
+  qy <- toApp y
+  builtinEq <- mkEq x y
+  eqType <- mkApp equivType [x, y]
+  assert =<< mkForallConst [] [qx, qy] =<< mkEq builtinEq eqType
+  
+  s <- solverToString
+  liftIO $ putStrLn s
+  liftIO $ putStrLn "Hello"
+-}
+
 
 
 ----------------------------------------------------------------------
@@ -407,10 +465,7 @@ usageMessage = do prg <- getProgName
                   hPutStr stderr (usageInfo header optionDescriptions)
 
 main :: IO ()
-main = do
-  _ <- rpm2'
-  _ <- exitSuccess
-  
+main = do  
   args <- getArgs
   let (actions, filenames, errors) =
         getOpt RequireOrder optionDescriptions args
@@ -443,94 +498,15 @@ main = do
                              exitSuccess
 
   (rule, _, proofLog) <-
-    runProofM initialState $ do
+    runProofEnvironment initialState makeEnv $ do
       _ <- proveEquiv leftEntry rightEntry
-      bool <- ProofM $ lift $ lift $ lift $ asks z3Bool
-      -- bool <- mkBoolSort
-      equivType <- mkFreshFuncDecl "equiv-datatypes" [bool, bool] bool
-      x  <- mkFreshConst "x" bool
-      y  <- mkFreshConst "y" bool
-      qx <- toApp x
-      qy <- toApp y
-      builtinEq <- mkEq x y
-      eqType <- mkApp equivType [x, y]
-      assert =<< mkForallConst [] [qx, qy] =<< mkEq builtinEq eqType
+
       s <- solverToString
       liftIO $ putStrLn s
       
-  -- FIXME: add "print Z3 string" here
   print rule
   putStrLn $ showLog proofLog
 
 -- Make all the "generate types" stuff dynamic so that each proof step
 -- only brings in what it needs
 
-newtype ProofM2 a = ProofM2 {
-  runProofM2 :: MaybeT
-                (StateT ProofState
-                  (WriterT ProofLog
-                    (ReaderT ProofEnv Z3))) a }
-  deriving (Functor, Applicative, Monad, MonadIO)
-
-instance MonadZ3 ProofM2 where
-  getSolver = ProofM2 $ lift $ lift $ lift getSolver
-  getContext = ProofM2 $ lift $ lift $ lift getContext
-
--- | Initialize Z3 types, etc. that will be made available during
---   execution of the proof monad
-makeEnv :: ProofM2 ProofEnv
-makeEnv = do
-  z3Int <- mkIntSort
-  z3Bool <- mkBoolSort
-  return ProofEnv{..}
-
--- | Extract the result from a WriterT, discarding any log
-evalWriterT :: (Monad m, Monoid w) => WriterT w m a -> m a
-evalWriterT m = liftM fst $ runWriterT m
-
--- | Run initialization code to get a new ProofEnv, then run
---   the actions with that environment.  Any log generated during
---   initialization is discarded
-initializeRun :: ProofM2 ProofEnv -> ProofM2 a -> ProofM2 (Maybe a)
-initializeRun initialization actions = do
-  env' <- initialization
-  state <- ProofM2 $ lift get
-  ProofM2 $ lift $ lift $ lift $
-            withReaderT (\_ -> env') $
-            evalWriterT $
-            evalStateT (runMaybeT $ runProofM2 actions) state
-
-
--- | In the proof environment, run the intitialization code to set
--- up a ProofEnv, then run the given actions with that environment
-runProofEnvironment :: ProofState -> ProofM2 ProofEnv -> ProofM2 a -> IO (Maybe a, ProofState, ProofLog)
-runProofEnvironment initialSt initializeEnv actions = do
-  ((Just result, st), l) <- evalZ3 $
-            runReaderT (runWriterT $ runStateT (runMaybeT $ runProofM2 $
-                         initializeRun initializeEnv actions) initialSt)
-              undefined
-  return (result, st, l)
-  --  return result
-
--- | Return a field from the proof environment (ProofEnv)
---
--- e.g., bool <- fromEnv z3Bool
-fromEnv :: (ProofEnv -> a) -> ProofM2 a
-fromEnv selector = ProofM2 $ lift $ lift $ lift $ asks selector
-
-rpm2' :: IO (Maybe (), ProofState, ProofLog)
-rpm2' = runProofEnvironment initialState makeEnv $ do
-  bool <- fromEnv z3Bool
-
-  equivType <- mkFreshFuncDecl "equiv-datatypes" [bool, bool] bool
-  x  <- mkFreshConst "x" bool
-  y  <- mkFreshConst "y" bool
-  qx <- toApp x
-  qy <- toApp y
-  builtinEq <- mkEq x y
-  eqType <- mkApp equivType [x, y]
-  assert =<< mkForallConst [] [qx, qy] =<< mkEq builtinEq eqType
-  
-  s <- solverToString
-  liftIO $ putStrLn s
-  liftIO $ putStrLn "Hello"
