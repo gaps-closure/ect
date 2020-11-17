@@ -26,7 +26,7 @@ import qualified Data.Set as S
 import Control.Monad ( join, when, unless, liftM )
 import Control.Monad.IO.Class ( MonadIO, liftIO )
 import Control.Monad.Trans.Writer.CPS ( WriterT, runWriterT )
-import Control.Monad.Trans.State.Strict ( StateT(..), runStateT )
+import Control.Monad.Trans.State.Strict ( StateT(..), runStateT, evalStateT, get )
 import Control.Monad.Trans.Reader ( ReaderT, runReaderT, withReaderT, asks )
 import Control.Monad.Trans.Class ( lift )
 import Control.Monad.Trans.Maybe
@@ -466,12 +466,12 @@ main = do
 -- only brings in what it needs
 
 newtype ProofM2 a = ProofM2 {
-  runProofM2 :: (WriterT ProofLog (ReaderT ProofEnv Z3)) a }
+  runProofM2 :: StateT ProofState (WriterT ProofLog (ReaderT ProofEnv Z3)) a }
   deriving (Functor, Applicative, Monad, MonadIO)
 
 instance MonadZ3 ProofM2 where
-  getSolver = ProofM2 $ lift getSolver
-  getContext = ProofM2 $ lift getContext
+  getSolver = ProofM2 $ lift $ lift getSolver
+  getContext = ProofM2 $ lift $ lift getContext
 
 -- | Initialize Z3 types, etc. that will be made available during
 --   execution of the proof monad
@@ -486,19 +486,24 @@ evalWriterT :: (Monad m, Monoid w) => WriterT w m a -> m a
 evalWriterT m = liftM fst $ runWriterT m
 
 -- | Run initialization code to get a new ProofEnv, then run
---   the actions with that environment
+--   the actions with that environment.  Any log generated during
+--   initialization is discarded
 initializeRun :: ProofM2 ProofEnv -> ProofM2 a -> ProofM2 a
 initializeRun initialization actions = do
   env' <- initialization
-  ProofM2 $ lift $ withReaderT (\_ -> env') $ evalWriterT $ runProofM2 actions  
+  state <- ProofM2 $ get
+  ProofM2 $ lift $ lift $
+            withReaderT (\_ -> env') $
+            evalWriterT $
+            evalStateT (runProofM2 actions) state 
 
 -- | In the proof environment, run the intitialization code to set
 -- up a ProofEnv, then run the given actions with that environment
-runProofEnvironment :: ProofM2 ProofEnv -> ProofM2 a -> IO a
-runProofEnvironment initialization actions = do
-  (result, _) <- evalZ3 $
-            runReaderT (runWriterT $ runProofM2 $
-                         initializeRun initialization actions)
+runProofEnvironment :: ProofState -> ProofM2 ProofEnv -> ProofM2 a -> IO a
+runProofEnvironment initialSt initialization actions = do
+  ((result, _), _) <- evalZ3 $
+            runReaderT (runWriterT $ runStateT (runProofM2 $
+                         initializeRun initialization actions) initialSt)
               undefined
   return result
 
@@ -506,10 +511,10 @@ runProofEnvironment initialization actions = do
 --
 -- e.g., bool <- fromEnv z3Bool
 fromEnv :: (ProofEnv -> a) -> ProofM2 a
-fromEnv selector = ProofM2 $ lift $ asks selector
+fromEnv selector = ProofM2 $ lift $ lift $ asks selector
 
 rpm2' :: IO ()
-rpm2' = runProofEnvironment makeEnv $ do
+rpm2' = runProofEnvironment initialState makeEnv $ do
   bool <- fromEnv z3Bool
 
   equivType <- mkFreshFuncDecl "equiv-datatypes" [bool, bool] bool
@@ -524,36 +529,3 @@ rpm2' = runProofEnvironment makeEnv $ do
   s <- solverToString
   liftIO $ putStrLn s
   liftIO $ putStrLn "Hello"
-
-
--- Might actually be working: needs to be greatly cleaned up and
--- more functionality added, but the pieces seem to be there
-  
-
-
-{-
-newtype ProofM2 a = ProofM2 {
-  _runProofM2 :: (ReaderT ProofEnv Z3) a }
-  deriving (Functor, Applicative, Monad, MonadIO)
-
-instance MonadZ3 ProofM2 where
-  getSolver = ProofM2 $ lift getSolver
-  getContext = ProofM2 $ lift getContext
-
-makeEnv :: ProofM2 ProofEnv
-makeEnv = do
-  z3Int <- mkIntSort
-  z3Bool <- mkBoolSort
-  return ProofEnv{..}
-
-prepareEnv :: ProofM2 ProofEnv -> ProofM2 a -> ProofM2 a
-prepareEnv initf (ProofM2 actions) = do
-  env' <- initf
-  ProofM2 $ withReaderT (\_ -> env') actions
-
-runProofM2 :: ProofM2 a -> IO a
-runProofM2 actions = do
-  v <- evalZ3 (runReaderT (_runProofM2 actions) undefined)
-  return v
-
--}
