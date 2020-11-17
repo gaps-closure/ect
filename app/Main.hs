@@ -23,7 +23,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
 
-import Control.Monad ( join, when, unless, liftM )
+import Control.Monad ( when, unless, liftM )
 import Control.Monad.IO.Class ( MonadIO, liftIO )
 import Control.Monad.Trans.Writer.CPS ( WriterT, runWriterT )
 import Control.Monad.Trans.State.Strict ( StateT(..), runStateT, evalStateT, get )
@@ -194,17 +194,86 @@ initialState = ProofState { nextRuleId = RuleID 1
                           , visiting = S.empty
                           }
 
+
+----------------------------------------------------------------------
+--
+-- The Proof Environment: Z3 definitions that can be used in proof steps
+-- These are collected here and threaded through the Proof Monad via a ReaderT
+--
+-- Access these with "fromEnv"
+
 data ProofEnv = ProofEnv
-  { z3Int :: Sort
-  , z3Bool :: Sort
+  { s_Int :: Sort -- Z3 sort for Int
+  , s_Bool :: Sort -- Z3 sort for Bool
+
+  , s_Type :: Sort               -- Z3 sort for Type
+  , e_Type :: FuncDecl           -- Z3 equivalence function for Type
+  , c_VoidType :: FuncDecl       -- Z3 constructor for VoidType
+  , c_IntegerType :: FuncDecl    -- Z3 constructor for IntegerType
   }
 
-initialEnv :: Z3 ProofEnv
+-- | Build an equivalence checking function for a given Z3 type
+--   Needs the bool sort
+mkEquivFunc :: Sort -> Sort -> String -> ProofM FuncDecl
+mkEquivFunc bool typ name = do
+  equivType <- mkFreshFuncDecl ("equiv-" ++ name) [typ, typ] bool
+
+  x  <- mkFreshConst "x" typ
+  y  <- mkFreshConst "y" typ
+  qx <- toApp x
+  qy <- toApp y
+  builtinEq <- mkEq x y
+  eqType <- mkApp equivType [x, y]
+  assert =<< mkForallConst [] [qx, qy] =<< mkEq builtinEq eqType
+
+  return equivType
+
+mkSort :: String -> [(String, [(String, Maybe Sort)])] -> ProofM Sort
+mkSort sortName constrs = do
+  constructors <- T.sequence $ map (uncurry mkConstr) constrs
+  name         <- mkStringSymbol sortName
+  mkDatatype name constructors
+
+mkAccessor :: String -> Maybe Sort -> ProofM (Symbol, Maybe Sort, Int)
+mkAccessor name dt = do
+  accessorName <- mkStringSymbol name
+  return (accessorName, dt, 0)
+
+mkConstr :: String -> [(String, Maybe Sort)] -> ProofM Constructor
+mkConstr name fields = do
+  constName  <- mkStringSymbol name
+  recognizer <- mkStringSymbol $ "is_" ++ name
+  accessors  <- T.sequence $ map (uncurry mkAccessor) fields
+  mkConstructor constName recognizer accessors
+
+
+
+-- | Initialize Z3 types, etc. that will be made available during
+--   execution of the proof monad
+initialEnv :: ProofM ProofEnv
 initialEnv = do
-  z3Int <- mkIntSort
-  z3Bool <- mkBoolSort
+  s_Int <- mkIntSort
+  s_Bool <- mkBoolSort
+
+  s_Type <- mkSort "Type" [("voidType", [])
+                          ,("integerType", [("nBits", Just s_Int)])]
+  e_Type <- mkEquivFunc s_Bool s_Type "type"
+  [c_VoidType, c_IntegerType] <- getDatatypeSortConstructors s_Type
+
   return ProofEnv{..}
 
+
+
+
+
+
+----------------------------------------------------------------------
+--
+-- The Proof Monad:
+--
+-- Combines Z3, a reader for the environment, a writer for the log,
+-- a state for state such as the next proposition number, and
+-- a Maybe to handle unsuccessful proofs.
 
 
 newtype ProofM a = ProofM {
@@ -212,19 +281,11 @@ newtype ProofM a = ProofM {
                 (StateT ProofState
                   (WriterT ProofLog
                     (ReaderT ProofEnv Z3))) a }
-  deriving (Functor, Applicative, Monad, MonadIO)
+  deriving (Functor, Applicative, Monad, MonadIO, MonadFail)
 
 instance MonadZ3 ProofM where
   getSolver = ProofM $ lift $ lift $ lift getSolver
   getContext = ProofM $ lift $ lift $ lift getContext
-
--- | Initialize Z3 types, etc. that will be made available during
---   execution of the proof monad
-makeEnv :: ProofM ProofEnv
-makeEnv = do
-  z3Int <- mkIntSort
-  z3Bool <- mkBoolSort
-  return ProofEnv{..}
 
 -- | Extract the result from a WriterT, discarding any log
 evalWriterT :: (Monad m, Monoid w) => WriterT w m a -> m a
@@ -266,26 +327,6 @@ proofFail :: ProofM a
 proofFail = ProofM $ MaybeT $ return Nothing
 
 
-{-
-rpm2' :: IO (Maybe (), ProofState, ProofLog)
-rpm2' = runProofEnvironment initialState makeEnv $ do
-  bool <- fromEnv z3Bool
-
-  equivType <- mkFreshFuncDecl "equiv-datatypes" [bool, bool] bool
-  x  <- mkFreshConst "x" bool
-  y  <- mkFreshConst "y" bool
-  qx <- toApp x
-  qy <- toApp y
-  builtinEq <- mkEq x y
-  eqType <- mkApp equivType [x, y]
-  assert =<< mkForallConst [] [qx, qy] =<< mkEq builtinEq eqType
-  
-  s <- solverToString
-  liftIO $ putStrLn s
-  liftIO $ putStrLn "Hello"
--}
-
-
 
 ----------------------------------------------------------------------
 --
@@ -304,44 +345,37 @@ instance ProveEquiv A.Global where
   proveEquiv _ _ = proofFail
 
 
-----------------------------------------------------------------------
+instance ProveEquiv A.Type where
+  proveEquiv t1@A.VoidType t2@A.VoidType = do
 
-buildModel :: ProofM (AST, AST, AST, AST)
-buildModel = do
-  q1 <- mkFreshIntVar "q1"
-  q2 <- mkFreshIntVar "q2"
-  q3 <- mkFreshIntVar "q3"
-  q4 <- mkFreshIntVar "q4"
-  _1 <- mkInteger 1
-  _4 <- mkInteger 4
-  -- the ith-queen is in the ith-row.
-  -- qi is the column of the ith-queen
-  assert =<< mkAnd =<< T.sequence
-    [ mkLe _1 q1, mkLe q1 _4  -- 1 <= q1 <= 4
-    , mkLe _1 q2, mkLe q2 _4
-    , mkLe _1 q3, mkLe q3 _4
-    , mkLe _1 q4, mkLe q4 _4
-    ]
-  -- different columns
-  assert =<< mkDistinct [q1,q2,q3,q4]
-  -- avoid diagonal attacks
-  assert =<< mkNot =<< mkOr =<< T.sequence
-    [ diagonal 1 q1 q2  -- diagonal line of attack between q1 and q2
-    , diagonal 2 q1 q3
-    , diagonal 3 q1 q4
-    , diagonal 1 q2 q3
-    , diagonal 2 q2 q4
-    , diagonal 1 q3 q4
-    ]
+    -- Create two fresh Type variables
+    sort <- fromEnv s_Type
+    x <- mkFreshConst "x" sort
+    y <- mkFreshConst "y" sort
 
-  return (q1, q2, q3, q4)
+    push
+    -- Set the two variable equal to the constructor functions
+    -- for these types
+    cons <- fromEnv c_VoidType
+    assert =<< mkEq x =<< mkApp cons []
+    assert =<< mkEq y =<< mkApp cons []
+
+    -- Apply the equivalence function for "Type" to these variables
+    equiv <- fromEnv e_Type
+    conclusion <- mkApp equiv [x, y]
+
+    -- Assert the equivalence function is always false
+    assert =<< mkNot conclusion
+
+    s <- solverToString
+    res <- check
+    liftIO $ putStrLn $ unlines ["", s, show res]
+    pop 1
+
     
-  where mkAbs x = do
-          _0 <- mkInteger 0
-          join $ mkIte <$> mkLe _0 x <*> pure x <*> mkUnaryMinus x
-        diagonal :: Integer -> AST -> AST -> ProofM AST
-        diagonal d c c' =
-          join $ mkEq <$> (mkAbs =<< mkSub [c',c]) <*> (mkInteger d)
+    return $ IRule [] (Equiv (Type t1) (Type t2)) (RuleID 42) "void equal"
+
+  proveEquiv _ _ = proofFail
 
 ----------------------------------------------------------------------
 
@@ -465,7 +499,14 @@ usageMessage = do prg <- getProgName
                   hPutStr stderr (usageInfo header optionDescriptions)
 
 main :: IO ()
-main = do  
+main = do
+  (rule', _, proofLog') <- runProofEnvironment initialState initialEnv
+                              (proveEquiv A.VoidType A.VoidType)
+  print rule'
+  print proofLog'
+  _ <- exitSuccess
+
+
   args <- getArgs
   let (actions, filenames, errors) =
         getOpt RequireOrder optionDescriptions args
@@ -498,11 +539,12 @@ main = do
                              exitSuccess
 
   (rule, _, proofLog) <-
-    runProofEnvironment initialState makeEnv $ do
-      _ <- proveEquiv leftEntry rightEntry
+    runProofEnvironment initialState initialEnv $ do
+      r <- proveEquiv leftEntry rightEntry
 
       s <- solverToString
       liftIO $ putStrLn s
+      return r
       
   print rule
   putStrLn $ showLog proofLog
