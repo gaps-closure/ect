@@ -1,6 +1,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
+-- LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack ghci
+
 
 module Main where
 
@@ -21,7 +23,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
 
-import Control.Monad ( join, when, unless )
+import Control.Monad ( join, when, unless, liftM )
 import Control.Monad.IO.Class ( MonadIO, liftIO )
 import Control.Monad.Trans.Writer.CPS ( WriterT, runWriterT )
 import Control.Monad.Trans.State.Strict ( StateT(..), runStateT )
@@ -460,43 +462,55 @@ main = do
   print rule
   putStrLn $ showLog proofLog
 
-
-
 -- Make all the "generate types" stuff dynamic so that each proof step
 -- only brings in what it needs
 
-
-
 newtype ProofM2 a = ProofM2 {
-  _runProofM2 :: (ReaderT ProofEnv Z3) a }
+  runProofM2 :: (WriterT ProofLog (ReaderT ProofEnv Z3)) a }
   deriving (Functor, Applicative, Monad, MonadIO)
 
 instance MonadZ3 ProofM2 where
   getSolver = ProofM2 $ lift getSolver
   getContext = ProofM2 $ lift getContext
 
+-- | Initialize Z3 types, etc. that will be made available during
+--   execution of the proof monad
 makeEnv :: ProofM2 ProofEnv
 makeEnv = do
   z3Int <- mkIntSort
   z3Bool <- mkBoolSort
   return ProofEnv{..}
 
-prepareEnv :: ProofM2 ProofEnv -> ProofM2 a -> ProofM2 a
-prepareEnv initf (ProofM2 actions) = do
-  env' <- initf
-  ProofM2 $ withReaderT (\_ -> env') actions
+-- | Extract the result from a WriterT, discarding any log
+evalWriterT :: (Monad m, Monoid w) => WriterT w m a -> m a
+evalWriterT m = liftM fst $ runWriterT m
 
-runProofM2 :: ProofM2 a -> IO a
-runProofM2 actions = do
-  v <- evalZ3 (runReaderT (_runProofM2 actions) undefined)
-  return v
+-- | Run initialization code to get a new ProofEnv, then run
+--   the actions with that environment
+initializeRun :: ProofM2 ProofEnv -> ProofM2 a -> ProofM2 a
+initializeRun initialization actions = do
+  env' <- initialization
+  ProofM2 $ lift $ withReaderT (\_ -> env') $ evalWriterT $ runProofM2 actions  
 
-rpm2 :: ProofM2 a -> IO a
-rpm2 actions = runProofM2 (prepareEnv makeEnv actions)
+-- | In the proof environment, run the intitialization code to set
+-- up a ProofEnv, then run the given actions with that environment
+runProofEnvironment :: ProofM2 ProofEnv -> ProofM2 a -> IO a
+runProofEnvironment initialization actions = do
+  (result, _) <- evalZ3 $
+            runReaderT (runWriterT $ runProofM2 $
+                         initializeRun initialization actions)
+              undefined
+  return result
+
+-- | Return a field from the proof environment (ProofEnv)
+--
+-- e.g., bool <- fromEnv z3Bool
+fromEnv :: (ProofEnv -> a) -> ProofM2 a
+fromEnv selector = ProofM2 $ lift $ asks selector
 
 rpm2' :: IO ()
-rpm2' = rpm2 $ do
-  bool <- ProofM2 $ asks z3Bool
+rpm2' = runProofEnvironment makeEnv $ do
+  bool <- fromEnv z3Bool
 
   equivType <- mkFreshFuncDecl "equiv-datatypes" [bool, bool] bool
   x  <- mkFreshConst "x" bool
