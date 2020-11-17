@@ -111,9 +111,10 @@ instance Show LLVMObj where
   show (LList _) = "List"
 
 
+data Z3Equiv = Z3Equiv { v1 :: AST, v2 :: AST, z3Conclusion :: AST }
 
 -- | A proposition: something that's either true or false
-data Proposition = Equiv LLVMObj LLVMObj
+data Proposition = Equiv LLVMObj LLVMObj Z3Equiv
                  | BBIso [A.BasicBlock] [A.BasicBlock] NameMap
   deriving Eq
 
@@ -152,7 +153,6 @@ data IRule = IRule { premises :: [IRule]
                    , comment :: String
                    }
 
-
 instance Show IRule where
   show IRule{ premises = p, conclusion = c, ruleId = rid, comment = cmt} =
       unlines $
@@ -184,7 +184,7 @@ data ProofState = ProofState
   { nextRuleId :: RuleID      -- | Next inference rule
   , matching :: NameMap       -- | For name isomorphisms
   , inverse :: NameMap        -- | Inverse of matching
-  , visiting :: S.Set A.Name  -- | For DFS algorithms    
+  , visiting :: S.Set A.Name  -- | For DFS algorithms
   }
 
 initialState :: ProofState
@@ -202,6 +202,8 @@ initialState = ProofState { nextRuleId = RuleID 1
 --
 -- Access these with "fromEnv"
 
+-- TODO: group the sort and equivalence function together
+-- (every sort has an equivalence function)
 data ProofEnv = ProofEnv
   { s_Int :: Sort -- Z3 sort for Int
   , s_Bool :: Sort -- Z3 sort for Bool
@@ -317,7 +319,7 @@ runProofEnvironment initialSt initializeEnv actions = do
 
 -- | Return a field from the proof environment (ProofEnv)
 --
--- e.g., bool <- fromEnv z3Bool
+-- e.g., bool <- fromEnv s_Bool
 fromEnv :: (ProofEnv -> a) -> ProofM a
 fromEnv selector = ProofM $ lift $ lift $ lift $ asks selector
 
@@ -336,7 +338,42 @@ proofFail = ProofM $ MaybeT $ return Nothing
 class ProveEquiv a where
   proveEquiv :: a -> a -> ProofM IRule
 
--- FIXME
+-- FIXME: prove equiv helper should take arguments for sort, equiv_fxn,
+-- constructors, and list of premises, and IRule needs conclusion/variables
+
+proveEquivGeneral :: ProofM (AST, AST, AST) -- FIXME: args here
+proveEquivGeneral x getXCons xFields y getYCons yFields getSort getEq premises = do
+
+  -- Create two fresh Type variables
+  sort <- getSort
+  z3x <- mkFreshConst "x" sort
+  z3y <- mkFreshConst "y" sort
+
+  -- Apply the equivalence function for "Type" to these variables
+  equiv <- getEq
+  conclusion <- mkApp equiv [z3x, z3y]
+
+  push
+
+  -- Set the two variable equal to the constructor functions
+  -- for these types
+  xCons <- getXCons
+  yCons <- getYCons
+  assert =<< mkEq z3x =<< mkApp xCons xFields
+  assert =<< mkEq z3y =<< mkApp yCons yFields
+
+  -- Assert the equivalence function is always false
+  assumePremises <- mkAnd premises
+  assert =<< mkNot =<< mkImplies assumePremises conclusion
+
+  s <- solverToString
+  res <- check
+  liftIO $ putStrLn $ unlines ["", s, show res]
+  pop 1
+
+  case res of
+    Sat -> proofFail
+    _   -> (z3x, z3y conclusion)
 
 instance ProveEquiv A.Global where
   proveEquiv f1@(A.Function{}) f2@(A.Function{}) = do
@@ -346,34 +383,23 @@ instance ProveEquiv A.Global where
 
 
 instance ProveEquiv A.Type where
-  proveEquiv t1@A.VoidType t2@A.VoidType = do
+  proveEquiv t1@(A.IntegerType a) t2@(A.IntegerType b) = do
 
-    -- Create two fresh Type variables
-    sort <- fromEnv s_Type
-    x <- mkFreshConst "x" sort
-    y <- mkFreshConst "y" sort
+    irule <- proveEquiv a b
+    fields_eq <- getConclusion irule
+    (aZ3, bZ3) <- getVarsConclusion irule
+    let premises = [fields_eq]
+        xFields  = [aZ3]
+        yFields  = [bZ3]
+        getSort  = fromEnv s_Type
+        getEq    = fromEnv e_Type
+        getXCons = fromEnv c_IntegerType
+        getYCons = fromEnv c_IntegerType
 
-    push
-    -- Set the two variable equal to the constructor functions
-    -- for these types
-    cons <- fromEnv c_VoidType
-    assert =<< mkEq x =<< mkApp cons []
-    assert =<< mkEq y =<< mkApp cons []
+    (z3t1, z3t2, concl) <- proveEquivGeneral -- FIXME: args here from above (391)
 
-    -- Apply the equivalence function for "Type" to these variables
-    equiv <- fromEnv e_Type
-    conclusion <- mkApp equiv [x, y]
+    return $ IRule [irule] ((Equiv (Type t1) (Type t2)), concl) (RuleID 42) "void equal"
 
-    -- Assert the equivalence function is always false
-    assert =<< mkNot conclusion
-
-    s <- solverToString
-    res <- check
-    liftIO $ putStrLn $ unlines ["", s, show res]
-    pop 1
-
-    
-    return $ IRule [] (Equiv (Type t1) (Type t2)) (RuleID 42) "void equal"
 
   proveEquiv _ _ = proofFail
 
@@ -545,10 +571,9 @@ main = do
       s <- solverToString
       liftIO $ putStrLn s
       return r
-      
+
   print rule
   putStrLn $ showLog proofLog
 
 -- Make all the "generate types" stuff dynamic so that each proof step
 -- only brings in what it needs
-
