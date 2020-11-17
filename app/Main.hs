@@ -408,7 +408,7 @@ usageMessage = do prg <- getProgName
 
 main :: IO ()
 main = do
-  rpm2'
+  _ <- rpm2'
   _ <- exitSuccess
   
   args <- getArgs
@@ -466,12 +466,15 @@ main = do
 -- only brings in what it needs
 
 newtype ProofM2 a = ProofM2 {
-  runProofM2 :: StateT ProofState (WriterT ProofLog (ReaderT ProofEnv Z3)) a }
+  runProofM2 :: MaybeT
+                (StateT ProofState
+                  (WriterT ProofLog
+                    (ReaderT ProofEnv Z3))) a }
   deriving (Functor, Applicative, Monad, MonadIO)
 
 instance MonadZ3 ProofM2 where
-  getSolver = ProofM2 $ lift $ lift getSolver
-  getContext = ProofM2 $ lift $ lift getContext
+  getSolver = ProofM2 $ lift $ lift $ lift getSolver
+  getContext = ProofM2 $ lift $ lift $ lift getContext
 
 -- | Initialize Z3 types, etc. that will be made available during
 --   execution of the proof monad
@@ -488,32 +491,34 @@ evalWriterT m = liftM fst $ runWriterT m
 -- | Run initialization code to get a new ProofEnv, then run
 --   the actions with that environment.  Any log generated during
 --   initialization is discarded
-initializeRun :: ProofM2 ProofEnv -> ProofM2 a -> ProofM2 a
+initializeRun :: ProofM2 ProofEnv -> ProofM2 a -> ProofM2 (Maybe a)
 initializeRun initialization actions = do
   env' <- initialization
-  state <- ProofM2 $ get
-  ProofM2 $ lift $ lift $
+  state <- ProofM2 $ lift get
+  ProofM2 $ lift $ lift $ lift $
             withReaderT (\_ -> env') $
             evalWriterT $
-            evalStateT (runProofM2 actions) state 
+            evalStateT (runMaybeT $ runProofM2 actions) state
+
 
 -- | In the proof environment, run the intitialization code to set
 -- up a ProofEnv, then run the given actions with that environment
-runProofEnvironment :: ProofState -> ProofM2 ProofEnv -> ProofM2 a -> IO a
-runProofEnvironment initialSt initialization actions = do
-  ((result, _), _) <- evalZ3 $
-            runReaderT (runWriterT $ runStateT (runProofM2 $
-                         initializeRun initialization actions) initialSt)
+runProofEnvironment :: ProofState -> ProofM2 ProofEnv -> ProofM2 a -> IO (Maybe a, ProofState, ProofLog)
+runProofEnvironment initialSt initializeEnv actions = do
+  ((Just result, st), l) <- evalZ3 $
+            runReaderT (runWriterT $ runStateT (runMaybeT $ runProofM2 $
+                         initializeRun initializeEnv actions) initialSt)
               undefined
-  return result
+  return (result, st, l)
+  --  return result
 
 -- | Return a field from the proof environment (ProofEnv)
 --
 -- e.g., bool <- fromEnv z3Bool
 fromEnv :: (ProofEnv -> a) -> ProofM2 a
-fromEnv selector = ProofM2 $ lift $ lift $ asks selector
+fromEnv selector = ProofM2 $ lift $ lift $ lift $ asks selector
 
-rpm2' :: IO ()
+rpm2' :: IO (Maybe (), ProofState, ProofLog)
 rpm2' = runProofEnvironment initialState makeEnv $ do
   bool <- fromEnv z3Bool
 
