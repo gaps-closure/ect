@@ -137,8 +137,8 @@ data BBIso = BBIso { bbisoID :: !PID -- | Name of this equivalence
                    }
 
 -- | A proposition: something that is held true
-data Prop = PropEquiv Equiv
-          | PropBBISO BBIso
+data Prop = PropEquiv !Equiv
+          | PropBBISO !BBIso
 
 instance Show Prop where
   show (PropEquiv e) = show $ equivID e
@@ -220,9 +220,9 @@ data LogEntry = LogString String
                              }
 
 instance Show LogEntry where
-  show (LogString s) = s
-  show (LogSMTLIB s) = s
-  show LogInference{..} = unlines $
+  show (LogString s) = intercalate "\n" $ map (\s -> ";;; " ++ s) $ lines s
+  show (LogSMTLIB s) = "; SMTLIB starts\n" ++ s ++ "; SMTLIB ends"
+  show LogInference{..} = intercalate "\n" $ map (";; "++) $
         (map (indentCenter width) (premises' ++ [separator, conclusion'])) ++
          ["", "Proof. " ++ infComment ++ " QED"]
     where
@@ -231,6 +231,7 @@ instance Show LogEntry where
       separator = replicate width '-' ++ " [" ++ show infConclusion ++ "]"
       conclusion' = show infConclusion
       indentCenter w s = replicate ((w - length s) `div` 2) ' ' ++ s
+
 
 ----------------------------------------------------------------------
 
@@ -344,13 +345,13 @@ initialEnv = do
 newtype ProofM a = ProofM {
   runProofM :: MaybeT
                 (StateT ProofState
-                  (WriterT ProofLog
-                    (ReaderT ProofEnv Z3))) a }
+                  (ReaderT ProofEnv
+                    (WriterT ProofLog Z3))) a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadFail)
 
 instance MonadZ3 ProofM where
-  getSolver = ProofM $ lift $ lift $ lift getSolver
-  getContext = ProofM $ lift $ lift $ lift getContext
+  getSolver = ProofM $ lift $ lift $ lift $ lift getSolver
+  getContext = ProofM $ lift $ lift $ lift $ lift getContext
 
 -- | Extract the result from a WriterT, discarding any log
 evalWriterT :: (Monad m, Monoid w) => WriterT w m a -> m a
@@ -359,17 +360,15 @@ evalWriterT m = liftM fst $ runWriterT m
 -- | Run initialization code to get a new ProofEnv, then run
 --   the actions with that environment.  Any log generated during
 --   initialization is discarded
-initializeRun :: ProofM ProofEnv -> ProofM a -> ProofM (Maybe a)
+initializeRun :: ProofM ProofEnv -> ProofM a -> ProofM (Maybe a, ProofLog)
 initializeRun initialization actions = do
   env' <- initialization
   state <- ProofM $ lift get
-  ProofM $ lift $ lift $ tell $ [LogString "lfello"]  
-  a <- ProofM $ lift $ lift $ lift $
+  ProofM $ lift $ lift $ lift $ tell $ [LogString "initialization complete"]
+  ProofM $ lift $ lift $ 
+            runWriterT $ lift $ 
             withReaderT (\_ -> env') $
-            evalWriterT $
             evalStateT (runMaybeT $ runProofM actions) state
-  ProofM $ lift $ lift $ tell $ [LogString "gfello"]  
-  return a
   
 
 -- | In the proof environment, run the intitialization code to set
@@ -377,10 +376,11 @@ initializeRun initialization actions = do
 runProofEnvironment :: ProofState -> ProofM ProofEnv -> ProofM a
                     -> IO (Maybe a, ProofState, ProofLog)
 runProofEnvironment initialSt initializeEnv actions = do
-  ((Just result, st), l) <- evalZ3 $
-            runReaderT (runWriterT $ runStateT (runMaybeT $ runProofM $
-                         initializeRun initializeEnv actions) initialSt)
-              undefined
+  ((Just (result, _), st), l) <-
+      evalZ3 $ runWriterT $ runReaderT (
+      runStateT (runMaybeT $ runProofM $
+                  initializeRun initializeEnv actions) initialSt)
+      undefined
   return (result, st, l)
   --  return result
 
@@ -388,21 +388,33 @@ runProofEnvironment initialSt initializeEnv actions = do
 --
 -- e.g., bool <- fromEnv s_Bool
 fromEnv :: (ProofEnv -> a) -> ProofM a
-fromEnv selector = ProofM $ lift $ lift $ lift $ asks selector
+fromEnv selector = ProofM $ lift $ lift $ asks selector
 
 -- | Get the next PID in sequence and update the state
 getNextPID :: ProofM PID
 getNextPID = do
-  ProofState{..} <- ProofM $ lift $ get
-  let currentPID = nextPID currentPID
-  ProofM $ lift $ put ProofState{..}
-  return currentPID
+  s <- ProofM $ lift $ get
+  let pid = currentPID s
+  ProofM $ lift $ put $ s {currentPID = nextPID pid }
+  return pid
 
 -- | Indicate a proof has failed; return Nothing in the Maybe monad
 proofFail :: ProofM a
 proofFail = ProofM $ MaybeT $ return Nothing
 
 
+-- | Log a string message
+logString :: String -> ProofM ()
+logString s = ProofM $ lift $ lift $ lift $ tell [LogString s]
+
+-- | Log an SMTLIB message
+logSMTLIB :: String -> ProofM ()
+logSMTLIB s = ProofM $ lift $ lift $ lift $ tell [LogSMTLIB s]
+
+-- | Log an inference
+logInference :: [PID] -> Prop -> String -> ProofM ()
+logInference infPremises infConclusion infComment =
+  ProofM $ lift $ lift $ lift $ tell [LogInference{..}]
 
 ----------------------------------------------------------------------
 --
@@ -479,17 +491,18 @@ instance ProveEquiv A.Type where
 
     assert =<< mkNot z3equiv
 
-    s <- solverToString
+    smtlib <- solverToString
     res <- check
 
     equivID <- getNextPID
 
-    liftIO $ putStrLn "proveEquiv VoidType"
-    ProofM $ lift $ lift $ tell $ [LogString "Hello"]
+    logSMTLIB smtlib
       
-    case Unsat {- res -} of
-      Unsat -> return Equiv{..}
-      _ -> proofFail
+    case res of
+      Unsat -> do logInference [] (PropEquiv Equiv{..}) "VoidTypes"
+                  return Equiv{..}
+      _ -> do liftIO $ putStrLn $ unlines ["", smtlib, show res]
+              proofFail
     
   
   proveEquiv t1@(A.IntegerType a) t2@(A.IntegerType b) = do
@@ -641,11 +654,12 @@ usageMessage = do prg <- getProgName
 main :: IO ()
 main = do
   (rule', _, proofLog') <- runProofEnvironment initialState initialEnv $ do
---                              _ <- proveEquiv A.VoidType A.VoidType
-                              ProofM $ lift $ lift $ tell $ [LogString "fello"]
+                              e <- proveEquiv A.VoidType A.VoidType
+                              logString "Complete"
+                              return e
 
   --  print rule'
-  print proofLog'
+  --  print proofLog'
   mapM_ print proofLog'
   exitSuccess
 
