@@ -25,8 +25,9 @@ import qualified Data.Set as S
 
 import Control.Monad ( when, unless, liftM )
 import Control.Monad.IO.Class ( MonadIO, liftIO )
-import Control.Monad.Trans.Writer.CPS ( WriterT, runWriterT )
-import Control.Monad.Trans.State.Strict ( StateT(..), runStateT, evalStateT, get )
+import Control.Monad.Trans.Writer.CPS ( WriterT, runWriterT, tell )
+import Control.Monad.Trans.State.Strict ( StateT(..), runStateT, evalStateT,
+                                          get, put )
 import Control.Monad.Trans.Reader ( ReaderT, runReaderT, withReaderT, asks )
 import Control.Monad.Trans.Class ( lift )
 import Control.Monad.Trans.Maybe
@@ -109,14 +110,47 @@ instance Show LLVMObj where
   show (LWord32 w) = show w
   show (LSBS s) = show s
   show (LList _) = "List"
+----------------------------------------------------------------------
+newtype PID = PID Int
 
+nextPID :: PID -> PID
+nextPID (PID i) = PID $ succ i
 
-data Z3Equiv = Z3Equiv { v1 :: AST, v2 :: AST, z3Conclusion :: AST }
+instance Show PID where
+   show (PID i) = "p" ++ show i
+
+----------------------------------------------------------------------
+--
+-- Pieces of proofs
+--
+
+-- | An equivalence proposition: a verification of the equivalence of
+--   two LLVM AST objects that has been checked by Z3
+data Equiv = Equiv { z3equiv :: !AST -- | asserts two variables are equivalent
+                   , z3v1 :: !AST    -- | Variable representing the first object
+                   , z3v2 :: !AST    -- | Variable representing the second object
+                   , equivID :: !PID -- | Name of this equivalence
+                   }
+
+data BBIso = BBIso { bbisoID :: !PID -- | Name of this equivalence
+                   -- FIXME: More fields here
+                   }
+
+-- | A proposition: something that is held true
+data Prop = PropEquiv Equiv
+          | PropBBISO BBIso
+
+instance Show Prop where
+  show (PropEquiv e) = show $ equivID e
+  show (PropBBISO i) = show $ bbisoID i
+          
 
 -- | A proposition: something that's either true or false
+{-
 data Proposition = Equiv LLVMObj LLVMObj Z3Equiv
                  | BBIso [A.BasicBlock] [A.BasicBlock] NameMap
   deriving Eq
+-}
 
 -- Critial thing: for the conclusion, need to know the Z3 constants that
 -- the proposition is constraining.  Add fields to Equiv?
@@ -133,12 +167,14 @@ data Proposition = Equiv LLVMObj LLVMObj Z3Equiv
 -- WriterT should be accumulating the individual steps (i.e., without
 -- push/pop)
 
+{-
 instance Show Proposition where
   show (Equiv a b) = show a ++ "=" ++ show b
   show (BBIso _ _ i) = "isomorphism " ++ showBBIso i
+-}
 
 
-
+{-
 
 newtype RuleID = RuleID Int
 
@@ -166,34 +202,51 @@ instance Show IRule where
       conclusion' = show c
       indentCenter w s = replicate ((w - length s) `div` 2) ' ' ++ s
 
+-}
 
 -- | A mapping from local names in one function, etc. to local names in another
 type NameMap = M.Map A.Name A.Name
 
 
+----------------------------------------------------------------------
 
+type ProofLog = [LogEntry]
 
+data LogEntry = LogString String
+              | LogSMTLIB String
+              | LogInference { infPremises :: [PID]
+                             , infConclusion :: Prop
+                             , infComment :: String
+                             }
 
-type ProofLog = [IRule]
+instance Show LogEntry where
+  show (LogString s) = s
+  show (LogSMTLIB s) = s
+  show LogInference{..} = unlines $
+        (map (indentCenter width) (premises' ++ [separator, conclusion'])) ++
+         ["", "Proof. " ++ infComment ++ " QED"]
+    where
+      premises' = map show infPremises
+      width = maximum $ map length (conclusion' : premises')
+      separator = replicate width '-' ++ " [" ++ show infConclusion ++ "]"
+      conclusion' = show infConclusion
+      indentCenter w s = replicate ((w - length s) `div` 2) ' ' ++ s
 
-showLog :: ProofLog -> String
-showLog rules = unlines $ map show rules
-
+----------------------------------------------------------------------
 
 data ProofState = ProofState
-  { nextRuleId :: RuleID      -- | Next inference rule
-  , matching :: NameMap       -- | For name isomorphisms
-  , inverse :: NameMap        -- | Inverse of matching
-  , visiting :: S.Set A.Name  -- | For DFS algorithms
+  { currentPID :: !PID         -- | ID for the next proposition
+  , matching :: !NameMap       -- | For name isomorphisms
+  , inverse :: !NameMap        -- | Inverse of matching
+  , visiting :: !(S.Set A.Name)  -- | For DFS algorithms
   }
 
 initialState :: ProofState
-initialState = ProofState { nextRuleId = RuleID 1
+initialState = ProofState { currentPID = PID 1
                           , matching = M.empty
                           , inverse = M.empty
                           , visiting = S.empty
                           }
-
 
 ----------------------------------------------------------------------
 --
@@ -204,14 +257,18 @@ initialState = ProofState { nextRuleId = RuleID 1
 
 -- TODO: group the sort and equivalence function together
 -- (every sort has an equivalence function)
-data ProofEnv = ProofEnv
-  { s_Int :: Sort -- Z3 sort for Int
-  , s_Bool :: Sort -- Z3 sort for Bool
 
-  , s_Type :: Sort               -- Z3 sort for Type
-  , e_Type :: FuncDecl           -- Z3 equivalence function for Type
-  , c_VoidType :: FuncDecl       -- Z3 constructor for VoidType
-  , c_IntegerType :: FuncDecl    -- Z3 constructor for IntegerType
+data Z3Type = Z3Type { sort :: !Sort
+                     , equivFunc :: !FuncDecl }
+
+
+data ProofEnv = ProofEnv
+  { s_Int :: !Sort -- Z3 sort for Int
+  , s_Bool :: !Sort -- Z3 sort for Bool
+
+  , z_Type :: !Z3Type       -- sort, equivalence function for Type
+  , c_VoidType :: !FuncDecl       -- Z3 constructor for VoidType
+  , c_IntegerType :: !FuncDecl    -- Z3 constructor for IntegerType
   }
 
 -- | Build an equivalence checking function for a given Z3 type
@@ -249,6 +306,13 @@ mkConstr name fields = do
   mkConstructor constName recognizer accessors
 
 
+mkZ3Type :: Sort -> String -> [(String, [(String, Maybe Sort)])]
+         -> ProofM (Z3Type, [FuncDecl])
+mkZ3Type bool name fields = do
+  sort <- mkSort name fields
+  equivFunc <- mkEquivFunc bool sort name
+  constructors <- getDatatypeSortConstructors sort
+  return $ (Z3Type{..}, constructors) 
 
 -- | Initialize Z3 types, etc. that will be made available during
 --   execution of the proof monad
@@ -257,10 +321,9 @@ initialEnv = do
   s_Int <- mkIntSort
   s_Bool <- mkBoolSort
 
-  s_Type <- mkSort "Type" [("voidType", [])
-                          ,("integerType", [("nBits", Just s_Int)])]
-  e_Type <- mkEquivFunc s_Bool s_Type "type"
-  [c_VoidType, c_IntegerType] <- getDatatypeSortConstructors s_Type
+  (z_Type, [c_VoidType, c_IntegerType]) <-
+    mkZ3Type s_Bool "Type" [("voidType", [])
+                           ,("integerType", [("nBits", Just s_Int)])]
 
   return ProofEnv{..}
 
@@ -300,15 +363,19 @@ initializeRun :: ProofM ProofEnv -> ProofM a -> ProofM (Maybe a)
 initializeRun initialization actions = do
   env' <- initialization
   state <- ProofM $ lift get
-  ProofM $ lift $ lift $ lift $
+  ProofM $ lift $ lift $ tell $ [LogString "lfello"]  
+  a <- ProofM $ lift $ lift $ lift $
             withReaderT (\_ -> env') $
             evalWriterT $
             evalStateT (runMaybeT $ runProofM actions) state
-
+  ProofM $ lift $ lift $ tell $ [LogString "gfello"]  
+  return a
+  
 
 -- | In the proof environment, run the intitialization code to set
 -- up a ProofEnv, then run the given actions with that environment
-runProofEnvironment :: ProofState -> ProofM ProofEnv -> ProofM a -> IO (Maybe a, ProofState, ProofLog)
+runProofEnvironment :: ProofState -> ProofM ProofEnv -> ProofM a
+                    -> IO (Maybe a, ProofState, ProofLog)
 runProofEnvironment initialSt initializeEnv actions = do
   ((Just result, st), l) <- evalZ3 $
             runReaderT (runWriterT $ runStateT (runMaybeT $ runProofM $
@@ -323,6 +390,13 @@ runProofEnvironment initialSt initializeEnv actions = do
 fromEnv :: (ProofEnv -> a) -> ProofM a
 fromEnv selector = ProofM $ lift $ lift $ lift $ asks selector
 
+-- | Get the next PID in sequence and update the state
+getNextPID :: ProofM PID
+getNextPID = do
+  ProofState{..} <- ProofM $ lift $ get
+  let currentPID = nextPID currentPID
+  ProofM $ lift $ put ProofState{..}
+  return currentPID
 
 -- | Indicate a proof has failed; return Nothing in the Maybe monad
 proofFail :: ProofM a
@@ -336,12 +410,14 @@ proofFail = ProofM $ MaybeT $ return Nothing
 --
 
 class ProveEquiv a where
-  proveEquiv :: a -> a -> ProofM IRule
+  proveEquiv :: a -> a -> ProofM Equiv
 
 -- FIXME: prove equiv helper should take arguments for sort, equiv_fxn,
 -- constructors, and list of premises, and IRule needs conclusion/variables
 
-proveEquivGeneral :: ProofM (AST, AST, AST) -- FIXME: args here
+
+{-
+proveEquivGeneral :: ProofM Equiv
 proveEquivGeneral x getXCons xFields y getYCons yFields getSort getEq premises = do
 
   -- Create two fresh Type variables
@@ -372,19 +448,53 @@ proveEquivGeneral x getXCons xFields y getYCons yFields getSort getEq premises =
   pop 1
 
   case res of
-    Sat -> proofFail
-    _   -> (z3x, z3y conclusion)
+    Unsat -> return $ Equiv z3x z3y conclusion
+    _     -> proofFail
 
+-}
+
+{-
 instance ProveEquiv A.Global where
   proveEquiv f1@(A.Function{}) f2@(A.Function{}) = do
     return $ IRule [] (Equiv (Global f1) (Global f2)) (RuleID 1) "functions"
 
   proveEquiv _ _ = proofFail
+-}
 
 
 instance ProveEquiv A.Type where
+  proveEquiv t1@A.VoidType t2@A.VoidType = do
+
+    Z3Type{..} <- fromEnv z_Type
+    
+    z3v1 <- mkFreshConst "x" sort
+    z3v2 <- mkFreshConst "y" sort
+
+    z3equiv <- mkApp equivFunc [z3v1, z3v2]
+
+    push
+    cons <- fromEnv c_VoidType
+    assert =<< mkEq z3v1 =<< mkApp cons []
+    assert =<< mkEq z3v2 =<< mkApp cons []
+
+    assert =<< mkNot z3equiv
+
+    s <- solverToString
+    res <- check
+
+    equivID <- getNextPID
+
+    liftIO $ putStrLn "proveEquiv VoidType"
+    ProofM $ lift $ lift $ tell $ [LogString "Hello"]
+      
+    case Unsat {- res -} of
+      Unsat -> return Equiv{..}
+      _ -> proofFail
+    
+  
   proveEquiv t1@(A.IntegerType a) t2@(A.IntegerType b) = do
 
+{-    
     irule <- proveEquiv a b
     fields_eq <- getConclusion irule
     (aZ3, bZ3) <- getVarsConclusion irule
@@ -396,9 +506,13 @@ instance ProveEquiv A.Type where
         getXCons = fromEnv c_IntegerType
         getYCons = fromEnv c_IntegerType
 
-    (z3t1, z3t2, concl) <- proveEquivGeneral -- FIXME: args here from above (391)
+    equiv <- proveEquivGeneral -- FIXME: args here from above (391)
 
-    return $ IRule [irule] ((Equiv (Type t1) (Type t2)), concl) (RuleID 42) "void equal"
+    return equiv
+-}
+    proofFail
+      
+--    return $ IRule [irule] ((Equiv (Type t1) (Type t2)), concl) (RuleID 42) "void equal"
 
 
   proveEquiv _ _ = proofFail
@@ -526,13 +640,16 @@ usageMessage = do prg <- getProgName
 
 main :: IO ()
 main = do
-  (rule', _, proofLog') <- runProofEnvironment initialState initialEnv
-                              (proveEquiv A.VoidType A.VoidType)
-  print rule'
+  (rule', _, proofLog') <- runProofEnvironment initialState initialEnv $ do
+--                              _ <- proveEquiv A.VoidType A.VoidType
+                              ProofM $ lift $ lift $ tell $ [LogString "fello"]
+
+  --  print rule'
   print proofLog'
-  _ <- exitSuccess
+  mapM_ print proofLog'
+  exitSuccess
 
-
+{-
   args <- getArgs
   let (actions, filenames, errors) =
         getOpt RequireOrder optionDescriptions args
@@ -573,7 +690,9 @@ main = do
       return r
 
   print rule
-  putStrLn $ showLog proofLog
+  mapM_ print proofLog
+
+-}
 
 -- Make all the "generate types" stuff dynamic so that each proof step
 -- only brings in what it needs
