@@ -110,7 +110,12 @@ instance Show LLVMObj where
   show (LWord32 w) = show w
   show (LSBS s) = show s
   show (LList _) = "List"
+
 ----------------------------------------------------------------------
+--
+-- Propositions
+--
+
 newtype PID = PID Int
 
 nextPID :: PID -> PID
@@ -118,11 +123,6 @@ nextPID (PID i) = PID $ succ i
 
 instance Show PID where
    show (PID i) = "p" ++ show i
-
-----------------------------------------------------------------------
---
--- Pieces of proofs
---
 
 -- | An equivalence proposition: a verification of the equivalence of
 --   two LLVM AST objects that has been checked by Z3
@@ -144,71 +144,10 @@ instance Show Prop where
   show (PropEquiv e) = show $ equivID e
   show (PropBBISO i) = show $ bbisoID i
           
-
--- | A proposition: something that's either true or false
-{-
-data Proposition = Equiv LLVMObj LLVMObj Z3Equiv
-                 | BBIso [A.BasicBlock] [A.BasicBlock] NameMap
-  deriving Eq
--}
-
--- Critial thing: for the conclusion, need to know the Z3 constants that
--- the proposition is constraining.  Add fields to Equiv?
-
--- Also need a Z3 AST that represents the assertion of the proposition
---
--- develop-prop33 branch
-
--- See his checkIRule function: check a particular proposition by running
--- Z3
--- Assume all the propositions are true
--- assert that not (premises => conclusion) is unsatisfiable
-
--- WriterT should be accumulating the individual steps (i.e., without
--- push/pop)
-
-{-
-instance Show Proposition where
-  show (Equiv a b) = show a ++ "=" ++ show b
-  show (BBIso _ _ i) = "isomorphism " ++ showBBIso i
--}
-
-
-{-
-
-newtype RuleID = RuleID Int
-
-instance Show RuleID where
-  show (RuleID i) = "r" ++ show i
-
-
--- | An inference rule: a step in a proof tree
-data IRule = IRule { premises :: [IRule]
-                   , conclusion :: Proposition
-                   , ruleId :: RuleID
-                   , comment :: String
-                   }
-
-instance Show IRule where
-  show IRule{ premises = p, conclusion = c, ruleId = rid, comment = cmt} =
-      unlines $
-        (map (indentCenter width) (premises' ++ [separator, conclusion'])) ++
-         ["", "Proof. " ++ cmt ++ " QED"]
-    where
-      premises' =
-        map (\IRule{..} -> show conclusion ++ " [" ++ show ruleId ++ "]") p
-      width = maximum $ map length (conclusion' : premises')
-      separator = replicate width '-' ++ " [" ++ show rid ++ "]"
-      conclusion' = show c
-      indentCenter w s = replicate ((w - length s) `div` 2) ' ' ++ s
-
--}
-
--- | A mapping from local names in one function, etc. to local names in another
-type NameMap = M.Map A.Name A.Name
-
-
 ----------------------------------------------------------------------
+--
+-- Proof logging
+--
 
 type ProofLog = [LogEntry]
 
@@ -235,6 +174,10 @@ instance Show LogEntry where
 
 ----------------------------------------------------------------------
 
+-- | A mapping from local names in one function, etc. to local names in another
+type NameMap = M.Map A.Name A.Name
+
+
 data ProofState = ProofState
   { currentPID :: !PID         -- | ID for the next proposition
   , matching :: !NameMap       -- | For name isomorphisms
@@ -256,17 +199,19 @@ initialState = ProofState { currentPID = PID 1
 --
 -- Access these with "fromEnv"
 
--- TODO: group the sort and equivalence function together
--- (every sort has an equivalence function)
-
+-- | Information about an LLVM type implemented in Z3-land
 data Z3Type = Z3Type { sort :: !Sort
                      , equivFunc :: !FuncDecl }
 
+-- | A constructor function and more information about the type in Z3-land
 type Z3Constructor = (FuncDecl, Z3Type)
+
 
 data ProofEnv = ProofEnv
   { s_Int :: !Sort -- Z3 sort for Int
   , s_Bool :: !Sort -- Z3 sort for Bool
+
+  , c_Word32 :: !Z3Constructor
 
   -- Constructors, types for Type
   , c_VoidType    :: !Z3Constructor
@@ -324,16 +269,16 @@ initialEnv = do
   s_Int <- mkIntSort
   s_Bool <- mkBoolSort
 
+  -- FIXME: Want something like this for a "primitive" type
+  -- Want to use mkBvSort 32
+  [c_Word32] <- mkZ3Constructors s_Bool "Word32" [("Word32", [])]
+
   [c_VoidType, c_IntegerType] <-
-    mkZ3Constructors s_Bool "Type" [("voidType", [])
-                                   ,("integerType", [("nBits", Just s_Int)])]
+    mkZ3Constructors s_Bool
+      "Type" [("voidType", [])
+             ,("integerType", [("nBits", Just (sort $ snd c_Word32))])]
 
   return ProofEnv{..}
-
-
-
-
-
 
 ----------------------------------------------------------------------
 --
@@ -384,13 +329,19 @@ runProofEnvironment initialSt initializeEnv actions = do
                   initializeRun initializeEnv actions) initialSt)
       undefined
   return (result, st, l)
-  --  return result
+
+-- | Indicate a proof has failed; return Nothing in the Maybe monad
+proofFail :: ProofM a
+proofFail = ProofM $ MaybeT $ return Nothing
+
+
 
 -- | Return a field from the proof environment (ProofEnv)
 --
 -- e.g., bool <- fromEnv s_Bool
 fromEnv :: (ProofEnv -> a) -> ProofM a
 fromEnv selector = ProofM $ lift $ lift $ asks selector
+
 
 -- | Get the next PID in sequence and update the state
 getNextPID :: ProofM PID
@@ -400,9 +351,7 @@ getNextPID = do
   ProofM $ lift $ put $ s {currentPID = nextPID pid }
   return pid
 
--- | Indicate a proof has failed; return Nothing in the Maybe monad
-proofFail :: ProofM a
-proofFail = ProofM $ MaybeT $ return Nothing
+
 
 
 -- | Log a string message
@@ -425,9 +374,6 @@ logInference infPremises infConclusion infComment =
 
 class ProveEquiv a where
   proveEquiv :: a -> a -> ProofM Equiv
-
--- FIXME: prove equiv helper should take arguments for sort, equiv_fxn,
--- constructors, and list of premises, and IRule needs conclusion/variables
 
 proveEquivGeneral :: (ProofEnv -> Z3Constructor) -- | Get constructor info
                   -> [Equiv]                     -- | Proven-equivalent fields
@@ -465,43 +411,6 @@ proveEquivGeneral getCons fields = do
             proofFail
             
 {-
-proveEquivGeneral :: ProofM Equiv
-proveEquivGeneral x getXCons xFields y getYCons yFields getSort getEq premises = do
-
-  -- Create two fresh Type variables
-  sort <- getSort
-  z3x <- mkFreshConst "x" sort
-  z3y <- mkFreshConst "y" sort
-
-  -- Apply the equivalence function for "Type" to these variables
-  equiv <- getEq
-  conclusion <- mkApp equiv [z3x, z3y]
-
-  push
-
-  -- Set the two variable equal to the constructor functions
-  -- for these types
-  xCons <- getXCons
-  yCons <- getYCons
-  assert =<< mkEq z3x =<< mkApp xCons xFields
-  assert =<< mkEq z3y =<< mkApp yCons yFields
-
-  -- Assert the equivalence function is always false
-  assumePremises <- mkAnd premises
-  assert =<< mkNot =<< mkImplies assumePremises conclusion
-
-  s <- solverToString
-  res <- check
-  liftIO $ putStrLn $ unlines ["", s, show res]
-  pop 1
-
-  case res of
-    Unsat -> return $ Equiv z3x z3y conclusion
-    _     -> proofFail
-
--}
-
-{-
 instance ProveEquiv A.Global where
   proveEquiv f1@(A.Function{}) f2@(A.Function{}) = do
     return $ IRule [] (Equiv (Global f1) (Global f2)) (RuleID 1) "functions"
@@ -509,61 +418,19 @@ instance ProveEquiv A.Global where
   proveEquiv _ _ = proofFail
 -}
 
+instance ProveEquiv Word32 where
+  proveEquiv w1 w2 = do
+    unless (w1 == w2) proofFail
+    -- FIXME: need to convert w1 w2 into Z3 types and compare them
+    proveEquivGeneral c_Word32 []
 
 instance ProveEquiv A.Type where
   proveEquiv A.VoidType A.VoidType = do
     proveEquivGeneral c_VoidType []
 
-{-    
-    (cons, Z3Type{..}) <- fromEnv c_VoidType
-    
-    z3v1 <- mkFreshConst "x" sort
-    z3v2 <- mkFreshConst "y" sort
-
-    z3equiv <- mkApp equivFunc [z3v1, z3v2]
-
-    push
-    assert =<< mkEq z3v1 =<< mkApp cons []
-    assert =<< mkEq z3v2 =<< mkApp cons []
-
-    assert =<< mkNot z3equiv
-
-    smtlib <- solverToString
-    res <- check
-
-    equivID <- getNextPID
-
-    logSMTLIB smtlib
-      
-    case res of
-      Unsat -> do logInference [] (PropEquiv Equiv{..}) "VoidTypes"
-                  return Equiv{..}
-      _ -> do liftIO $ putStrLn $ unlines ["", smtlib, show res]
-              proofFail
--}    
-{-      
-  proveEquiv t1@(A.IntegerType a) t2@(A.IntegerType b) = do
-    equiv1 <- proveEquiv a b
-
-    irule <- proveEquiv a b
-    fields_eq <- getConclusion irule
-    (aZ3, bZ3) <- getVarsConclusion irule
-    let premises = [fields_eq]
-        xFields  = [aZ3]
-        yFields  = [bZ3]
-        getSort  = fromEnv s_Type
-        getEq    = fromEnv e_Type
-        getXCons = fromEnv c_IntegerType
-        getYCons = fromEnv c_IntegerType
-
-    equiv <- proveEquivGeneral -- FIXME: args here from above (391)
-
-    return equiv
--}
-    proofFail
-      
---    return $ IRule [irule] ((Equiv (Type t1) (Type t2)), concl) (RuleID 42) "void equal"
-
+  proveEquiv (A.IntegerType w1) (A.IntegerType w2) = do
+    w1w2equiv <- proveEquiv w1 w2
+    proveEquivGeneral c_IntegerType [w1w2equiv]
 
   proveEquiv _ _ = proofFail
 
@@ -692,6 +559,7 @@ main :: IO ()
 main = do
   (rule', _, proofLog') <- runProofEnvironment initialState initialEnv $ do
                               e <- proveEquiv A.VoidType A.VoidType
+                              _ <- proveEquiv (A.IntegerType 32) (A.IntegerType 32)
                               logString "Complete"
                               return e
 
@@ -744,6 +612,3 @@ main = do
   mapM_ print proofLog
 
 -}
-
--- Make all the "generate types" stuff dynamic so that each proof step
--- only brings in what it needs
