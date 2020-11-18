@@ -220,8 +220,8 @@ data LogEntry = LogString String
                              }
 
 instance Show LogEntry where
-  show (LogString s) = intercalate "\n" $ map (\s -> ";;; " ++ s) $ lines s
-  show (LogSMTLIB s) = "; SMTLIB starts\n" ++ s ++ "; SMTLIB ends"
+  show (LogString ss) = intercalate "\n" $ map (\s -> ";;; " ++ s) $ lines ss
+  show (LogSMTLIB s) = s
   show LogInference{..} = intercalate "\n" $ map (";; "++) $
         (map (indentCenter width) (premises' ++ [separator, conclusion'])) ++
          ["", "Proof. " ++ infComment ++ " QED"]
@@ -262,14 +262,15 @@ initialState = ProofState { currentPID = PID 1
 data Z3Type = Z3Type { sort :: !Sort
                      , equivFunc :: !FuncDecl }
 
+type Z3Constructor = (FuncDecl, Z3Type)
 
 data ProofEnv = ProofEnv
   { s_Int :: !Sort -- Z3 sort for Int
   , s_Bool :: !Sort -- Z3 sort for Bool
 
-  , z_Type :: !Z3Type       -- sort, equivalence function for Type
-  , c_VoidType :: !FuncDecl       -- Z3 constructor for VoidType
-  , c_IntegerType :: !FuncDecl    -- Z3 constructor for IntegerType
+  -- Constructors, types for Type
+  , c_VoidType    :: !Z3Constructor
+  , c_IntegerType :: !Z3Constructor
   }
 
 -- | Build an equivalence checking function for a given Z3 type
@@ -307,13 +308,14 @@ mkConstr name fields = do
   mkConstructor constName recognizer accessors
 
 
-mkZ3Type :: Sort -> String -> [(String, [(String, Maybe Sort)])]
-         -> ProofM (Z3Type, [FuncDecl])
-mkZ3Type bool name fields = do
+mkZ3Constructors :: Sort -> String -> [(String, [(String, Maybe Sort)])]
+         -> ProofM ([Z3Constructor])
+mkZ3Constructors bool name fields = do
   sort <- mkSort name fields
   equivFunc <- mkEquivFunc bool sort name
+  let z3Type = Z3Type{..}
   constructors <- getDatatypeSortConstructors sort
-  return $ (Z3Type{..}, constructors) 
+  return $ map (\c -> (c,z3Type)) constructors
 
 -- | Initialize Z3 types, etc. that will be made available during
 --   execution of the proof monad
@@ -322,9 +324,9 @@ initialEnv = do
   s_Int <- mkIntSort
   s_Bool <- mkBoolSort
 
-  (z_Type, [c_VoidType, c_IntegerType]) <-
-    mkZ3Type s_Bool "Type" [("voidType", [])
-                           ,("integerType", [("nBits", Just s_Int)])]
+  [c_VoidType, c_IntegerType] <-
+    mkZ3Constructors s_Bool "Type" [("voidType", [])
+                                   ,("integerType", [("nBits", Just s_Int)])]
 
   return ProofEnv{..}
 
@@ -427,7 +429,41 @@ class ProveEquiv a where
 -- FIXME: prove equiv helper should take arguments for sort, equiv_fxn,
 -- constructors, and list of premises, and IRule needs conclusion/variables
 
+proveEquivGeneral :: (ProofEnv -> Z3Constructor) -- | Get constructor info
+                  -> [Equiv]                     -- | Proven-equivalent fields
+                  -> ProofM Equiv
+proveEquivGeneral getCons fields = do
+  let v1fields = map z3v1 fields
+      v2fields = map z3v2 fields
+      premises = map z3equiv fields
+      premiseIDs = map equivID fields
+  
+  (consf, Z3Type{..}) <- fromEnv getCons
 
+  z3v1 <- mkFreshConst "x" sort
+  z3v2 <- mkFreshConst "y" sort
+  z3equiv <- mkApp equivFunc [z3v1, z3v2] -- the conclusion
+
+  push
+  assert =<< mkEq z3v1 =<< mkApp consf v1fields -- Build v1 from fields
+  assert =<< mkEq z3v2 =<< mkApp consf v2fields -- Build v2 from fields
+
+  assumePremises <- mkAnd premises -- Assume the premises are true
+  
+  assert =<< mkNot =<< mkImplies assumePremises z3equiv
+
+  smtlib <- solverToString
+  z3Result <- check         -- Run Z3 to verify this equivalence
+  pop 1
+
+  case z3Result of
+    Unsat -> do equivID <- getNextPID
+                logSMTLIB smtlib
+                logInference premiseIDs (PropEquiv Equiv{..}) "general"
+                return Equiv{..}
+    _ -> do liftIO $ putStrLn $ unlines [smtlib, show z3Result]
+            proofFail
+            
 {-
 proveEquivGeneral :: ProofM Equiv
 proveEquivGeneral x getXCons xFields y getYCons yFields getSort getEq premises = do
@@ -475,9 +511,11 @@ instance ProveEquiv A.Global where
 
 
 instance ProveEquiv A.Type where
-  proveEquiv t1@A.VoidType t2@A.VoidType = do
+  proveEquiv A.VoidType A.VoidType = do
+    proveEquivGeneral c_VoidType []
 
-    Z3Type{..} <- fromEnv z_Type
+{-    
+    (cons, Z3Type{..}) <- fromEnv c_VoidType
     
     z3v1 <- mkFreshConst "x" sort
     z3v2 <- mkFreshConst "y" sort
@@ -485,7 +523,6 @@ instance ProveEquiv A.Type where
     z3equiv <- mkApp equivFunc [z3v1, z3v2]
 
     push
-    cons <- fromEnv c_VoidType
     assert =<< mkEq z3v1 =<< mkApp cons []
     assert =<< mkEq z3v2 =<< mkApp cons []
 
@@ -503,11 +540,11 @@ instance ProveEquiv A.Type where
                   return Equiv{..}
       _ -> do liftIO $ putStrLn $ unlines ["", smtlib, show res]
               proofFail
-    
-  
+-}    
+{-      
   proveEquiv t1@(A.IntegerType a) t2@(A.IntegerType b) = do
+    equiv1 <- proveEquiv a b
 
-{-    
     irule <- proveEquiv a b
     fields_eq <- getConclusion irule
     (aZ3, bZ3) <- getVarsConclusion irule
