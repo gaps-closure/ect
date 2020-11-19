@@ -143,7 +143,7 @@ data Prop = PropEquiv !Equiv
 instance Show Prop where
   show (PropEquiv e) = show $ equivID e
   show (PropBBISO i) = show $ bbisoID i
-          
+
 ----------------------------------------------------------------------
 --
 -- Proof logging
@@ -209,9 +209,8 @@ type Z3Constructor = (FuncDecl, Z3Type)
 
 data ProofEnv = ProofEnv
   { s_Int :: !Sort -- Z3 sort for Int
+  , s_Bv32 :: !Sort -- Z3 sort for 32-bit vector
   , s_Bool :: !Sort -- Z3 sort for Bool
-
-  , c_Word32 :: !Z3Constructor
 
   -- Constructors, types for Type
   , c_VoidType    :: !Z3Constructor
@@ -267,16 +266,13 @@ mkZ3Constructors bool name fields = do
 initialEnv :: ProofM ProofEnv
 initialEnv = do
   s_Int <- mkIntSort
+  s_Bv32 <- mkBvSort 32
   s_Bool <- mkBoolSort
-
-  -- FIXME: Want something like this for a "primitive" type
-  -- Want to use mkBvSort 32
-  [c_Word32] <- mkZ3Constructors s_Bool "Word32" [("Word32", [])]
 
   [c_VoidType, c_IntegerType] <-
     mkZ3Constructors s_Bool
       "Type" [("voidType", [])
-             ,("integerType", [("nBits", Just (sort $ snd c_Word32))])]
+             ,("integerType", [("nBits", Just s_Bv32)])]
 
   return ProofEnv{..}
 
@@ -312,11 +308,11 @@ initializeRun initialization actions = do
   env' <- initialization
   state <- ProofM $ lift get
   ProofM $ lift $ lift $ lift $ tell $ [LogString "initialization complete"]
-  ProofM $ lift $ lift $ 
-            runWriterT $ lift $ 
+  ProofM $ lift $ lift $
+            runWriterT $ lift $
             withReaderT (\_ -> env') $
             evalStateT (runMaybeT $ runProofM actions) state
-  
+
 
 -- | In the proof environment, run the intitialization code to set
 -- up a ProofEnv, then run the given actions with that environment
@@ -383,7 +379,7 @@ proveEquivGeneral getCons fields = do
       v2fields = map z3v2 fields
       premises = map z3equiv fields
       premiseIDs = map equivID fields
-  
+
   (consf, Z3Type{..}) <- fromEnv getCons
 
   z3v1 <- mkFreshConst "x" sort
@@ -395,7 +391,7 @@ proveEquivGeneral getCons fields = do
   assert =<< mkEq z3v2 =<< mkApp consf v2fields -- Build v2 from fields
 
   assumePremises <- mkAnd premises -- Assume the premises are true
-  
+
   assert =<< mkNot =<< mkImplies assumePremises z3equiv
 
   smtlib <- solverToString
@@ -409,7 +405,7 @@ proveEquivGeneral getCons fields = do
                 return Equiv{..}
     _ -> do liftIO $ putStrLn $ unlines [smtlib, show z3Result]
             proofFail
-            
+
 {-
 instance ProveEquiv A.Global where
   proveEquiv f1@(A.Function{}) f2@(A.Function{}) = do
@@ -420,9 +416,28 @@ instance ProveEquiv A.Global where
 
 instance ProveEquiv Word32 where
   proveEquiv w1 w2 = do
-    unless (w1 == w2) proofFail
-    -- FIXME: need to convert w1 w2 into Z3 types and compare them
-    proveEquivGeneral c_Word32 []
+
+    sort <- fromEnv s_Bv32
+    z3v1 <- mkFreshConst "x" sort
+    z3v2 <- mkFreshConst "y" sort
+    z3equiv <- mkEq z3v1 z3v2 -- the conclusion
+
+    push
+    assert =<< mkEq z3v1 =<< mkBitvector 32 (toInteger w1) -- Build v1 from fields
+    assert =<< mkEq z3v2 =<< mkBitvector 32 (toInteger w2) -- Build v2 from fields
+    assert =<< mkNot z3equiv
+
+    smtlib <- solverToString
+    z3Result <- check         -- Run Z3 to verify this equivalence
+    pop 1
+
+    case z3Result of
+      Unsat -> do equivID <- getNextPID
+                  logSMTLIB smtlib
+                  logInference [] (PropEquiv Equiv{..}) "word32"
+                  return Equiv{..}
+      _ -> do liftIO $ putStrLn $ unlines [smtlib, show z3Result]
+              proofFail
 
 instance ProveEquiv A.Type where
   proveEquiv A.VoidType A.VoidType = do
