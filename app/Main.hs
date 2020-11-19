@@ -126,6 +126,11 @@ nextPID (PID i) = PID $ succ i
 instance Show PID where
    show (PID i) = "p" ++ show i
 
+mkPropConst :: PID -> String -> Sort -> ProofM AST
+mkPropConst (PID n) str sort = do
+  sym <- mkStringSymbol $ 'p' : show n ++ str
+  mkConst sym sort
+
 -- | An equivalence proposition: a verification of the equivalence of
 --   two LLVM AST objects that has been checked by Z3
 data Equiv = Equiv { z3equiv :: !AST -- | asserts two variables are equivalent
@@ -206,7 +211,7 @@ data Z3Type = Z3Type { sort :: !Sort
                      , equivFunc :: !FuncDecl }
 
 -- | A constructor function and more information about the type in Z3-land
-type Z3Constructor = (FuncDecl, Z3Type)
+type Z3Constructor = (FuncDecl, String, Z3Type)
 
 
 data ProofEnv = ProofEnv
@@ -261,7 +266,7 @@ mkZ3Constructors bool name fields = do
   equivFunc <- mkEquivFunc bool sort name
   let z3Type = Z3Type{..}
   constructors <- getDatatypeSortConstructors sort
-  return $ map (\c -> (c,z3Type)) constructors
+  return $ zipWith3 (,,) constructors (map fst fields) (repeat z3Type)
 
 -- | Initialize Z3 types, etc. that will be made available during
 --   execution of the proof monad
@@ -400,13 +405,17 @@ proveEquivGeneral getCons fields comment = do
       premises = map z3equiv fields
       premiseIDs = map equivID fields
 
-  (consf, Z3Type{..}) <- fromEnv getCons
+  (consf, cname, Z3Type{..}) <- fromEnv getCons
+
+  logString $
+    "Verifying " ++ cname ++ " " ++ intercalate " " (map show premiseIDs)
 
   -- Assemble the fields for the Equiv
-  z3v1 <- mkFreshConst "x" sort
-  z3v2 <- mkFreshConst "y" sort
-  z3equiv <- mkApp equivFunc [z3v1, z3v2] -- the conclusion
   equivID <- getNextPID
+  z3v1 <- mkPropConst equivID "x" sort
+  z3v2 <- mkPropConst equivID "y" sort
+  z3equiv <- mkApp equivFunc [z3v1, z3v2] -- the conclusion
+
 
   push
   assert =<< mkEq z3v1 =<< mkApp consf v1fields -- Build v1 from fields
@@ -420,12 +429,16 @@ proveEquivGeneral getCons fields comment = do
 instance ProveEquiv Word32 where
   proveEquiv w1 w2 = do
     unless (w1 == w2) proofFail
+
+    logString $ "Verifying Word32 " ++ show w1 ++ " == " ++ show w2
+
     sort <- fromEnv s_Bv32
 
-    z3v1 <- mkFreshConst "x" sort
-    z3v2 <- mkFreshConst "y" sort
-    z3equiv <- mkEq z3v1 z3v2 -- the conclusion
     equivID <- getNextPID
+    z3v1 <- mkPropConst equivID "x" sort
+    z3v2 <- mkPropConst equivID "y" sort
+    z3equiv <- mkEq z3v1 z3v2 -- the conclusion
+
 
     push
     assert =<< mkEq z3v1 =<< mkBitvector 32 (toInteger w1) -- Build v1 from fields
