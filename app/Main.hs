@@ -15,7 +15,7 @@ import System.Exit( exitSuccess, exitFailure )
 import qualified Data.Traversable as T
 import Data.Maybe
 import Data.ByteString.UTF8 (fromString,toString)
-import Data.ByteString.Short (ShortByteString, toShort,fromShort)
+import Data.ByteString.Short (toShort,fromShort) -- ShortByteString
 --import Data.Maybe (mapMaybe)
 import Data.List (intercalate)
 import Data.Word ( Word32 )
@@ -23,7 +23,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
 
-import Control.Monad ( when, unless, liftM )
+import Control.Monad ( unless, liftM ) -- when
 import Control.Monad.IO.Class ( MonadIO, liftIO )
 import Control.Monad.Trans.Writer.CPS ( WriterT, runWriterT, tell )
 import Control.Monad.Trans.State.Strict ( StateT(..), runStateT, evalStateT,
@@ -38,13 +38,13 @@ import LLVM.Context (withContext)
 import qualified LLVM.Module as M
 import qualified LLVM.AST as A
 import qualified LLVM.AST.Global as A
-import qualified LLVM.AST.Linkage as A
-import qualified LLVM.AST.DLL as A
-import qualified LLVM.AST.CallingConvention as A
-import qualified LLVM.AST.FunctionAttribute as A
-import qualified LLVM.AST.ParameterAttribute as A
-import qualified LLVM.AST.IntegerPredicate as A
-import qualified LLVM.AST.Constant as C
+--import qualified LLVM.AST.Linkage as A
+--import qualified LLVM.AST.DLL as A
+--import qualified LLVM.AST.CallingConvention as A
+--import qualified LLVM.AST.FunctionAttribute as A
+--import qualified LLVM.AST.ParameterAttribute as A
+--import qualified LLVM.AST.IntegerPredicate as A
+--import qualified LLVM.AST.Constant as C
 
 
 
@@ -52,6 +52,7 @@ import Z3.Monad
 
 ----------------------------------------------------------------------
 
+{-
 -- | All the LLVMobject types we will consider
 data LLVMObj = Global A.Global
              | Linkage A.Linkage
@@ -110,6 +111,7 @@ instance Show LLVMObj where
   show (LWord32 w) = show w
   show (LSBS s) = show s
   show (LList _) = "List"
+-}
 
 ----------------------------------------------------------------------
 --
@@ -128,7 +130,7 @@ instance Show PID where
 --   two LLVM AST objects that has been checked by Z3
 data Equiv = Equiv { z3equiv :: !AST -- | asserts two variables are equivalent
                    , z3v1 :: !AST    -- | Variable representing the first object
-                   , z3v2 :: !AST    -- | Variable representing the second object
+                   , z3v2 :: !AST    -- |     "          "      second object
                    , equivID :: !PID -- | Name of this equivalence
                    }
 
@@ -271,8 +273,8 @@ initialEnv = do
 
   [c_VoidType, c_IntegerType] <-
     mkZ3Constructors s_Bool
-      "Type" [("voidType", [])
-             ,("integerType", [("nBits", Just s_Bv32)])]
+      "Type" [("VoidType", [])
+             ,("IntegerType", [("nBits", Just s_Bv32)])]
 
   return ProofEnv{..}
 
@@ -371,10 +373,28 @@ logInference infPremises infConclusion infComment =
 class ProveEquiv a where
   proveEquiv :: a -> a -> ProofM Equiv
 
+-- | Run Z3 to check the current assertions and return an equivance it was
+--   successful
+proveZ3Equiv :: [PID] -> Equiv -> String -> ProofM Equiv
+proveZ3Equiv premiseIDs equiv comment = do 
+    smtlib <- solverToString  -- Capture the Z3 state
+    z3Result <- check         -- Run Z3 to verify this equivalence
+    pop 1
+
+    case z3Result of
+      Unsat -> do logSMTLIB smtlib
+                  logInference premiseIDs (PropEquiv equiv) comment
+                  return equiv
+      _ -> do liftIO $ putStrLn $ unlines [smtlib, show z3Result]
+              proofFail
+
+-- | Verify that if the fields of the given data constructor are equivalent
+--   then the objects are equivalent
 proveEquivGeneral :: (ProofEnv -> Z3Constructor) -- | Get constructor info
                   -> [Equiv]                     -- | Proven-equivalent fields
+                  -> String                      -- | Comment for inference
                   -> ProofM Equiv
-proveEquivGeneral getCons fields = do
+proveEquivGeneral getCons fields comment = do
   let v1fields = map z3v1 fields
       v2fields = map z3v2 fields
       premises = map z3equiv fields
@@ -382,70 +402,45 @@ proveEquivGeneral getCons fields = do
 
   (consf, Z3Type{..}) <- fromEnv getCons
 
+  -- Assemble the fields for the Equiv
   z3v1 <- mkFreshConst "x" sort
   z3v2 <- mkFreshConst "y" sort
   z3equiv <- mkApp equivFunc [z3v1, z3v2] -- the conclusion
+  equivID <- getNextPID
 
   push
   assert =<< mkEq z3v1 =<< mkApp consf v1fields -- Build v1 from fields
   assert =<< mkEq z3v2 =<< mkApp consf v2fields -- Build v2 from fields
 
   assumePremises <- mkAnd premises -- Assume the premises are true
-
   assert =<< mkNot =<< mkImplies assumePremises z3equiv
 
-  smtlib <- solverToString
-  z3Result <- check         -- Run Z3 to verify this equivalence
-  pop 1
-
-  case z3Result of
-    Unsat -> do equivID <- getNextPID
-                logSMTLIB smtlib
-                logInference premiseIDs (PropEquiv Equiv{..}) "general"
-                return Equiv{..}
-    _ -> do liftIO $ putStrLn $ unlines [smtlib, show z3Result]
-            proofFail
-
-{-
-instance ProveEquiv A.Global where
-  proveEquiv f1@(A.Function{}) f2@(A.Function{}) = do
-    return $ IRule [] (Equiv (Global f1) (Global f2)) (RuleID 1) "functions"
-
-  proveEquiv _ _ = proofFail
--}
+  proveZ3Equiv premiseIDs Equiv{..} comment
 
 instance ProveEquiv Word32 where
   proveEquiv w1 w2 = do
-
+    unless (w1 == w2) proofFail
     sort <- fromEnv s_Bv32
+
     z3v1 <- mkFreshConst "x" sort
     z3v2 <- mkFreshConst "y" sort
     z3equiv <- mkEq z3v1 z3v2 -- the conclusion
+    equivID <- getNextPID
 
     push
     assert =<< mkEq z3v1 =<< mkBitvector 32 (toInteger w1) -- Build v1 from fields
     assert =<< mkEq z3v2 =<< mkBitvector 32 (toInteger w2) -- Build v2 from fields
     assert =<< mkNot z3equiv
 
-    smtlib <- solverToString
-    z3Result <- check         -- Run Z3 to verify this equivalence
-    pop 1
-
-    case z3Result of
-      Unsat -> do equivID <- getNextPID
-                  logSMTLIB smtlib
-                  logInference [] (PropEquiv Equiv{..}) "word32"
-                  return Equiv{..}
-      _ -> do liftIO $ putStrLn $ unlines [smtlib, show z3Result]
-              proofFail
+    proveZ3Equiv [] Equiv{..} "Word32 equivalent"
 
 instance ProveEquiv A.Type where
   proveEquiv A.VoidType A.VoidType = do
-    proveEquivGeneral c_VoidType []
+    proveEquivGeneral c_VoidType [] "Type Void equivalent"
 
   proveEquiv (A.IntegerType w1) (A.IntegerType w2) = do
     w1w2equiv <- proveEquiv w1 w2
-    proveEquivGeneral c_IntegerType [w1w2equiv]
+    proveEquivGeneral c_IntegerType [w1w2equiv] "Type IntegerType equivalent"
 
   proveEquiv _ _ = proofFail
 
