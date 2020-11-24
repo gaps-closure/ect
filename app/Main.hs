@@ -40,7 +40,8 @@ import qualified LLVM.AST as A
 import qualified LLVM.AST.Global as A
 import qualified LLVM.AST.Visibility as A
 import qualified LLVM.AST.Linkage as A
---import qualified LLVM.AST.DLL as A
+--import qualified LLVM.AST.StorageClass as A
+import qualified LLVM.AST.DLL as A
 --import qualified LLVM.AST.CallingConvention as A
 --import qualified LLVM.AST.FunctionAttribute as A
 --import qualified LLVM.AST.ParameterAttribute as A
@@ -229,6 +230,10 @@ data ProofEnv = ProofEnv
   , c_V_Hidden    :: !Z3Constructor
   , c_V_Protected :: !Z3Constructor
 
+  -- Constructors, types for StorageClass
+  , c_S_Import :: !Z3Constructor
+  , c_S_Export :: !Z3Constructor
+
   -- Constructors, types for Linkage
   , c_L_Private             :: !Z3Constructor
   , c_L_Internal            :: !Z3Constructor
@@ -307,6 +312,12 @@ initialEnv = do
                    , ("V_Hidden", [])
                    , ("V_Protected", [])
                    ]
+
+  [ c_S_Import, c_S_Export ] <-
+    mkZ3Constructors s_Bool
+      "StorageClass" [ ("S_Import", [])
+                     , ("S_Export", [])
+                     ]
 
   [ c_L_Private, c_L_Internal, c_L_AvailableExternally, c_L_LinkOnce, c_L_Weak,
     c_L_Common, c_L_Appending, c_L_ExternWeak, c_L_LinkOnceODR, c_L_WeakODR,
@@ -470,6 +481,10 @@ proveEquivGeneral getCons fields comment = do
 
   proveZ3Equiv premiseIDs Equiv{..} comment
 
+instance (ProveEquiv a) => ProveEquiv (Maybe a) where
+  proveEquiv (Just a) (Just b) = proveEquiv a b
+  proveEquiv _ _               = proofFail
+
 instance ProveEquiv Word32 where
   proveEquiv w1 w2 = do
     unless (w1 == w2) proofFail
@@ -499,6 +514,14 @@ instance ProveEquiv A.Visibility where
       (A.Protected, A.Protected) -> prf c_V_Protected "Protected"
       (_, _)                     -> proofFail
       where prf c s = proveEquivGeneral c [] (s ++ " visibility equivalent")
+
+instance ProveEquiv A.StorageClass where
+  proveEquiv a b = do
+    case (a, b) of
+      (A.Import, A.Import) -> prf c_S_Import "Import"
+      (A.Export, A.Export) -> prf c_S_Export "Export"
+      (_, _)               -> proofFail
+      where prf c s = proveEquivGeneral c [] (s ++ " storage class equivalent")
 
 instance ProveEquiv A.Linkage where
   proveEquiv a b = do
@@ -655,6 +678,7 @@ main = do
                               _ <- proveEquiv (A.IntegerType 32) (A.IntegerType 32)
                               _ <- proveEquiv (A.Default) (A.Default)
                               _ <- proveEquiv (A.LinkOnce) (A.LinkOnce)
+                              _ <- proveEquiv (Just A.Import) (Just A.Import)
                               logString "Complete"
                               return e
 
