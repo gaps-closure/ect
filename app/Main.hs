@@ -481,30 +481,46 @@ proveEquivGeneral getCons fields comment = do
 
   proveZ3Equiv premiseIDs Equiv{..} comment
 
+proveEquivPrimitive :: (ProveEquiv a, Eq a, Show a)
+                    => (ProofEnv -> Sort)          -- | Get z3 sort
+                    -> (a -> ProofM AST)           -- | build value in z3
+                    -> String                      -- | LLVM name of the datatype
+                    -> a                           -- primitive object 1
+                    -> a                           -- primitive object 2
+                    -> ProofM Equiv
+proveEquivPrimitive getSort toSort name x y = do
+  unless (x == y) proofFail
+
+  logString $ "Verifying " ++ name ++ " " ++ show x ++ " == " ++ show y
+
+  sort <- fromEnv getSort
+
+  equivID <- getNextPID
+  z3v1 <- mkPropConst equivID "x" sort
+  z3v2 <- mkPropConst equivID "y" sort
+  z3equiv <- mkEq z3v1 z3v2 -- the conclusion
+
+  push
+  assert =<< mkEq z3v1 =<< toSort x --mkBitvector 32 (toInteger x) -- Build v1 from fields
+  assert =<< mkEq z3v2 =<< toSort y --mkBitvector 32 (toInteger y) -- Build v2 from fields
+  assert =<< mkNot z3equiv
+
+  proveZ3Equiv [] Equiv{..} (name ++ " equivalent")
+
 instance (ProveEquiv a) => ProveEquiv (Maybe a) where
   proveEquiv (Just a) (Just b) = proveEquiv a b
+  -- proveEquiv Nothing Nothing   = trivialTrue "Nothing == Nothing" FIXME: trivialTrue should run an always-true z3 check
   proveEquiv _ _               = proofFail
 
+-- FIXME
+-- instance (ProveEquiv a) => ProveEquiv [a] where
+--   proveEquiv a b = T.sequence $ zipWith proveEquiv a b
+
+instance ProveEquiv Bool where
+  proveEquiv = proveEquivPrimitive s_Bool mkBool "Bool"
+
 instance ProveEquiv Word32 where
-  proveEquiv w1 w2 = do
-    unless (w1 == w2) proofFail
-
-    logString $ "Verifying Word32 " ++ show w1 ++ " == " ++ show w2
-
-    sort <- fromEnv s_Bv32
-
-    equivID <- getNextPID
-    z3v1 <- mkPropConst equivID "x" sort
-    z3v2 <- mkPropConst equivID "y" sort
-    z3equiv <- mkEq z3v1 z3v2 -- the conclusion
-
-
-    push
-    assert =<< mkEq z3v1 =<< mkBitvector 32 (toInteger w1) -- Build v1 from fields
-    assert =<< mkEq z3v2 =<< mkBitvector 32 (toInteger w2) -- Build v2 from fields
-    assert =<< mkNot z3equiv
-
-    proveZ3Equiv [] Equiv{..} "Word32 equivalent"
+  proveEquiv = proveEquivPrimitive s_Bv32 (\x -> mkBitvector 32 (toInteger x)) "Word32"
 
 instance ProveEquiv A.Visibility where
   proveEquiv a b = do
@@ -679,6 +695,7 @@ main = do
                               _ <- proveEquiv (A.Default) (A.Default)
                               _ <- proveEquiv (A.LinkOnce) (A.LinkOnce)
                               _ <- proveEquiv (Just A.Import) (Just A.Import)
+                              _ <- proveEquiv True True
                               logString "Complete"
                               return e
 
