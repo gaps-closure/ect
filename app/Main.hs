@@ -38,7 +38,8 @@ import LLVM.Context (withContext)
 import qualified LLVM.Module as M
 import qualified LLVM.AST as A
 import qualified LLVM.AST.Global as A
---import qualified LLVM.AST.Linkage as A
+import qualified LLVM.AST.Visibility as A
+import qualified LLVM.AST.Linkage as A
 --import qualified LLVM.AST.DLL as A
 --import qualified LLVM.AST.CallingConvention as A
 --import qualified LLVM.AST.FunctionAttribute as A
@@ -220,8 +221,26 @@ data ProofEnv = ProofEnv
   , s_Bool :: !Sort -- Z3 sort for Bool
 
   -- Constructors, types for Type
-  , c_VoidType    :: !Z3Constructor
-  , c_IntegerType :: !Z3Constructor
+  , c_T_VoidType    :: !Z3Constructor
+  , c_T_IntegerType :: !Z3Constructor
+
+  -- Constructors, types for Visibility
+  , c_V_Default   :: !Z3Constructor
+  , c_V_Hidden    :: !Z3Constructor
+  , c_V_Protected :: !Z3Constructor
+
+  -- Constructors, types for Linkage
+  , c_L_Private             :: !Z3Constructor
+  , c_L_Internal            :: !Z3Constructor
+  , c_L_AvailableExternally :: !Z3Constructor
+  , c_L_LinkOnce            :: !Z3Constructor
+  , c_L_Weak                :: !Z3Constructor
+  , c_L_Common              :: !Z3Constructor
+  , c_L_Appending           :: !Z3Constructor
+  , c_L_ExternWeak          :: !Z3Constructor
+  , c_L_LinkOnceODR         :: !Z3Constructor
+  , c_L_WeakODR             :: !Z3Constructor
+  , c_L_External            :: !Z3Constructor
   }
 
 -- | Build an equivalence checking function for a given Z3 type
@@ -276,10 +295,35 @@ initialEnv = do
   s_Bv32 <- mkBvSort 32
   s_Bool <- mkBoolSort
 
-  [c_VoidType, c_IntegerType] <-
+  [ c_T_VoidType, c_T_IntegerType ] <-
     mkZ3Constructors s_Bool
-      "Type" [("VoidType", [])
-             ,("IntegerType", [("nBits", Just s_Bv32)])]
+      "Type" [ ("T_VoidType", [])
+             , ("T_IntegerType", [("nBits", Just s_Bv32)])
+             ]
+
+  [ c_V_Default, c_V_Hidden, c_V_Protected ] <-
+    mkZ3Constructors s_Bool
+      "Visibility" [ ("V_Default", [])
+                   , ("V_Hidden", [])
+                   , ("V_Protected", [])
+                   ]
+
+  [ c_L_Private, c_L_Internal, c_L_AvailableExternally, c_L_LinkOnce, c_L_Weak,
+    c_L_Common, c_L_Appending, c_L_ExternWeak, c_L_LinkOnceODR, c_L_WeakODR,
+    c_L_External ] <-
+    mkZ3Constructors s_Bool
+      "Linkage" [ ("L_Private", [])
+                , ("L_Internal", [])
+                , ("L_AvailableExternally", [])
+                , ("L_LinkOnce", [])
+                , ("L_Weak", [])
+                , ("L_Common", [])
+                , ("L_Appending", [])
+                , ("L_ExternWeak", [])
+                , ("L_LinkOnceODR", [])
+                , ("L_WeakODR", [])
+                , ("L_External", [])
+                ]
 
   return ProofEnv{..}
 
@@ -381,7 +425,7 @@ class ProveEquiv a where
 -- | Run Z3 to check the current assertions and return an equivance it was
 --   successful
 proveZ3Equiv :: [PID] -> Equiv -> String -> ProofM Equiv
-proveZ3Equiv premiseIDs equiv comment = do 
+proveZ3Equiv premiseIDs equiv comment = do
     smtlib <- solverToString  -- Capture the Z3 state
     z3Result <- check         -- Run Z3 to verify this equivalence
     pop 1
@@ -447,13 +491,39 @@ instance ProveEquiv Word32 where
 
     proveZ3Equiv [] Equiv{..} "Word32 equivalent"
 
+instance ProveEquiv A.Visibility where
+  proveEquiv a b = do
+    case (a, b) of
+      (A.Default, A.Default)     -> prf c_V_Default "Default"
+      (A.Hidden, A.Hidden)       -> prf c_V_Hidden "Hidden"
+      (A.Protected, A.Protected) -> prf c_V_Protected "Protected"
+      (_, _)                     -> proofFail
+      where prf c s = proveEquivGeneral c [] (s ++ " visibility equivalent")
+
+instance ProveEquiv A.Linkage where
+  proveEquiv a b = do
+    case (a, b) of
+      (A.AvailableExternally, A.AvailableExternally) -> prf c_L_AvailableExternally "AvailableExternally"
+      (A.Private, A.Private)         -> prf c_L_Private "Private"
+      (A.Internal, A.Internal)       -> prf c_L_Internal "Internal"
+      (A.LinkOnce, A.LinkOnce)       -> prf c_L_LinkOnce "LinkOnce"
+      (A.Weak, A.Weak)               -> prf c_L_Weak "Weak"
+      (A.Common, A.Common)           -> prf c_L_Common "Common"
+      (A.Appending, A.Appending)     -> prf c_L_Appending "Appending"
+      (A.ExternWeak, A.ExternWeak)   -> prf c_L_ExternWeak "ExternWeak"
+      (A.LinkOnceODR, A.LinkOnceODR) -> prf c_L_LinkOnceODR "LinkOnceODR"
+      (A.WeakODR, A.WeakODR)         -> prf c_L_WeakODR "WeakODR"
+      (A.External, A.External)       -> prf c_L_External "External"
+      (_, _)                         -> proofFail
+      where prf c s = proveEquivGeneral c [] (s ++ " linkage equivalent")
+
 instance ProveEquiv A.Type where
   proveEquiv A.VoidType A.VoidType = do
-    proveEquivGeneral c_VoidType [] "Type Void equivalent"
+    proveEquivGeneral c_T_VoidType [] "Type Void equivalent"
 
   proveEquiv (A.IntegerType w1) (A.IntegerType w2) = do
     w1w2equiv <- proveEquiv w1 w2
-    proveEquivGeneral c_IntegerType [w1w2equiv] "Type IntegerType equivalent"
+    proveEquivGeneral c_T_IntegerType [w1w2equiv] "Type IntegerType equivalent"
 
   proveEquiv _ _ = proofFail
 
@@ -583,6 +653,8 @@ main = do
   (rule', _, proofLog') <- runProofEnvironment initialState initialEnv $ do
                               e <- proveEquiv A.VoidType A.VoidType
                               _ <- proveEquiv (A.IntegerType 32) (A.IntegerType 32)
+                              _ <- proveEquiv (A.Default) (A.Default)
+                              _ <- proveEquiv (A.LinkOnce) (A.LinkOnce)
                               logString "Complete"
                               return e
 
