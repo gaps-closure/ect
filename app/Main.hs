@@ -3,6 +3,13 @@
 
 -- LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack ghci
 
+{-
+
+stack run -- examples/example1/example1-refactored-9.ll examples/example1/example1-orange-9.ll examples/example1/example1-purple-9.ll
+
+
+-}
+
 
 module Main where
 
@@ -23,7 +30,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
 
-import Control.Monad ( unless, liftM ) -- when
+import Control.Monad ( unless, liftM, when )
 import Control.Monad.IO.Class ( MonadIO, liftIO )
 import Control.Monad.Trans.Writer.CPS ( WriterT, runWriterT, tell )
 import Control.Monad.Trans.State.Strict ( StateT(..), runStateT, evalStateT,
@@ -246,6 +253,9 @@ data ProofEnv = ProofEnv
   , c_L_LinkOnceODR         :: !Z3Constructor
   , c_L_WeakODR             :: !Z3Constructor
   , c_L_External            :: !Z3Constructor
+
+  -- Globals
+  , c_G_Function            :: !Z3Constructor
   }
 
 -- | Build an equivalence checking function for a given Z3 type
@@ -284,13 +294,13 @@ mkConstr name fields = do
 
 
 mkZ3Constructors :: Sort -> String -> [(String, [(String, Maybe Sort)])]
-         -> ProofM ([Z3Constructor])
+         -> ProofM (Sort, [Z3Constructor])
 mkZ3Constructors bool name fields = do
   sort <- mkSort name fields
   equivFunc <- mkEquivFunc bool sort name
   let z3Type = Z3Type{..}
   constructors <- getDatatypeSortConstructors sort
-  return $ zipWith3 (,,) constructors (map fst fields) (repeat z3Type)
+  return $ (sort, zipWith3 (,,) constructors (map fst fields) (repeat z3Type))
 
 -- | Initialize Z3 types, etc. that will be made available during
 --   execution of the proof monad
@@ -300,28 +310,29 @@ initialEnv = do
   s_Bv32 <- mkBvSort 32
   s_Bool <- mkBoolSort
 
-  [ c_T_VoidType, c_T_IntegerType ] <-
+  (_, [ c_T_VoidType, c_T_IntegerType ]) <-
     mkZ3Constructors s_Bool
       "Type" [ ("T_VoidType", [])
              , ("T_IntegerType", [("nBits", Just s_Bv32)])
              ]
 
-  [ c_V_Default, c_V_Hidden, c_V_Protected ] <-
+  (s_Visibility, [ c_V_Default, c_V_Hidden, c_V_Protected ]) <-
     mkZ3Constructors s_Bool
       "Visibility" [ ("V_Default", [])
                    , ("V_Hidden", [])
                    , ("V_Protected", [])
                    ]
 
-  [ c_S_Import, c_S_Export ] <-
+  (s_StorageClass, [ c_S_Import, c_S_Export ]) <-
     mkZ3Constructors s_Bool
       "StorageClass" [ ("S_Import", [])
                      , ("S_Export", [])
                      ]
 
-  [ c_L_Private, c_L_Internal, c_L_AvailableExternally, c_L_LinkOnce, c_L_Weak,
-    c_L_Common, c_L_Appending, c_L_ExternWeak, c_L_LinkOnceODR, c_L_WeakODR,
-    c_L_External ] <-
+  (s_Linkage, [ c_L_Private, c_L_Internal, c_L_AvailableExternally
+              , c_L_LinkOnce, c_L_Weak, c_L_Common, c_L_Appending
+              , c_L_ExternWeak, c_L_LinkOnceODR, c_L_WeakODR
+              , c_L_External ]) <-
     mkZ3Constructors s_Bool
       "Linkage" [ ("L_Private", [])
                 , ("L_Internal", [])
@@ -335,6 +346,14 @@ initialEnv = do
                 , ("L_WeakODR", [])
                 , ("L_External", [])
                 ]
+
+  (_, [ c_G_Function ]) <-
+    mkZ3Constructors s_Bool
+    "Function" [ ("G_Function", [("linkage", Just s_Linkage)
+                                ,("visibility", Just s_Visibility)
+                                ,("dllStorageClass", Just s_StorageClass)
+                                ])
+               ]
 
   return ProofEnv{..}
 
@@ -389,8 +408,10 @@ runProofEnvironment initialSt initializeEnv actions = do
   return (result, st, l)
 
 -- | Indicate a proof has failed; return Nothing in the Maybe monad
-proofFail :: ProofM a
-proofFail = ProofM $ MaybeT $ return Nothing
+proofFail :: String -> ProofM a
+proofFail s = do
+  logString $ " **** proofFail: " ++ s
+  ProofM $ MaybeT $ return Nothing
 
 
 
@@ -427,7 +448,7 @@ logInference infPremises infConclusion infComment =
 
 ----------------------------------------------------------------------
 --
--- The ProveEquiv class, for proving the equivalence of various LLVM objects
+-- The ProveEquiv class, for proving the equivalence of pairs of LLVM objects
 --
 
 class ProveEquiv a where
@@ -446,7 +467,7 @@ proveZ3Equiv premiseIDs equiv comment = do
                   logInference premiseIDs (PropEquiv equiv) comment
                   return equiv
       _ -> do liftIO $ putStrLn $ unlines [smtlib, show z3Result]
-              proofFail
+              proofFail "Z3 returned Satisfiable"
 
 -- | Verify that if the fields of the given data constructor are equivalent
 --   then the objects are equivalent
@@ -488,12 +509,13 @@ proveEquivPrimitive :: (ProveEquiv a, Eq a, Show a)
                     -> a                           -- primitive object 1
                     -> a                           -- primitive object 2
                     -> ProofM Equiv
-proveEquivPrimitive getSort toSort name x y = do
-  unless (x == y) proofFail
+proveEquivPrimitive getEnvSort toSort name x y = do
+  unless (x == y) $ proofFail $
+    "Primitives " ++ show x ++ " and " ++ show y ++ " not equivalent"
 
   logString $ "Verifying " ++ name ++ " " ++ show x ++ " == " ++ show y
 
-  sort <- fromEnv getSort
+  sort <- fromEnv getEnvSort
 
   equivID <- getNextPID
   z3v1 <- mkPropConst equivID "x" sort
@@ -510,7 +532,7 @@ proveEquivPrimitive getSort toSort name x y = do
 instance (ProveEquiv a) => ProveEquiv (Maybe a) where
   proveEquiv (Just a) (Just b) = proveEquiv a b
   -- proveEquiv Nothing Nothing   = trivialTrue "Nothing == Nothing" FIXME: trivialTrue should run an always-true z3 check
-  proveEquiv _ _               = proofFail
+  proveEquiv _ _               = proofFail "ProveEquiv Maybe"
 
 -- FIXME
 -- instance (ProveEquiv a) => ProveEquiv [a] where
@@ -528,7 +550,7 @@ instance ProveEquiv A.Visibility where
       (A.Default, A.Default)     -> prf c_V_Default "Default"
       (A.Hidden, A.Hidden)       -> prf c_V_Hidden "Hidden"
       (A.Protected, A.Protected) -> prf c_V_Protected "Protected"
-      (_, _)                     -> proofFail
+      (_, _)                     -> proofFail "Visibility"
       where prf c s = proveEquivGeneral c [] (s ++ " visibility equivalent")
 
 instance ProveEquiv A.StorageClass where
@@ -536,7 +558,7 @@ instance ProveEquiv A.StorageClass where
     case (a, b) of
       (A.Import, A.Import) -> prf c_S_Import "Import"
       (A.Export, A.Export) -> prf c_S_Export "Export"
-      (_, _)               -> proofFail
+      (_, _)               -> proofFail "StorageClass"
       where prf c s = proveEquivGeneral c [] (s ++ " storage class equivalent")
 
 instance ProveEquiv A.Linkage where
@@ -553,7 +575,7 @@ instance ProveEquiv A.Linkage where
       (A.LinkOnceODR, A.LinkOnceODR) -> prf c_L_LinkOnceODR "LinkOnceODR"
       (A.WeakODR, A.WeakODR)         -> prf c_L_WeakODR "WeakODR"
       (A.External, A.External)       -> prf c_L_External "External"
-      (_, _)                         -> proofFail
+      (_, _)                         -> proofFail "Linkage"
       where prf c s = proveEquivGeneral c [] (s ++ " linkage equivalent")
 
 instance ProveEquiv A.Type where
@@ -564,8 +586,21 @@ instance ProveEquiv A.Type where
     w1w2equiv <- proveEquiv w1 w2
     proveEquivGeneral c_T_IntegerType [w1w2equiv] "Type IntegerType equivalent"
 
-  proveEquiv _ _ = proofFail
+  proveEquiv _ _ = proofFail "Type"
 
+
+instance ProveEquiv A.Global where
+  proveEquiv f1@A.Function{} f2@A.Function{} = do
+    fields <- T.sequence [proveEquiv (A.linkage f1) (A.linkage f2)
+                         ,proveEquiv (A.visibility f1) (A.visibility f2)
+                         ,proveEquiv (A.dllStorageClass f1) (A.dllStorageClass f2)
+                         ]
+    proveEquivGeneral c_G_Function fields $
+      "functions " ++ (showName $ A.name f1) ++ " and " ++
+      (showName $ A.name f2) ++ " equivalent"
+
+
+  proveEquiv _ _ = proofFail "Function"
 ----------------------------------------------------------------------
 
 -- | Locate a function by name in the given module
@@ -689,6 +724,8 @@ usageMessage = do prg <- getProgName
 
 main :: IO ()
 main = do
+
+{-  
   (rule', _, proofLog') <- runProofEnvironment initialState initialEnv $ do
                               e <- proveEquiv A.VoidType A.VoidType
                               _ <- proveEquiv (A.IntegerType 32) (A.IntegerType 32)
@@ -704,7 +741,8 @@ main = do
   mapM_ print proofLog'
   exitSuccess
 
-{-
+-}
+
   args <- getArgs
   let (actions, filenames, errors) =
         getOpt RequireOrder optionDescriptions args
@@ -736,7 +774,7 @@ main = do
                              putStrLn (dumpGlobal rightEntry)
                              exitSuccess
 
-  (rule, _, proofLog) <-
+  (_, _, proofLog) <-
     runProofEnvironment initialState initialEnv $ do
       r <- proveEquiv leftEntry rightEntry
 
@@ -744,7 +782,5 @@ main = do
       liftIO $ putStrLn s
       return r
 
-  print rule
+  -- print rule
   mapM_ print proofLog
-
--}
