@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 -- LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack ghci
 
@@ -351,7 +352,7 @@ initialEnv = do
     mkZ3Constructors s_Bool
       "Maybe-StorageClass" [ ("MS_Just", [("mscj", Just s_StorageClass)])
                            , ("MS_Nothing", []) ]
-                             
+
   (s_Linkage, [ c_L_Private, c_L_Internal, c_L_AvailableExternally
               , c_L_LinkOnce, c_L_Weak, c_L_Common, c_L_Appending
               , c_L_ExternWeak, c_L_LinkOnceODR, c_L_WeakODR
@@ -547,21 +548,11 @@ proveEquivPrimitive getEnvSort toSort name x y = do
   z3equiv <- mkEq z3v1 z3v2 -- the conclusion
 
   push
-  assert =<< mkEq z3v1 =<< toSort x --mkBitvector 32 (toInteger x) -- Build v1 from fields
-  assert =<< mkEq z3v2 =<< toSort y --mkBitvector 32 (toInteger y) -- Build v2 from fields
+  assert =<< mkEq z3v1 =<< toSort x
+  assert =<< mkEq z3v2 =<< toSort y
   assert =<< mkNot z3equiv
 
   proveZ3Equiv [] Equiv{..} (name ++ " equivalent")
-
-{-
-instance (ProveEquiv a) => ProveEquiv (Maybe a) where
-  proveEquiv (Just a) (Just b) = proveEquiv a b    
-  proveEquiv _ _               = proofFail "ProveEquiv Maybe"
--}
-
--- FIXME
--- instance (ProveEquiv a) => ProveEquiv [a] where
---   proveEquiv a b = T.sequence $ zipWith proveEquiv a b
 
 instance ProveEquiv Bool where
   proveEquiv = proveEquivPrimitive s_Bool mkBool "Bool"
@@ -570,53 +561,46 @@ instance ProveEquiv Word32 where
   proveEquiv = proveEquivPrimitive s_Bv32 (\x -> mkBitvector 32 (toInteger x)) "Word32"
 
 instance ProveEquiv A.Visibility where
-  proveEquiv a b = do
-    case (a, b) of
-      (A.Default, A.Default)     -> prf c_V_Default "Default"
-      (A.Hidden, A.Hidden)       -> prf c_V_Hidden "Hidden"
-      (A.Protected, A.Protected) -> prf c_V_Protected "Protected"
-      (_, _)                     -> proofFail "Visibility"
-      where prf c s = proveEquivGeneral c [] (s ++ " visibility equivalent")
+  proveEquiv a b
+    | a == b    = proveEquivGeneral c [] (show a ++ " visibility equivalent")
+    | otherwise = proofFail "Visibility"
+    where c = case a of
+                A.Default   -> c_V_Default
+                A.Hidden    -> c_V_Hidden
+                A.Protected -> c_V_Protected
 
 instance ProveEquiv A.StorageClass where
-  proveEquiv a b = do
-    case (a, b) of
-      (A.Import, A.Import) -> prf c_S_Import "Import"
-      (A.Export, A.Export) -> prf c_S_Export "Export"
-      (_, _)               -> proofFail "StorageClass"
-      where prf c s = proveEquivGeneral c [] (s ++ " storage class equivalent")
+  proveEquiv a b
+    | a == b    = proveEquivGeneral c [] (show a ++ " storage class equivalent")
+    | otherwise = proofFail "StorageClass"
+    where c = case a of
+                A.Import -> c_S_Import
+                A.Export -> c_S_Export
 
-data MaybeStorageClass = JustStorageClass A.StorageClass
-                       | NothingStorageClass
-
-toMaybeStorageClass :: Maybe A.StorageClass -> MaybeStorageClass
-toMaybeStorageClass (Just a) = JustStorageClass a
-toMaybeStorageClass Nothing = NothingStorageClass
-
-instance ProveEquiv MaybeStorageClass where
-  proveEquiv (JustStorageClass a) (JustStorageClass b) = do
+instance ProveEquiv (Maybe A.StorageClass) where
+  proveEquiv (Just a) (Just b) = do
     equiv <- proveEquiv a b
     proveEquivGeneral c_MS_Just [equiv] "Just StorageClass equivalent"
-  proveEquiv NothingStorageClass NothingStorageClass =
+  proveEquiv Nothing Nothing =
     proveEquivGeneral c_MS_Nothing [] "Nothing (StorageClass) equivalent"
   proveEquiv _ _ = proofFail "Maybe StorageClass not equivalent"
-    
+
 instance ProveEquiv A.Linkage where
-  proveEquiv a b = do
-    case (a, b) of
-      (A.AvailableExternally, A.AvailableExternally) -> prf c_L_AvailableExternally "AvailableExternally"
-      (A.Private, A.Private)         -> prf c_L_Private "Private"
-      (A.Internal, A.Internal)       -> prf c_L_Internal "Internal"
-      (A.LinkOnce, A.LinkOnce)       -> prf c_L_LinkOnce "LinkOnce"
-      (A.Weak, A.Weak)               -> prf c_L_Weak "Weak"
-      (A.Common, A.Common)           -> prf c_L_Common "Common"
-      (A.Appending, A.Appending)     -> prf c_L_Appending "Appending"
-      (A.ExternWeak, A.ExternWeak)   -> prf c_L_ExternWeak "ExternWeak"
-      (A.LinkOnceODR, A.LinkOnceODR) -> prf c_L_LinkOnceODR "LinkOnceODR"
-      (A.WeakODR, A.WeakODR)         -> prf c_L_WeakODR "WeakODR"
-      (A.External, A.External)       -> prf c_L_External "External"
-      (_, _)                         -> proofFail "Linkage"
-      where prf c s = proveEquivGeneral c [] (s ++ " linkage equivalent")
+  proveEquiv a b
+    | a == b    = proveEquivGeneral c [] (show a ++ " linkage equivalent")
+    | otherwise = proofFail "Linkage"
+    where c = case a of
+                A.Private     -> c_L_Private
+                A.Internal    -> c_L_Internal
+                A.LinkOnce    -> c_L_LinkOnce
+                A.Weak        -> c_L_Weak
+                A.Common      -> c_L_Common
+                A.Appending   -> c_L_Appending
+                A.ExternWeak  -> c_L_ExternWeak
+                A.LinkOnceODR -> c_L_LinkOnceODR
+                A.WeakODR     -> c_L_WeakODR
+                A.External    -> c_L_External
+                A.AvailableExternally -> c_L_AvailableExternally
 
 instance ProveEquiv A.AddrSpace where
   proveEquiv (A.AddrSpace a1) (A.AddrSpace a2) = do
@@ -645,8 +629,7 @@ instance ProveEquiv A.Global where
     fields <- T.sequence
       [ proveEquiv (A.linkage f1) (A.linkage f2)
       , proveEquiv (A.visibility f1) (A.visibility f2)
-      , proveEquiv (toMaybeStorageClass $ A.dllStorageClass f1)
-                   (toMaybeStorageClass $ A.dllStorageClass f2)
+      , proveEquiv (A.dllStorageClass f1) (A.dllStorageClass f2)
       , proveEquiv (A.returnType f1) (A.returnType f2)
       ]
     proveEquivGeneral c_G_Function fields $
@@ -779,7 +762,7 @@ usageMessage = do prg <- getProgName
 main :: IO ()
 main = do
 
-{-  
+{-
   (rule', _, proofLog') <- runProofEnvironment initialState initialEnv $ do
                               e <- proveEquiv A.VoidType A.VoidType
                               _ <- proveEquiv (A.IntegerType 32) (A.IntegerType 32)
