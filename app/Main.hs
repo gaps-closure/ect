@@ -54,7 +54,7 @@ import qualified LLVM.AST.DLL as A
 --import qualified LLVM.AST.ParameterAttribute as A
 --import qualified LLVM.AST.IntegerPredicate as A
 --import qualified LLVM.AST.Constant as C
-
+import qualified LLVM.AST.AddrSpace as A
 
 
 import Z3.Monad
@@ -228,9 +228,17 @@ data ProofEnv = ProofEnv
   , s_Bv32 :: !Sort -- Z3 sort for 32-bit vector
   , s_Bool :: !Sort -- Z3 sort for Bool
 
+  -- AddrSpace, part of pointer types, usually 0
+  , c_T_AddrSpace          :: !Z3Constructor
+
   -- Constructors, types for Type
-  , c_T_VoidType    :: !Z3Constructor
-  , c_T_IntegerType :: !Z3Constructor
+  , c_T_VoidType           :: !Z3Constructor
+  , c_T_IntegerType        :: !Z3Constructor
+  , c_T_PointerType        :: !Z3Constructor
+--  , c_T_FloatingPointType  :: !Z3Constructor
+--  , c_T_FunctionType       :: !Z3Constructor
+--  , c_T_StructureType      :: !Z3Constructor
+--  , c_T_ArrayType          :: !Z3Constructor
 
   -- Constructors, types for Visibility
   , c_V_Default   :: !Z3Constructor
@@ -314,10 +322,16 @@ initialEnv = do
   s_Bv32 <- mkBvSort 32
   s_Bool <- mkBoolSort
 
-  (_, [ c_T_VoidType, c_T_IntegerType ]) <-
+  (s_AddrSpace, [ c_T_AddrSpace ]) <-
+    mkZ3Constructors s_Bool "AddrSpace" [ ("T_AddrSpace",
+                                            [("addrSpace", Just s_Bv32)])]
+
+  (s_Type, [ c_T_VoidType, c_T_IntegerType, c_T_PointerType ]) <-
     mkZ3Constructors s_Bool
       "Type" [ ("T_VoidType", [])
              , ("T_IntegerType", [("nBits", Just s_Bv32)])
+             , ("T_PointerType", [("pointerReferent", Nothing) -- s_Type
+                                 ,("pointerAddrSpace", Just s_AddrSpace)])
              ]
 
   (s_Visibility, [ c_V_Default, c_V_Hidden, c_V_Protected ]) <-
@@ -361,6 +375,7 @@ initialEnv = do
     "Function" [ ("G_Function", [("linkage", Just s_Linkage)
                                 ,("visibility", Just s_Visibility)
                                 ,("dllStorageClass", Just s_Maybe_StorageClass)
+                                ,("returnType", Just s_Type)
                                 ])
                ]
 
@@ -603,15 +618,26 @@ instance ProveEquiv A.Linkage where
       (_, _)                         -> proofFail "Linkage"
       where prf c s = proveEquivGeneral c [] (s ++ " linkage equivalent")
 
+instance ProveEquiv A.AddrSpace where
+  proveEquiv (A.AddrSpace a1) (A.AddrSpace a2) = do
+    e <- proveEquiv a1 a2
+    proveEquivGeneral c_T_AddrSpace [e] "AddrSpace equivalent"
+
 instance ProveEquiv A.Type where
   proveEquiv A.VoidType A.VoidType = do
-    proveEquivGeneral c_T_VoidType [] "Type Void equivalent"
+    proveEquivGeneral c_T_VoidType [] "VoidType equivalent"
 
   proveEquiv (A.IntegerType w1) (A.IntegerType w2) = do
     w1w2equiv <- proveEquiv w1 w2
-    proveEquivGeneral c_T_IntegerType [w1w2equiv] "Type IntegerType equivalent"
+    proveEquivGeneral c_T_IntegerType [w1w2equiv] $
+      "IntegerType " ++ show w1 ++ " equivalent"
 
-  proveEquiv _ _ = proofFail "Type"
+  proveEquiv (A.PointerType t1 s1) (A.PointerType t2 s2) = do
+    tequiv <- proveEquiv t1 t2
+    sequiv <- proveEquiv s1 s2
+    proveEquivGeneral c_T_PointerType [tequiv, sequiv] "PointerType equivalent"
+
+  proveEquiv _ _ = proofFail "Type equivalence failed"
 
 
 instance ProveEquiv A.Global where
@@ -621,6 +647,7 @@ instance ProveEquiv A.Global where
       , proveEquiv (A.visibility f1) (A.visibility f2)
       , proveEquiv (toMaybeStorageClass $ A.dllStorageClass f1)
                    (toMaybeStorageClass $ A.dllStorageClass f2)
+      , proveEquiv (A.returnType f1) (A.returnType f2)
       ]
     proveEquivGeneral c_G_Function fields $
       "functions " ++ (showName $ A.name f1) ++ " and " ++
