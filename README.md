@@ -43,7 +43,8 @@ stack exec -- ghc-pkg unregister --force llvm-hs
 
 ## Running
 
-This version of the code merely checks whether LLVM and Z3 can be successfully linked into a single executable.
+The program expects three filenames: the refactored .ll file and two partitioned .ll files, e.g.,
+
 ```
-stack run -- examples/example1/example1-orange-9.ll
+stack run -- examples/example1/example1-refactored-9.ll examples/example1/example1-orange-9.ll examples/example1/example1-purple-9.ll
 ```
