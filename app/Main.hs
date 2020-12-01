@@ -44,19 +44,18 @@ import Control.Monad.Trans.Maybe
 import LLVM.Context (withContext)
 
 import qualified LLVM.Module as M
-import qualified LLVM.AST as A
+import qualified LLVM.AST as A hiding (callingConvention)
 import qualified LLVM.AST.Global as A
 import qualified LLVM.AST.Visibility as A
 import qualified LLVM.AST.Linkage as A
 --import qualified LLVM.AST.StorageClass as A
 import qualified LLVM.AST.DLL as A
---import qualified LLVM.AST.CallingConvention as A
+import qualified LLVM.AST.CallingConvention as A
 --import qualified LLVM.AST.FunctionAttribute as A
 --import qualified LLVM.AST.ParameterAttribute as A
 --import qualified LLVM.AST.IntegerPredicate as A
 --import qualified LLVM.AST.Constant as C
 import qualified LLVM.AST.AddrSpace as A
-
 
 import Z3.Monad
 
@@ -267,6 +266,49 @@ data ProofEnv = ProofEnv
   , c_L_WeakODR             :: !Z3Constructor
   , c_L_External            :: !Z3Constructor
 
+  -- Constructors, types for CallingConvention
+  , c_CC_C :: !Z3Constructor
+  , c_CC_Fast :: !Z3Constructor
+  , c_CC_Cold :: !Z3Constructor
+  , c_CC_GHC :: !Z3Constructor
+  , c_CC_HiPE :: !Z3Constructor
+  , c_CC_WebKit_JS :: !Z3Constructor
+  , c_CC_AnyReg :: !Z3Constructor
+  , c_CC_PreserveMost :: !Z3Constructor
+  , c_CC_PreserveAll :: !Z3Constructor
+  , c_CC_Swift :: !Z3Constructor
+  , c_CC_CXX_FastTLS :: !Z3Constructor
+  , c_CC_X86_StdCall :: !Z3Constructor
+  , c_CC_X86_FastCall :: !Z3Constructor
+  , c_CC_ARM_APCS :: !Z3Constructor
+  , c_CC_ARM_AAPCS :: !Z3Constructor
+  , c_CC_ARM_AAPCS_VFP :: !Z3Constructor
+  , c_CC_MSP430_INTR :: !Z3Constructor
+  , c_CC_X86_ThisCall :: !Z3Constructor
+  , c_CC_PTX_Kernel :: !Z3Constructor
+  , c_CC_PTX_Device :: !Z3Constructor
+  , c_CC_SPIR_FUNC :: !Z3Constructor
+  , c_CC_SPIR_KERNEL :: !Z3Constructor
+  , c_CC_Intel_OCL_BI :: !Z3Constructor
+  , c_CC_X86_64_SysV :: !Z3Constructor
+  , c_CC_Win64 :: !Z3Constructor
+  , c_CC_X86_VectorCall :: !Z3Constructor
+  , c_CC_HHVM :: !Z3Constructor
+  , c_CC_HHVM_C :: !Z3Constructor
+  , c_CC_X86_Intr :: !Z3Constructor
+  , c_CC_AVR_Intr :: !Z3Constructor
+  , c_CC_AVR_Signal :: !Z3Constructor
+  , c_CC_AVR_Builtin :: !Z3Constructor
+  , c_CC_AMDGPU_VS :: !Z3Constructor
+  , c_CC_AMDGPU_HS :: !Z3Constructor
+  , c_CC_AMDGPU_GS :: !Z3Constructor
+  , c_CC_AMDGPU_PS :: !Z3Constructor
+  , c_CC_AMDGPU_CS :: !Z3Constructor
+  , c_CC_AMDGPU_Kernel :: !Z3Constructor
+  , c_CC_X86_RegCall :: !Z3Constructor
+  , c_CC_MSP430_Builtin :: !Z3Constructor
+  , c_CC_Numbered :: !Z3Constructor
+
   -- Globals
   , c_G_Function            :: !Z3Constructor
   }
@@ -371,11 +413,69 @@ initialEnv = do
                 , ("L_External", [])
                 ]
 
+  (s_CallingConvention, [ c_CC_C, c_CC_Fast, c_CC_Cold, c_CC_GHC, c_CC_HiPE
+                        , c_CC_WebKit_JS, c_CC_AnyReg, c_CC_PreserveMost
+                        , c_CC_PreserveAll, c_CC_Swift, c_CC_CXX_FastTLS
+                        , c_CC_X86_StdCall, c_CC_X86_FastCall, c_CC_ARM_APCS
+                        , c_CC_ARM_AAPCS, c_CC_ARM_AAPCS_VFP, c_CC_MSP430_INTR
+                        , c_CC_X86_ThisCall, c_CC_PTX_Kernel, c_CC_PTX_Device
+                        , c_CC_SPIR_FUNC, c_CC_SPIR_KERNEL, c_CC_Intel_OCL_BI
+                        , c_CC_X86_64_SysV, c_CC_Win64, c_CC_X86_VectorCall
+                        , c_CC_HHVM, c_CC_HHVM_C, c_CC_X86_Intr, c_CC_AVR_Intr
+                        , c_CC_AVR_Signal, c_CC_AVR_Builtin, c_CC_AMDGPU_VS
+                        , c_CC_AMDGPU_HS, c_CC_AMDGPU_GS, c_CC_AMDGPU_PS
+                        , c_CC_AMDGPU_CS, c_CC_AMDGPU_Kernel, c_CC_X86_RegCall
+                        , c_CC_MSP430_Builtin, c_CC_Numbered]) <-
+    mkZ3Constructors s_Bool
+      "CallingConvention" [ ("CC_C", [])
+                          , ("CC_Fast", [])
+                          , ("CC_Cold", [])
+                          , ("CC_GHC", [])
+                          , ("CC_HiPE", [])
+                          , ("CC_WebKit_JS", [])
+                          , ("CC_AnyReg", [])
+                          , ("CC_PreserveMost", [])
+                          , ("CC_PreserveAll", [])
+                          , ("CC_Swift", [])
+                          , ("CC_CXX_FastTLS", [])
+                          , ("CC_X86_StdCall", [])
+                          , ("CC_X86_FastCall", [])
+                          , ("CC_ARM_APCS", [])
+                          , ("CC_ARM_AAPCS", [])
+                          , ("CC_ARM_AAPCS_VFP", [])
+                          , ("CC_MSP430_INTR", [])
+                          , ("CC_X86_ThisCall", [])
+                          , ("CC_PTX_Kernel", [])
+                          , ("CC_PTX_Device", [])
+                          , ("CC_SPIR_FUNC", [])
+                          , ("CC_SPIR_KERNEL", [])
+                          , ("CC_Intel_OCL_BI", [])
+                          , ("CC_X86_64_SysV", [])
+                          , ("CC_Win64", [])
+                          , ("CC_X86_VectorCall", [])
+                          , ("CC_HHVM", [])
+                          , ("CC_HHVM_C", [])
+                          , ("CC_X86_Intr", [])
+                          , ("CC_AVR_Intr", [])
+                          , ("CC_AVR_Signal", [])
+                          , ("CC_AVR_Builtin", [])
+                          , ("CC_AMDGPU_VS", [])
+                          , ("CC_AMDGPU_HS", [])
+                          , ("CC_AMDGPU_GS", [])
+                          , ("CC_AMDGPU_PS", [])
+                          , ("CC_AMDGPU_CS", [])
+                          , ("CC_AMDGPU_Kernel", [])
+                          , ("CC_X86_RegCall", [])
+                          , ("CC_MSP430_Builtin", [])
+                          , ("CC_Numbered", [("num", Just s_Bv32)])
+                          ]
+
   (_, [ c_G_Function ]) <-
     mkZ3Constructors s_Bool
     "Function" [ ("G_Function", [("linkage", Just s_Linkage)
                                 ,("visibility", Just s_Visibility)
                                 ,("dllStorageClass", Just s_Maybe_StorageClass)
+                                ,("callingConvention", Just s_CallingConvention)
                                 ,("returnType", Just s_Type)
                                 ])
                ]
@@ -602,6 +702,57 @@ instance ProveEquiv A.Linkage where
                 A.External    -> c_L_External
                 A.AvailableExternally -> c_L_AvailableExternally
 
+instance ProveEquiv A.CallingConvention where
+  proveEquiv (A.Numbered w1) (A.Numbered w2) = do
+    e <- proveEquiv w1 w2
+    proveEquivGeneral c_CC_Numbered [e] "Numbered calling convention equivalent"
+  proveEquiv a b
+    | a == b    = proveEquivGeneral c [] (show a ++ " calling convention equivalent")
+    | otherwise = proofFail "CallingConvention"
+    where c = case a of
+                A.C              -> c_CC_C
+                A.Fast           -> c_CC_Fast
+                A.Cold           -> c_CC_Cold
+                A.GHC            -> c_CC_GHC
+                A.HiPE           -> c_CC_HiPE
+                A.WebKit_JS      -> c_CC_WebKit_JS
+                A.AnyReg         -> c_CC_AnyReg
+                A.PreserveMost   -> c_CC_PreserveMost
+                A.PreserveAll    -> c_CC_PreserveAll
+                A.Swift          -> c_CC_Swift
+                A.CXX_FastTLS    -> c_CC_CXX_FastTLS
+                A.X86_StdCall    -> c_CC_X86_StdCall
+                A.X86_FastCall   -> c_CC_X86_FastCall
+                A.ARM_APCS       -> c_CC_ARM_APCS
+                A.ARM_AAPCS      -> c_CC_ARM_AAPCS
+                A.ARM_AAPCS_VFP  -> c_CC_ARM_AAPCS_VFP
+                A.MSP430_INTR    -> c_CC_MSP430_INTR
+                A.X86_ThisCall   -> c_CC_X86_ThisCall
+                A.PTX_Kernel     -> c_CC_PTX_Kernel
+                A.PTX_Device     -> c_CC_PTX_Device
+                A.SPIR_FUNC      -> c_CC_SPIR_FUNC
+                A.SPIR_KERNEL    -> c_CC_SPIR_KERNEL
+                A.Intel_OCL_BI   -> c_CC_Intel_OCL_BI
+                A.X86_64_SysV    -> c_CC_X86_64_SysV
+                A.Win64          -> c_CC_Win64
+                A.X86_VectorCall -> c_CC_X86_VectorCall
+                A.HHVM           -> c_CC_HHVM
+                A.HHVM_C         -> c_CC_HHVM_C
+                A.X86_Intr       -> c_CC_X86_Intr
+                A.AVR_Intr       -> c_CC_AVR_Intr
+                A.AVR_Signal     -> c_CC_AVR_Signal
+                A.AVR_Builtin    -> c_CC_AVR_Builtin
+                A.AMDGPU_VS      -> c_CC_AMDGPU_VS
+                A.AMDGPU_HS      -> c_CC_AMDGPU_HS
+                A.AMDGPU_GS      -> c_CC_AMDGPU_GS
+                A.AMDGPU_PS      -> c_CC_AMDGPU_PS
+                A.AMDGPU_CS      -> c_CC_AMDGPU_CS
+                A.AMDGPU_Kernel  -> c_CC_AMDGPU_Kernel
+                A.X86_RegCall    -> c_CC_X86_RegCall
+                A.MSP430_Builtin -> c_CC_MSP430_Builtin
+                A.Numbered _     -> error "unreachable pattern match"
+
+
 instance ProveEquiv A.AddrSpace where
   proveEquiv (A.AddrSpace a1) (A.AddrSpace a2) = do
     e <- proveEquiv a1 a2
@@ -630,6 +781,7 @@ instance ProveEquiv A.Global where
       [ proveEquiv (A.linkage f1) (A.linkage f2)
       , proveEquiv (A.visibility f1) (A.visibility f2)
       , proveEquiv (A.dllStorageClass f1) (A.dllStorageClass f2)
+      , proveEquiv (A.callingConvention f1) (A.callingConvention f2)
       , proveEquiv (A.returnType f1) (A.returnType f2)
       ]
     proveEquivGeneral c_G_Function fields $
