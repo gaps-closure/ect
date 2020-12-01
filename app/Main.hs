@@ -241,6 +241,10 @@ data ProofEnv = ProofEnv
   , c_S_Import :: !Z3Constructor
   , c_S_Export :: !Z3Constructor
 
+  -- Maybe StorageClass
+  , c_MS_Just    :: !Z3Constructor
+  , c_MS_Nothing :: !Z3Constructor
+
   -- Constructors, types for Linkage
   , c_L_Private             :: !Z3Constructor
   , c_L_Internal            :: !Z3Constructor
@@ -329,6 +333,11 @@ initialEnv = do
                      , ("S_Export", [])
                      ]
 
+  (s_Maybe_StorageClass, [ c_MS_Just, c_MS_Nothing ]) <-
+    mkZ3Constructors s_Bool
+      "Maybe-StorageClass" [ ("MS_Just", [("mscj", Just s_StorageClass)])
+                           , ("MS_Nothing", []) ]
+                             
   (s_Linkage, [ c_L_Private, c_L_Internal, c_L_AvailableExternally
               , c_L_LinkOnce, c_L_Weak, c_L_Common, c_L_Appending
               , c_L_ExternWeak, c_L_LinkOnceODR, c_L_WeakODR
@@ -351,7 +360,7 @@ initialEnv = do
     mkZ3Constructors s_Bool
     "Function" [ ("G_Function", [("linkage", Just s_Linkage)
                                 ,("visibility", Just s_Visibility)
-                                ,("dllStorageClass", Just s_StorageClass)
+                                ,("dllStorageClass", Just s_Maybe_StorageClass)
                                 ])
                ]
 
@@ -529,10 +538,11 @@ proveEquivPrimitive getEnvSort toSort name x y = do
 
   proveZ3Equiv [] Equiv{..} (name ++ " equivalent")
 
+{-
 instance (ProveEquiv a) => ProveEquiv (Maybe a) where
-  proveEquiv (Just a) (Just b) = proveEquiv a b
-  -- proveEquiv Nothing Nothing   = trivialTrue "Nothing == Nothing" FIXME: trivialTrue should run an always-true z3 check
+  proveEquiv (Just a) (Just b) = proveEquiv a b    
   proveEquiv _ _               = proofFail "ProveEquiv Maybe"
+-}
 
 -- FIXME
 -- instance (ProveEquiv a) => ProveEquiv [a] where
@@ -561,6 +571,21 @@ instance ProveEquiv A.StorageClass where
       (_, _)               -> proofFail "StorageClass"
       where prf c s = proveEquivGeneral c [] (s ++ " storage class equivalent")
 
+data MaybeStorageClass = JustStorageClass A.StorageClass
+                       | NothingStorageClass
+
+toMaybeStorageClass :: Maybe A.StorageClass -> MaybeStorageClass
+toMaybeStorageClass (Just a) = JustStorageClass a
+toMaybeStorageClass Nothing = NothingStorageClass
+
+instance ProveEquiv MaybeStorageClass where
+  proveEquiv (JustStorageClass a) (JustStorageClass b) = do
+    equiv <- proveEquiv a b
+    proveEquivGeneral c_MS_Just [equiv] "Just StorageClass equivalent"
+  proveEquiv NothingStorageClass NothingStorageClass =
+    proveEquivGeneral c_MS_Nothing [] "Nothing (StorageClass) equivalent"
+  proveEquiv _ _ = proofFail "Maybe StorageClass not equivalent"
+    
 instance ProveEquiv A.Linkage where
   proveEquiv a b = do
     case (a, b) of
@@ -591,10 +616,12 @@ instance ProveEquiv A.Type where
 
 instance ProveEquiv A.Global where
   proveEquiv f1@A.Function{} f2@A.Function{} = do
-    fields <- T.sequence [proveEquiv (A.linkage f1) (A.linkage f2)
-                         ,proveEquiv (A.visibility f1) (A.visibility f2)
-                         ,proveEquiv (A.dllStorageClass f1) (A.dllStorageClass f2)
-                         ]
+    fields <- T.sequence
+      [ proveEquiv (A.linkage f1) (A.linkage f2)
+      , proveEquiv (A.visibility f1) (A.visibility f2)
+      , proveEquiv (toMaybeStorageClass $ A.dllStorageClass f1)
+                   (toMaybeStorageClass $ A.dllStorageClass f2)
+      ]
     proveEquivGeneral c_G_Function fields $
       "functions " ++ (showName $ A.name f1) ++ " and " ++
       (showName $ A.name f2) ++ " equivalent"
