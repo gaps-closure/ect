@@ -24,7 +24,8 @@ import System.Exit( exitSuccess, exitFailure )
 import qualified Data.Traversable as T
 import Data.Maybe
 import Data.ByteString.UTF8 (fromString,toString)
-import Data.ByteString.Short (toShort,fromShort) -- ShortByteString
+import Data.ByteString.Short (ShortByteString, toShort,fromShort) -- ShortByteString
+import qualified Data.ByteString.Char8 as C
 --import Data.Maybe (mapMaybe)
 import Data.List (intercalate)
 import Data.Word ( Word32 )
@@ -45,7 +46,7 @@ import Control.Monad.Trans.Maybe
 import LLVM.Context (withContext)
 
 import qualified LLVM.Module as M
-import qualified LLVM.AST as A hiding (callingConvention)
+import qualified LLVM.AST as A hiding (callingConvention, alignment)
 import qualified LLVM.AST.Global as A
 import qualified LLVM.AST.Visibility as A
 import qualified LLVM.AST.Linkage as A
@@ -227,9 +228,10 @@ type Z3Constructor = (FuncDecl, String, Z3Type)
 
 
 data ProofEnv = ProofEnv
-  { s_Int :: !Sort -- Z3 sort for Int
-  , s_Bv32 :: !Sort -- Z3 sort for 32-bit vector
-  , s_Bool :: !Sort -- Z3 sort for Bool
+  { s_Int    :: !Sort -- Z3 sort for Int
+  , s_Bv32   :: !Sort -- Z3 sort for 32-bit vector
+  , s_Bool   :: !Sort -- Z3 sort for Bool
+  , s_String :: !Sort -- Z3 sort for strings
 
   -- AddrSpace, part of pointer types, usually 0
   , c_T_AddrSpace          :: !Z3Constructor
@@ -256,6 +258,10 @@ data ProofEnv = ProofEnv
   , c_MS_Just    :: !Z3Constructor
   , c_MS_Nothing :: !Z3Constructor
 
+  -- Maybe ShortByteString
+  , c_MbSbs_Just    :: !Z3Constructor
+  , c_MbSbs_Nothing :: !Z3Constructor
+
   -- Constructors, types for Linkage
   , c_L_Private             :: !Z3Constructor
   , c_L_Internal            :: !Z3Constructor
@@ -270,50 +276,50 @@ data ProofEnv = ProofEnv
   , c_L_External            :: !Z3Constructor
 
   -- Constructors, types for CallingConvention
-  , c_CC_C :: !Z3Constructor
-  , c_CC_Fast :: !Z3Constructor
-  , c_CC_Cold :: !Z3Constructor
-  , c_CC_GHC :: !Z3Constructor
-  , c_CC_HiPE :: !Z3Constructor
-  , c_CC_WebKit_JS :: !Z3Constructor
-  , c_CC_AnyReg :: !Z3Constructor
-  , c_CC_PreserveMost :: !Z3Constructor
-  , c_CC_PreserveAll :: !Z3Constructor
-  , c_CC_Swift :: !Z3Constructor
-  , c_CC_CXX_FastTLS :: !Z3Constructor
-  , c_CC_X86_StdCall :: !Z3Constructor
-  , c_CC_X86_FastCall :: !Z3Constructor
-  , c_CC_ARM_APCS :: !Z3Constructor
-  , c_CC_ARM_AAPCS :: !Z3Constructor
-  , c_CC_ARM_AAPCS_VFP :: !Z3Constructor
-  , c_CC_MSP430_INTR :: !Z3Constructor
-  , c_CC_X86_ThisCall :: !Z3Constructor
-  , c_CC_PTX_Kernel :: !Z3Constructor
-  , c_CC_PTX_Device :: !Z3Constructor
-  , c_CC_SPIR_FUNC :: !Z3Constructor
-  , c_CC_SPIR_KERNEL :: !Z3Constructor
-  , c_CC_Intel_OCL_BI :: !Z3Constructor
-  , c_CC_X86_64_SysV :: !Z3Constructor
-  , c_CC_Win64 :: !Z3Constructor
+  , c_CC_C              :: !Z3Constructor
+  , c_CC_Fast           :: !Z3Constructor
+  , c_CC_Cold           :: !Z3Constructor
+  , c_CC_GHC            :: !Z3Constructor
+  , c_CC_HiPE           :: !Z3Constructor
+  , c_CC_WebKit_JS      :: !Z3Constructor
+  , c_CC_AnyReg         :: !Z3Constructor
+  , c_CC_PreserveMost   :: !Z3Constructor
+  , c_CC_PreserveAll    :: !Z3Constructor
+  , c_CC_Swift          :: !Z3Constructor
+  , c_CC_CXX_FastTLS    :: !Z3Constructor
+  , c_CC_X86_StdCall    :: !Z3Constructor
+  , c_CC_X86_FastCall   :: !Z3Constructor
+  , c_CC_ARM_APCS       :: !Z3Constructor
+  , c_CC_ARM_AAPCS      :: !Z3Constructor
+  , c_CC_ARM_AAPCS_VFP  :: !Z3Constructor
+  , c_CC_MSP430_INTR    :: !Z3Constructor
+  , c_CC_X86_ThisCall   :: !Z3Constructor
+  , c_CC_PTX_Kernel     :: !Z3Constructor
+  , c_CC_PTX_Device     :: !Z3Constructor
+  , c_CC_SPIR_FUNC      :: !Z3Constructor
+  , c_CC_SPIR_KERNEL    :: !Z3Constructor
+  , c_CC_Intel_OCL_BI   :: !Z3Constructor
+  , c_CC_X86_64_SysV    :: !Z3Constructor
+  , c_CC_Win64          :: !Z3Constructor
   , c_CC_X86_VectorCall :: !Z3Constructor
-  , c_CC_HHVM :: !Z3Constructor
-  , c_CC_HHVM_C :: !Z3Constructor
-  , c_CC_X86_Intr :: !Z3Constructor
-  , c_CC_AVR_Intr :: !Z3Constructor
-  , c_CC_AVR_Signal :: !Z3Constructor
-  , c_CC_AVR_Builtin :: !Z3Constructor
-  , c_CC_AMDGPU_VS :: !Z3Constructor
-  , c_CC_AMDGPU_HS :: !Z3Constructor
-  , c_CC_AMDGPU_GS :: !Z3Constructor
-  , c_CC_AMDGPU_PS :: !Z3Constructor
-  , c_CC_AMDGPU_CS :: !Z3Constructor
-  , c_CC_AMDGPU_Kernel :: !Z3Constructor
-  , c_CC_X86_RegCall :: !Z3Constructor
+  , c_CC_HHVM           :: !Z3Constructor
+  , c_CC_HHVM_C         :: !Z3Constructor
+  , c_CC_X86_Intr       :: !Z3Constructor
+  , c_CC_AVR_Intr       :: !Z3Constructor
+  , c_CC_AVR_Signal     :: !Z3Constructor
+  , c_CC_AVR_Builtin    :: !Z3Constructor
+  , c_CC_AMDGPU_VS      :: !Z3Constructor
+  , c_CC_AMDGPU_HS      :: !Z3Constructor
+  , c_CC_AMDGPU_GS      :: !Z3Constructor
+  , c_CC_AMDGPU_PS      :: !Z3Constructor
+  , c_CC_AMDGPU_CS      :: !Z3Constructor
+  , c_CC_AMDGPU_Kernel  :: !Z3Constructor
+  , c_CC_X86_RegCall    :: !Z3Constructor
   , c_CC_MSP430_Builtin :: !Z3Constructor
-  , c_CC_Numbered :: !Z3Constructor
+  , c_CC_Numbered       :: !Z3Constructor
 
   -- Globals
-  , c_G_Function            :: !Z3Constructor
+  , c_G_Function :: !Z3Constructor
   }
 
 -- | Build an equivalence checking function for a given Z3 type
@@ -367,6 +373,7 @@ initialEnv = do
   s_Int <- mkIntSort
   s_Bv32 <- mkBvSort 32
   s_Bool <- mkBoolSort
+  s_String <- mkStringSort
 
   (s_AddrSpace, [ c_T_AddrSpace ]) <-
     mkZ3Constructors s_Bool "AddrSpace" [ ("T_AddrSpace",
@@ -397,6 +404,11 @@ initialEnv = do
     mkZ3Constructors s_Bool
       "Maybe-StorageClass" [ ("MS_Just", [("mscj", Just s_StorageClass)])
                            , ("MS_Nothing", []) ]
+
+  (s_Maybe_ShortByteString, [ c_MbSbs_Just, c_MbSbs_Nothing ]) <-
+    mkZ3Constructors s_Bool
+      "Maybe-ShortByteString" [ ("MbSbs_Just", [("msbsj", Just s_String)])
+                              , ("MbSbs_Nothing", [])]
 
   (s_Linkage, [ c_L_Private, c_L_Internal, c_L_AvailableExternally
               , c_L_LinkOnce, c_L_Weak, c_L_Common, c_L_Appending
@@ -480,6 +492,10 @@ initialEnv = do
                                 ,("dllStorageClass", Just s_Maybe_StorageClass)
                                 ,("callingConvention", Just s_CallingConvention)
                                 ,("returnType", Just s_Type)
+                                ,("section", Just s_Maybe_ShortByteString)
+                                ,("comdat", Just s_Maybe_ShortByteString)
+                                ,("alignment", Just s_Bv32)
+                                ,("garbageCollectorName", Just s_Maybe_ShortByteString)
                                 ])
                ]
 
@@ -658,11 +674,31 @@ proveEquivPrimitive getEnvSort toSort name x y = do
 
   proveZ3Equiv [] Equiv{..} (name ++ " equivalent")
 
+proveEquivMaybe :: (ProveEquiv a)
+                => (ProofEnv -> Z3Constructor)
+                -> (ProofEnv -> Z3Constructor)
+                -> String
+                -> Maybe a
+                -> Maybe a
+                -> ProofM Equiv
+proveEquivMaybe c_Just _ n (Just a) (Just b) = do
+  e <- proveEquiv a b
+  proveEquivGeneral c_Just [e] $ "Just " ++ n ++ " equivalent"
+proveEquivMaybe _ c_Nothing n Nothing Nothing =
+  proveEquivGeneral c_Nothing [] $ "Nothing (" ++ n ++ ") equivalent"
+proveEquivMaybe _ _ n _ _ = proofFail $ "Maybe " ++ n ++ " not equivalent"
+
 instance ProveEquiv Bool where
   proveEquiv = proveEquivPrimitive s_Bool mkBool "Bool"
 
 instance ProveEquiv Word32 where
   proveEquiv = proveEquivPrimitive s_Bv32 (\x -> mkBitvector 32 (toInteger x)) "Word32"
+
+instance ProveEquiv ShortByteString where
+  proveEquiv = proveEquivPrimitive s_String (\x -> mkString $ C.unpack $ fromShort x) "ShortByteString"
+
+instance ProveEquiv (Maybe ShortByteString) where
+  proveEquiv = proveEquivMaybe c_MbSbs_Just c_MbSbs_Nothing "ShortByteString"
 
 instance ProveEquiv A.Visibility where
   proveEquiv a b
@@ -682,12 +718,7 @@ instance ProveEquiv A.StorageClass where
                 A.Export -> c_S_Export
 
 instance ProveEquiv (Maybe A.StorageClass) where
-  proveEquiv (Just a) (Just b) = do
-    equiv <- proveEquiv a b
-    proveEquivGeneral c_MS_Just [equiv] "Just StorageClass equivalent"
-  proveEquiv Nothing Nothing =
-    proveEquivGeneral c_MS_Nothing [] "Nothing (StorageClass) equivalent"
-  proveEquiv _ _ = proofFail "Maybe StorageClass not equivalent"
+  proveEquiv = proveEquivMaybe c_MS_Just c_MS_Nothing "StorageClass"
 
 instance ProveEquiv A.Linkage where
   proveEquiv a b
@@ -787,6 +818,10 @@ instance ProveEquiv A.Global where
       , proveEquiv (A.dllStorageClass f1) (A.dllStorageClass f2)
       , proveEquiv (A.callingConvention f1) (A.callingConvention f2)
       , proveEquiv (A.returnType f1) (A.returnType f2)
+      , proveEquiv (A.section f1) (A.section f2)
+      , proveEquiv (A.comdat f1) (A.comdat f2)
+      , proveEquiv (A.alignment f1) (A.alignment f2)
+      , proveEquiv (A.garbageCollectorName f1) (A.garbageCollectorName f2)
       ]
     proveEquivGeneral c_G_Function fields $
       "functions " ++ (showName $ A.name f1) ++ " and " ++
