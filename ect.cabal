@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ad0ce5efef3b9d05ed83ff9f8b893a8591a1628137b61f480a2cb511c614c306
+-- hash: ee92cce53b0ff2ddaf6a5f87a40332021b9cf6f763711a90786c74414c4df973
 
 name:           ect
 version:        0.1.0.0
@@ -25,17 +25,31 @@ source-repository head
   type: git
   location: https://github.com/gaps-closure/ect
 
+library
+  exposed-modules:
+      Z3TypeGenerator
+  other-modules:
+      Paths_ect
+  hs-source-dirs:
+      src
+  ghc-options: -Wall
+  build-depends:
+      base >=4.7 && <5
+    , template-haskell
+  default-language: Haskell2010
+
 executable ect
   main-is: Main.hs
   other-modules:
       Paths_ect
   hs-source-dirs:
       app
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -dynamic
+  ghc-options: -Wall -dynamic -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , bytestring
     , containers
+    , ect
     , llvm-hs >=9.0.1
     , llvm-hs-pure >=9.0.0
     , transformers

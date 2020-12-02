@@ -26,12 +26,15 @@ dependencies:
 2. The [llvm-hs](https://hackage.haskell.org/package/llvm-hs) and [llvm-hs-pure](https://hackage.haskell.org/package/llvm-hs-pure) packages, which stack downloads and compiles against the LLVM library it finds through `llvm-config-9` or `llvm-config` (The exact procedure is in [llvm-hs/Setup.hs](https://github.com/llvm-hs/llvm-hs/blob/llvm-9/llvm-hs/Setup.hs))
 3. Z3 version 4.8.8, whose header files and libraries ECT assumes are in the directory named `z3-4.8.8-x64-ubuntu-16.04`
 
+Using Template Haskell exposed a linking issue: `LD_LIBRARY_PATH` needs to be specified during the build process:
+
 
 ```
 wget -qO- https://get.haskellstack.org/ | sh
 apt install llvm-9 llvm-9-dev
 wget https://github.com/Z3Prover/z3/releases/download/z3-4.8.8/z3-4.8.8-x64-ubuntu-16.04.zip
 unzip z3-4.8.8-x64-ubuntu-16.04.zip
+LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack build
 stack install
 ```
 

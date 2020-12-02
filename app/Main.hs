@@ -1,6 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack ghci
 
@@ -58,6 +59,8 @@ import qualified LLVM.AST.CallingConvention as A
 import qualified LLVM.AST.AddrSpace as A
 
 import Z3.Monad
+
+import Z3TypeGenerator
 
 ----------------------------------------------------------------------
 
@@ -480,7 +483,8 @@ initialEnv = do
                                 ])
                ]
 
-  return ProofEnv{..}
+  $(initProofEnv [] [| ProofEnv{..} |] )
+--  return ProofEnv{..}
 
 ----------------------------------------------------------------------
 --

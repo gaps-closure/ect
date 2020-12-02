@@ -21,6 +21,13 @@ description:         Please see the README on GitHub at <https://github.com/gaps
 
 dependencies:
 - base >= 4.7 && < 5
+    
+library:
+  source-dirs: src
+  ghc-options:
+  - -Wall
+  dependencies:
+  - template-haskell
 
 executables:
   ect:
@@ -28,10 +35,10 @@ executables:
     source-dirs:         app
     ghc-options:
     - -Wall
+    - -dynamic          # Needed for linking with the Z3 library
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    - -dynamic
     
     dependencies:
     - z3 >= 408.2
@@ -41,4 +48,21 @@ executables:
     - bytestring
     - utf8-string
     - containers
-    
+    - ect
+
+# stack build -v --ghc-options="-v" --cabal-verbose > log 2>&1
+# shows the sausage being made
+
+# Adding Template-haskell produces the following compilation error:
+#
+# [1 of 2] Compiling Main
+# <command line>: libz3.so: cannot open shared object file: No such file or directory
+#
+#--  While building package ect-0.1.0.0 (scroll up to its section to see the error) using:
+#      /home/sedwards/.stack/setup-exe-cache/x86_64-linux-tinfo6/Cabal-simple_mPHDZzAJ_3.0.1.0_ghc-8.8.2 --builddir=.stack-work/dist/x86_64-linux-tinfo6/Cabal-3.0.1.0 build lib:ect exe:ect --ghc-options " -fdiagnostics-color=always"
+
+# This cures the problem, but not elegantly
+#
+# LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack build
+
+# https://ro-che.info/articles/2017-07-26-haskell-library-in-c-project
