@@ -699,6 +699,21 @@ proveEquivMaybe _ c_Nothing n Nothing Nothing =
   proveEquivGeneral c_Nothing [] $ "Nothing (" ++ n ++ ") equivalent"
 proveEquivMaybe _ _ n _ _ = proofFail $ "Maybe " ++ n ++ " not equivalent"
 
+proveEquivList :: (ProveEquiv a)
+               => (ProofEnv -> Z3Constructor)
+               -> (ProofEnv -> Z3Constructor)
+               -> String
+               -> [a]
+               -> [a]
+               -> ProofM Equiv
+proveEquivList c_Cons c_Nil n (a:as) (b:bs) = do
+  tail_equiv <- proveEquivList c_Cons c_Nil n as bs
+  head_equiv <- proveEquiv a b
+  proveEquivGeneral c_Cons [head_equiv, tail_equiv] $ "Cons " ++ n ++ " equivalent"
+proveEquivList _ c_Nil n [] [] =
+  proveEquivGeneral c_Nil [] $ "[] (" ++ n ++ ") equivalent"
+proveEquivList _ _ n _ _ = proofFail $ "[" ++ n ++ "] not equivalent"
+
 instance ProveEquiv Bool where
   proveEquiv = proveEquivPrimitive s_Bool mkBool "Bool"
 
