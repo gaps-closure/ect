@@ -233,6 +233,10 @@ data ProofEnv = ProofEnv
   , s_Bool   :: !Sort -- Z3 sort for Bool
   , s_String :: !Sort -- Z3 sort for strings
 
+  -- Constructors, sorts for Name
+  , c_N_Name   :: !Z3Constructor
+  , c_N_UnName :: !Z3Constructor
+
   -- AddrSpace, part of pointer types, usually 0
   , c_T_AddrSpace          :: !Z3Constructor
 
@@ -375,6 +379,12 @@ initialEnv = do
   s_Bool <- mkBoolSort
   s_String <- mkStringSort
 
+  (s_Name, [ c_N_Name, c_N_UnName ]) <-
+    mkZ3Constructors s_Bool
+      "Name" [ ("N_Name", [("nm", Just s_String)])
+             , ("N_UnName", [("unm", Just s_Bv32)])
+             ]
+
   (s_AddrSpace, [ c_T_AddrSpace ]) <-
     mkZ3Constructors s_Bool "AddrSpace" [ ("T_AddrSpace",
                                             [("addrSpace", Just s_Bv32)])]
@@ -492,6 +502,7 @@ initialEnv = do
                                 ,("dllStorageClass", Just s_Maybe_StorageClass)
                                 ,("callingConvention", Just s_CallingConvention)
                                 ,("returnType", Just s_Type)
+                                ,("name", Just s_Name)
                                 ,("section", Just s_Maybe_ShortByteString)
                                 ,("comdat", Just s_Maybe_ShortByteString)
                                 ,("alignment", Just s_Bv32)
@@ -809,23 +820,33 @@ instance ProveEquiv A.Type where
 
   proveEquiv _ _ = proofFail "Type equivalence failed"
 
+instance ProveEquiv A.Name where
+  proveEquiv (A.Name s1) (A.Name s2) = do
+    e <- proveEquiv s1 s2
+    proveEquivGeneral c_N_Name [e] "Name equivalent"
+  proveEquiv (A.UnName w1) (A.UnName w2) = do
+    e <- proveEquiv ((fromIntegral w1) :: Word32) ((fromIntegral w2) :: Word32)
+    proveEquivGeneral c_N_UnName [e] "UnName equivalent"
+  proveEquiv _ _ = proofFail "Name != UnName"
 
 instance ProveEquiv A.Global where
   proveEquiv f1@A.Function{} f2@A.Function{} = do
     fields <- T.sequence
-      [ proveEquiv (A.linkage f1) (A.linkage f2)
-      , proveEquiv (A.visibility f1) (A.visibility f2)
-      , proveEquiv (A.dllStorageClass f1) (A.dllStorageClass f2)
-      , proveEquiv (A.callingConvention f1) (A.callingConvention f2)
-      , proveEquiv (A.returnType f1) (A.returnType f2)
-      , proveEquiv (A.section f1) (A.section f2)
-      , proveEquiv (A.comdat f1) (A.comdat f2)
-      , proveEquiv (A.alignment f1) (A.alignment f2)
-      , proveEquiv (A.garbageCollectorName f1) (A.garbageCollectorName f2)
+      [ proveField A.linkage
+      , proveField A.visibility
+      , proveField A.dllStorageClass
+      , proveField A.callingConvention
+      , proveField A.returnType
+      , proveField A.name
+      , proveField A.section
+      , proveField A.comdat
+      , proveField A.alignment
+      , proveField A.garbageCollectorName
       ]
     proveEquivGeneral c_G_Function fields $
       "functions " ++ (showName $ A.name f1) ++ " and " ++
       (showName $ A.name f2) ++ " equivalent"
+    where proveField record = proveEquiv (record f1) (record f2)
 
 
   proveEquiv _ _ = proofFail "Function"
