@@ -61,8 +61,6 @@ import qualified LLVM.AST.AddrSpace as A
 
 import Z3.Monad
 
-import Z3TypeGenerator
-
 ----------------------------------------------------------------------
 
 {-
@@ -510,8 +508,8 @@ initialEnv = do
                                 ])
                ]
 
-  $(initProofEnv [] [| ProofEnv{..} |] )
---  return ProofEnv{..}
+--  $(initProofEnv [] [| ProofEnv{..} |] )
+  return ProofEnv{..}
 
 ----------------------------------------------------------------------
 --

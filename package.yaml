@@ -26,8 +26,14 @@ library:
   source-dirs: src
   ghc-options:
   - -Wall
+  - -ddump-splices  # For debugging Template Haskell:
+  - -ddump-to-file  # more $(find . -name "*splices")
   dependencies:
   - template-haskell
+  - llvm-hs-pure >= 9.0.0
+  - z3 >= 408.2
+  - transformers
+  - containers
 
 executables:
   ect:
@@ -36,9 +42,9 @@ executables:
     ghc-options:
     - -Wall
     - -dynamic          # Needed for linking with the Z3 library
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
+#    - -threaded
+#    - -rtsopts
+#    - -with-rtsopts=-N
     
     dependencies:
     - z3 >= 408.2
@@ -49,6 +55,8 @@ executables:
     - utf8-string
     - containers
     - ect
+
+
 
 # stack build -v --ghc-options="-v" --cabal-verbose > log 2>&1
 # shows the sausage being made
