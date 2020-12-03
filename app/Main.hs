@@ -354,8 +354,7 @@ data ProofEnv = ProofEnv
   , c_LstP_Cons :: !Z3Constructor
 
   -- Constructors, sorts for ([Parameter], Bool)
-  -- , c_Arg_Fst :: !Z3Constructor
-  -- , c_Arg_Snd :: !Z3Constructor
+  , c_Argv :: !Z3Constructor
 
   -- Globals
   , c_G_Function :: !Z3Constructor
@@ -429,7 +428,7 @@ initialEnv = do
     mkZ3Constructors s_Bool
       "Type" [ ("T_VoidType", [])
              , ("T_IntegerType", [("nBits", Just s_Bv32)])
-             , ("T_PointerType", [("pointerReferent", Nothing) -- s_Type
+             , ("T_PointerType", [("pointerReferent", Nothing)
                                  ,("pointerAddrSpace", Just s_AddrSpace)])
              ]
 
@@ -586,11 +585,12 @@ initialEnv = do
                        , ("LstP_Cons", [("pcar", Just s_Parameter), ("pcdr", Nothing)])
                        ]
 
-  -- (s_Argument, [ c_Arg_Fst, c_Arg_Snd ]) <-
-  --   mkZ3Constructors s_Bool
-  --     "Argument" [ ("Arg_Fst", [("afst", Just s_List_Parameter)])
-  --                , ("Arg_Snd", [("asnd", Just s_Bool)])
-  --                ]
+  (s_Arguments, [ c_Argv ]) <-
+    mkZ3Constructors s_Bool
+      "Arguments" [ ("Argv", [ ("aparams", Just s_List_Parameter)
+                             , ("abool", Just s_Bool)
+                             ])
+                  ]
 
   (_, [ c_G_Function ]) <-
     mkZ3Constructors s_Bool
@@ -601,6 +601,7 @@ initialEnv = do
                                 ,("returnAttributes", Just s_List_ParameterAttribute)
                                 ,("returnType", Just s_Type)
                                 ,("name", Just s_Name)
+                                ,("parameters", Just s_Arguments)
                                 ,("section", Just s_Maybe_ShortByteString)
                                 ,("comdat", Just s_Maybe_ShortByteString)
                                 ,("alignment", Just s_Bv32)
@@ -998,11 +999,11 @@ instance ProveEquiv A.Parameter where
 instance ProveEquiv [A.Parameter] where
   proveEquiv = proveEquivList c_LstP_Cons c_LstP_Nil "Parameter"
 
--- instance ProveEquiv ([A.Parameter], Bool) where
---   proveEquiv (ps1, b1) (ps2, b2) = do
---     ps_eq <- proveEquiv ps1 ps2
---     b_eq <- proveEquiv b1 b2
---     proveEquivGeneral FIXME [ps_eq, b_eq] "([A.Parameter], Bool) equivalent"
+instance ProveEquiv ([A.Parameter], Bool) where
+  proveEquiv (ps1, b1) (ps2, b2) = do
+    ps_eq <- proveEquiv ps1 ps2
+    b_eq <- proveEquiv b1 b2
+    proveEquivGeneral c_Argv [ps_eq, b_eq] "([A.Parameter], Bool) equivalent"
 
 instance ProveEquiv A.Global where
   proveEquiv f1@A.Function{} f2@A.Function{} = do
@@ -1014,6 +1015,7 @@ instance ProveEquiv A.Global where
       , proveField A.returnAttributes
       , proveField A.returnType
       , proveField A.name
+      , proveField A.parameters
       , proveField A.section
       , proveField A.comdat
       , proveField A.alignment
