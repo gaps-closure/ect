@@ -28,7 +28,7 @@ import Data.ByteString.Short (ShortByteString, toShort,fromShort) -- ShortByteSt
 import qualified Data.ByteString.Char8 as C
 --import Data.Maybe (mapMaybe)
 import Data.List (intercalate)
-import Data.Word ( Word32 )
+import Data.Word ( Word32, Word64 )
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
@@ -46,17 +46,13 @@ import Control.Monad.Trans.Maybe
 import LLVM.Context (withContext)
 
 import qualified LLVM.Module as M
-import qualified LLVM.AST as A hiding (callingConvention, alignment)
+import qualified LLVM.AST as A hiding ( callingConvention, alignment, returnAttributes )
 import qualified LLVM.AST.Global as A
 import qualified LLVM.AST.Visibility as A
 import qualified LLVM.AST.Linkage as A
---import qualified LLVM.AST.StorageClass as A
 import qualified LLVM.AST.DLL as A
 import qualified LLVM.AST.CallingConvention as A
---import qualified LLVM.AST.FunctionAttribute as A
---import qualified LLVM.AST.ParameterAttribute as A
---import qualified LLVM.AST.IntegerPredicate as A
---import qualified LLVM.AST.Constant as C
+import qualified LLVM.AST.ParameterAttribute as A
 import qualified LLVM.AST.AddrSpace as A
 
 import Z3.Monad
@@ -228,6 +224,7 @@ type Z3Constructor = (FuncDecl, String, Z3Type)
 data ProofEnv = ProofEnv
   { s_Int    :: !Sort -- Z3 sort for Int
   , s_Bv32   :: !Sort -- Z3 sort for 32-bit vector
+  , s_Bv64   :: !Sort -- Z3 sort for 64-bit vector
   , s_Bool   :: !Sort -- Z3 sort for Bool
   , s_String :: !Sort -- Z3 sort for strings
 
@@ -320,6 +317,43 @@ data ProofEnv = ProofEnv
   , c_CC_MSP430_Builtin :: !Z3Constructor
   , c_CC_Numbered       :: !Z3Constructor
 
+  -- Constructors, sorts for ParameterAttribute
+  , c_PA_ZeroExt               :: !Z3Constructor
+  , c_PA_SignExt               :: !Z3Constructor
+  , c_PA_InReg                 :: !Z3Constructor
+  , c_PA_SRet                  :: !Z3Constructor
+  , c_PA_Alignment             :: !Z3Constructor
+  , c_PA_NoAlias               :: !Z3Constructor
+  , c_PA_ByVal                 :: !Z3Constructor
+  , c_PA_NoCapture             :: !Z3Constructor
+  , c_PA_Nest                  :: !Z3Constructor
+  , c_PA_ReadNone              :: !Z3Constructor
+  , c_PA_ReadOnly              :: !Z3Constructor
+  , c_PA_WriteOnly             :: !Z3Constructor
+  , c_PA_ImmArg                :: !Z3Constructor
+  , c_PA_InAlloca              :: !Z3Constructor
+  , c_PA_NonNull               :: !Z3Constructor
+  , c_PA_Dereferenceable       :: !Z3Constructor
+  , c_PA_DereferenceableOrNull :: !Z3Constructor
+  , c_PA_Returned              :: !Z3Constructor
+  , c_PA_SwiftSelf             :: !Z3Constructor
+  , c_PA_SwiftError            :: !Z3Constructor
+  , c_PA_StringAttribute       :: !Z3Constructor
+
+  -- Constructors, sorts for [ParameterAttribute]
+  , c_LstPA_Nil  :: !Z3Constructor
+  , c_LstPA_Cons :: !Z3Constructor
+
+  -- Constructors, sorts for Parameter
+  , c_P_Parameter :: !Z3Constructor
+
+  -- Constructors, sorts for [Parameter]
+  , c_LstP_Nil  :: !Z3Constructor
+  , c_LstP_Cons :: !Z3Constructor
+
+  -- Constructors, sorts for ([Parameter], Bool)
+  , c_Argv :: !Z3Constructor
+
   -- Globals
   , c_G_Function :: !Z3Constructor
   }
@@ -374,6 +408,7 @@ initialEnv :: ProofM ProofEnv
 initialEnv = do
   s_Int <- mkIntSort
   s_Bv32 <- mkBvSort 32
+  s_Bv64 <- mkBvSort 64
   s_Bool <- mkBoolSort
   s_String <- mkStringSort
 
@@ -391,7 +426,7 @@ initialEnv = do
     mkZ3Constructors s_Bool
       "Type" [ ("T_VoidType", [])
              , ("T_IntegerType", [("nBits", Just s_Bv32)])
-             , ("T_PointerType", [("pointerReferent", Nothing) -- s_Type
+             , ("T_PointerType", [("pointerReferent", Nothing)
                                  ,("pointerAddrSpace", Just s_AddrSpace)])
              ]
 
@@ -490,8 +525,70 @@ initialEnv = do
                           , ("CC_AMDGPU_Kernel", [])
                           , ("CC_X86_RegCall", [])
                           , ("CC_MSP430_Builtin", [])
-                          , ("CC_Numbered", [("num", Just s_Bv32)])
+                          , ("CC_Numbered", [("ccnum", Just s_Bv32)])
                           ]
+
+  (s_ParameterAttribute, [ c_PA_ZeroExt, c_PA_SignExt, c_PA_InReg, c_PA_SRet
+                         , c_PA_Alignment, c_PA_NoAlias, c_PA_ByVal
+                         , c_PA_NoCapture, c_PA_Nest, c_PA_ReadNone
+                         , c_PA_ReadOnly, c_PA_WriteOnly, c_PA_ImmArg
+                         , c_PA_InAlloca, c_PA_NonNull, c_PA_Dereferenceable
+                         , c_PA_DereferenceableOrNull, c_PA_Returned
+                         , c_PA_SwiftSelf, c_PA_SwiftError
+                         , c_PA_StringAttribute]) <-
+    mkZ3Constructors s_Bool
+      "ParameterAttribute" [ ("PA_ZeroExt", [])
+                           , ("PA_SignExt", [])
+                           , ("PA_InReg", [])
+                           , ("PA_SRet", [])
+                           , ("PA_Alignment", [("paalign", Just s_Bv64)])
+                           , ("PA_NoAlias", [])
+                           , ("PA_ByVal", [])
+                           , ("PA_NoCapture", [])
+                           , ("PA_Nest", [])
+                           , ("PA_ReadNone", [])
+                           , ("PA_ReadOnly", [])
+                           , ("PA_WriteOnly", [])
+                           , ("PA_ImmArg", [])
+                           , ("PA_InAlloca", [])
+                           , ("PA_NonNull", [])
+                           , ("PA_Dereferenceable", [("paderef", Just s_Bv64)])
+                           , ("PA_DereferenceableOrNull", [("paderefnull", Just s_Bv64)])
+                           , ("PA_Returned", [])
+                           , ("PA_SwiftSelf", [])
+                           , ("PA_SwiftError", [])
+                           , ("PA_StringAttribute", [ ("sakind", Just s_String)
+                                                    , ("saval", Just s_String)
+                                                    ]
+                             )
+                           ]
+
+  (s_List_ParameterAttribute, [ c_LstPA_Nil, c_LstPA_Cons ]) <-
+    mkZ3Constructors s_Bool
+      "List-ParameterAttribute" [ ("LstPA_Nil", [])
+                                , ("LstPA_Cons", [("pacar", Just s_ParameterAttribute), ("pacdr", Nothing)])
+                                ]
+
+  (s_Parameter, [ c_P_Parameter ]) <-
+    mkZ3Constructors s_Bool "Parameter"
+      [ ("P_Parameter", [ ("ptype", Just s_Type)
+                        , ("pname", Just s_Name)
+                        , ("pattrs", Just s_List_ParameterAttribute)
+                        ])
+      ]
+
+  (s_List_Parameter, [ c_LstP_Nil, c_LstP_Cons ]) <-
+    mkZ3Constructors s_Bool
+      "List-Parameter" [ ("LstP_Nil", [])
+                       , ("LstP_Cons", [("pcar", Just s_Parameter), ("pcdr", Nothing)])
+                       ]
+
+  (s_Arguments, [ c_Argv ]) <-
+    mkZ3Constructors s_Bool
+      "Arguments" [ ("Argv", [ ("aparams", Just s_List_Parameter)
+                             , ("abool", Just s_Bool)
+                             ])
+                  ]
 
   (_, [ c_G_Function ]) <-
     mkZ3Constructors s_Bool
@@ -499,8 +596,10 @@ initialEnv = do
                                 ,("visibility", Just s_Visibility)
                                 ,("dllStorageClass", Just s_Maybe_StorageClass)
                                 ,("callingConvention", Just s_CallingConvention)
+                                ,("returnAttributes", Just s_List_ParameterAttribute)
                                 ,("returnType", Just s_Type)
                                 ,("name", Just s_Name)
+                                ,("parameters", Just s_Arguments)
                                 ,("section", Just s_Maybe_ShortByteString)
                                 ,("comdat", Just s_Maybe_ShortByteString)
                                 ,("alignment", Just s_Bv32)
@@ -718,6 +817,9 @@ instance ProveEquiv Bool where
 instance ProveEquiv Word32 where
   proveEquiv = proveEquivPrimitive s_Bv32 (\x -> mkBitvector 32 (toInteger x)) "Word32"
 
+instance ProveEquiv Word64 where
+  proveEquiv = proveEquivPrimitive s_Bv64 (\x -> mkBitvector 64 (toInteger x)) "Word64"
+
 instance ProveEquiv ShortByteString where
   proveEquiv = proveEquivPrimitive s_String (\x -> mkString $ C.unpack $ fromShort x) "ShortByteString"
 
@@ -809,8 +911,51 @@ instance ProveEquiv A.CallingConvention where
                 A.AMDGPU_Kernel  -> c_CC_AMDGPU_Kernel
                 A.X86_RegCall    -> c_CC_X86_RegCall
                 A.MSP430_Builtin -> c_CC_MSP430_Builtin
-                A.Numbered _     -> error "unreachable pattern match"
+                _ -> error "unreachable pattern match"
 
+instance ProveEquiv A.ParameterAttribute where
+  proveEquiv (A.StringAttribute k1 v1) (A.StringAttribute k2 v2) = do
+    ek <- proveEquiv k1 k2
+    ev <- proveEquiv v1 v2
+    proveEquivGeneral c_PA_StringAttribute [ek, ev]
+      "StringAttribute parameter attribute equivalent"
+  proveEquiv (A.Alignment a1) (A.Alignment a2) = do
+    e <- proveEquiv a1 a2
+    proveEquivGeneral c_PA_Alignment [e]
+      "Alignment parameter attribute equivalent"
+  proveEquiv (A.Dereferenceable d1) (A.Dereferenceable d2) = do
+    e <- proveEquiv d1 d2
+    proveEquivGeneral c_PA_Dereferenceable [e]
+      "Dereferenceable parameter attribute equivalent"
+  proveEquiv (A.DereferenceableOrNull d1) (A.DereferenceableOrNull d2) = do
+    e <- proveEquiv d1 d2
+    proveEquivGeneral c_PA_DereferenceableOrNull [e]
+      "DereferenceableOrNull parameter attribute equivalent"
+  proveEquiv a b
+    | a == b    = proveEquivGeneral c [] (show a ++ " parameter attribute equivalent")
+    | otherwise = proofFail "ParameterAttribute"
+    where c = case a of
+                A.ZeroExt    -> c_PA_ZeroExt
+                A.SignExt    -> c_PA_SignExt
+                A.InReg      -> c_PA_InReg
+                A.SRet       -> c_PA_SRet
+                A.NoAlias    -> c_PA_NoAlias
+                A.ByVal      -> c_PA_ByVal
+                A.NoCapture  -> c_PA_NoCapture
+                A.Nest       -> c_PA_Nest
+                A.ReadNone   -> c_PA_ReadNone
+                A.ReadOnly   -> c_PA_ReadOnly
+                A.WriteOnly  -> c_PA_WriteOnly
+                A.ImmArg     -> c_PA_ImmArg
+                A.InAlloca   -> c_PA_InAlloca
+                A.NonNull    -> c_PA_NonNull
+                A.Returned   -> c_PA_Returned
+                A.SwiftSelf  -> c_PA_SwiftSelf
+                A.SwiftError -> c_PA_SwiftError
+                _ -> error "unreachable pattern match"
+
+instance ProveEquiv [A.ParameterAttribute] where
+  proveEquiv = proveEquivList c_LstPA_Cons c_LstPA_Nil "ParameterAttribute"
 
 instance ProveEquiv A.AddrSpace where
   proveEquiv (A.AddrSpace a1) (A.AddrSpace a2) = do
@@ -842,6 +987,22 @@ instance ProveEquiv A.Name where
     proveEquivGeneral c_N_UnName [e] "UnName equivalent"
   proveEquiv _ _ = proofFail "Name != UnName"
 
+instance ProveEquiv A.Parameter where
+  proveEquiv (A.Parameter t1 n1 pa1) (A.Parameter t2 n2 pa2) = do
+    t_eq <- proveEquiv t1 t2
+    n_eq <- proveEquiv n1 n2
+    pa_eq <- proveEquiv pa1 pa2
+    proveEquivGeneral c_P_Parameter [t_eq, n_eq, pa_eq] "Parameter equivalent"
+
+instance ProveEquiv [A.Parameter] where
+  proveEquiv = proveEquivList c_LstP_Cons c_LstP_Nil "Parameter"
+
+instance ProveEquiv ([A.Parameter], Bool) where
+  proveEquiv (ps1, b1) (ps2, b2) = do
+    ps_eq <- proveEquiv ps1 ps2
+    b_eq <- proveEquiv b1 b2
+    proveEquivGeneral c_Argv [ps_eq, b_eq] "([A.Parameter], Bool) equivalent"
+
 instance ProveEquiv A.Global where
   proveEquiv f1@A.Function{} f2@A.Function{} = do
     fields <- T.sequence
@@ -849,8 +1010,10 @@ instance ProveEquiv A.Global where
       , proveField A.visibility
       , proveField A.dllStorageClass
       , proveField A.callingConvention
+      , proveField A.returnAttributes
       , proveField A.returnType
       , proveField A.name
+      , proveField A.parameters
       , proveField A.section
       , proveField A.comdat
       , proveField A.alignment
