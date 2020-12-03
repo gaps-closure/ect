@@ -1,6 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 module ProofM where
 
@@ -22,6 +21,8 @@ import qualified LLVM.AST as A
 --import qualified LLVM.AST.CallingConvention as A
 
 import Z3.Monad
+
+import ProofEnv
 
 ----------------------------------------------------------------------
 --
@@ -195,23 +196,3 @@ logInference :: [PID] -> Prop -> String -> ProofM ()
 logInference infPremises infConclusion infComment =
   ProofM $ lift $ lift $ lift $ tell [LogInference{..}]
 
-----------------------------------------------------------------------
---
--- The Proof Environment: Z3 definitions that can be used in proof steps
--- These are collected here and threaded through the Proof Monad via a ReaderT
---
--- Access these with "fromEnv"
-
--- | Information about an LLVM type implemented in Z3-land
-data Z3Type = Z3Type { sort :: !Sort
-                     , equivFunc :: !FuncDecl }
-
--- | A constructor function and more information about the type in Z3-land
-type Z3Constructor = (FuncDecl, String, Z3Type)
-
-data ProofEnv = ProofEnv
-  { z3_Bool :: !Sort
-  , z3_StorageClass :: !Sort
-  , z3_Import :: !Z3Constructor
-  , z3_Export :: !Z3Constructor
-  }

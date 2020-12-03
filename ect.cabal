@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: af98b4fbb67930e0d549d8a6055864443ac4a399f65dff35cc9a814895b53736
+-- hash: a4f21e923cefcf9ca8c4db23a610146085edddc228bf1a9547d1d18e9838d7d3
 
 name:           ect
 version:        0.1.0.0
@@ -28,6 +28,7 @@ source-repository head
 library
   exposed-modules:
       InitialEnv
+      ProofEnv
       ProofM
       Z3TypeGenerator
   other-modules:

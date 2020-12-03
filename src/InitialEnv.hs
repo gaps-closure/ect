@@ -7,11 +7,18 @@ import qualified Data.Traversable as T
 
 import ProofM
 
+import ProofEnv
+
 import Z3TypeGenerator
 
 import Z3.Monad
 
+import qualified LLVM.AST as A
 import qualified LLVM.AST.DLL as A (StorageClass(..))
+import qualified LLVM.AST.AddrSpace as A
+import qualified LLVM.AST.Visibility as A
+import qualified LLVM.AST.Linkage as A
+import qualified LLVM.AST.CallingConvention as A
 
 -- | Build an equivalence checking function for a given Z3 type
 --   Needs the bool sort
@@ -60,7 +67,12 @@ mkZ3Constructors bool name fields = do
 
 initialEnv :: ProofM ProofEnv
 initialEnv = do
-  z3_Bool <- mkBoolSort
+  s_Bool <- mkBoolSort
   $(initEnv "ProofEnv"
-        [z3Constructors "z3_" [| z3_Bool |] ''A.StorageClass
+        [z3Constructors [| s_Bool |] ''A.AddrSpace
+        ,z3Constructors [| s_Bool |] ''A.Type
+        ,z3Constructors [| s_Bool |] ''A.Visibility
+        ,z3Constructors [| s_Bool |] ''A.StorageClass
+        ,z3Constructors [| s_Bool |] ''A.Linkage
+        ,z3Constructors [| s_Bool |] ''A.CallingConvention
         ])
