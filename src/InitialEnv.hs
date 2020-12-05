@@ -68,9 +68,14 @@ mkZ3Constructors bool name fields = do
 initialEnv :: ProofM ProofEnv
 initialEnv = do
   s_Bool <- mkBoolSort
+  s_Int <- mkIntSort
+  s_String <- mkStringSort
+  s_Word32 <- mkBvSort 32
   $(initEnv "ProofEnv"
         [z3Constructors [| s_Bool |] ''A.AddrSpace
-        ,z3Constructors [| s_Bool |] ''A.Type
+        ,z3ConstructorsOnly [| s_Bool |] ''A.Type ["VoidType"
+                                                  ,"IntegerType"
+                                                  ,"PointerType"]
         ,z3Constructors [| s_Bool |] ''A.Visibility
         ,z3Constructors [| s_Bool |] ''A.StorageClass
         ,z3Constructors [| s_Bool |] ''A.Linkage

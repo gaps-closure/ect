@@ -36,18 +36,17 @@ type Z3Constructor = (FuncDecl, String, Z3Type)
 --                          , c_Import :: !Z3Constructor
 --                          , c_Export :: !Z3Constructor ... }
 
-declareProofEnvType [''A.AddrSpace
-                    ,''A.Type
-                    ,''A.Visibility
-                    ,''A.StorageClass
-                    ,''A.Linkage
-                    ,''A.CallingConvention]
-
-{-
-data ProofEnv = ProofEnv
-  { z3_Bool :: !Sort
-  , z3_StorageClass :: !Sort
-  , z3_Import :: !Z3Constructor
-  , z3_Export :: !Z3Constructor
-  }
--}
+declareProofEnvType
+  ["Bool"
+  ,"Int"
+  ,"String"
+  ,"Word32"
+  ]
+  [(''A.Type, ["VoidType"
+              ,"IntegerType"
+              ,"PointerType"])]
+  [''A.AddrSpace
+  ,''A.Visibility
+  ,''A.StorageClass
+  ,''A.Linkage
+  ,''A.CallingConvention]
