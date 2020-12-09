@@ -206,6 +206,10 @@ instance ProveEquiv Bool where
 instance ProveEquiv Word32 where
   proveEquiv = proveEquivPrimitive s_Word32 (\x -> mkBitvector 32 (toInteger x)) "Word32"
 
+instance ProveEquiv (Maybe Word32) where
+  proveEquiv = proveEquivMaybe
+    c_MW_Just_Word32 c_MW_Nothing_Word32 "Word32"
+
 instance ProveEquiv Word64 where
   proveEquiv = proveEquivPrimitive s_Word64 (\x -> mkBitvector 64 (toInteger x)) "Word64"
 
@@ -407,8 +411,63 @@ instance ProveEquiv FA.GroupID where
     proveEquivGeneral c_GID_GroupID [e] $ "GroupID"
 
 instance ProveEquiv FA.FunctionAttribute where
-  proveEquiv _ _ = proveEquivGeneral c_FA_NoReturn
-    [] $ "FIXME: Function Attribute ignored" -- FIXME: add to env
+  proveEquiv (FA.StringAttribute k1 v1) (FA.StringAttribute k2 v2) = do
+    ek <- proveEquiv k1 k2
+    ev <- proveEquiv v1 v2
+    proveEquivGeneral c_FA_StringAttribute [ek, ev]
+      "StringAttribute function attribute equivalent"
+  proveEquiv (FA.StackAlignment a1) (FA.StackAlignment a2) = do
+    e <- proveEquiv a1 a2
+    proveEquivGeneral c_FA_StackAlignment [e]
+      "StackAlignment function attribute equivalent"
+  proveEquiv (FA.AllocSize a1 b1) (FA.AllocSize a2 b2) = do
+    ea <- proveEquiv a1 a2
+    eb <- proveEquiv b1 b2
+    proveEquivGeneral c_FA_AllocSize [ea, eb]
+      "AllocSize function attribute equivalent"
+  proveEquiv a b
+    | a == b    = proveEquivGeneral c []
+                        (show a ++ " function attribute equivalent")
+    | otherwise = proofFail "FunctionAttribute"
+    where c = case a of
+                FA.NoReturn            -> c_FA_NoReturn
+                FA.NoUnwind            -> c_FA_NoUnwind
+                FA.ReadNone            -> c_FA_ReadNone
+                FA.ReadOnly            -> c_FA_ReadOnly
+                FA.NoInline            -> c_FA_NoInline
+                FA.NoRecurse           -> c_FA_NoRecurse
+                FA.AlwaysInline        -> c_FA_AlwaysInline
+                FA.MinimizeSize        -> c_FA_MinimizeSize
+                FA.OptimizeForSize     -> c_FA_OptimizeForSize
+                FA.OptimizeNone        -> c_FA_OptimizeNone
+                FA.StackProtect        -> c_FA_StackProtect
+                FA.StackProtectReq     -> c_FA_StackProtectReq
+                FA.StackProtectStrong  -> c_FA_StackProtectStrong
+                FA.StrictFP            -> c_FA_StrictFP
+                FA.NoRedZone           -> c_FA_NoRedZone
+                FA.NoImplicitFloat     -> c_FA_NoImplicitFloat
+                FA.Naked               -> c_FA_Naked
+                FA.InlineHint          -> c_FA_InlineHint
+                FA.ReturnsTwice        -> c_FA_ReturnsTwice
+                FA.UWTable             -> c_FA_UWTable
+                FA.NonLazyBind         -> c_FA_NonLazyBind
+                FA.Builtin             -> c_FA_Builtin
+                FA.NoBuiltin           -> c_FA_NoBuiltin
+                FA.Cold                -> c_FA_Cold
+                FA.JumpTable           -> c_FA_JumpTable
+                FA.NoDuplicate         -> c_FA_NoDuplicate
+                FA.SanitizeAddress     -> c_FA_SanitizeAddress
+                FA.SanitizeHWAddress   -> c_FA_SanitizeHWAddress
+                FA.SanitizeThread      -> c_FA_SanitizeThread
+                FA.SanitizeMemory      -> c_FA_SanitizeMemory
+                FA.Speculatable        -> c_FA_Speculatable
+                FA.WriteOnly           -> c_FA_WriteOnly
+                FA.ArgMemOnly          -> c_FA_ArgMemOnly
+                FA.Convergent          -> c_FA_Convergent
+                FA.SafeStack           -> c_FA_SafeStack
+                FA.InaccessibleMemOnly -> c_FA_InaccessibleMemOnly
+                FA.InaccessibleMemOrArgMemOnly -> c_FA_InaccessibleMemOrArgMemOnly
+                _ -> error "unreachable pattern match"
 
 instance ProveEquiv (Either FA.GroupID FA.FunctionAttribute) where
   proveEquiv = proveEquivEither
@@ -416,18 +475,18 @@ instance ProveEquiv (Either FA.GroupID FA.FunctionAttribute) where
     c_EGIDFA_Right_GroupID_FunctionAttribute
     "GroupID FunctionAttribute"
 
+instance ProveEquiv [Either FA.GroupID FA.FunctionAttribute] where
+  proveEquiv = proveEquivList
+    c_Cons_Either_GroupID_FunctionAttribute
+    c_Nil_Either_GroupID_FunctionAttribute
+    "List FunctionAttribute"
+
 instance ProveEquiv A.Constant where
   proveEquiv _ _ = proveEquiv True True -- FIXME: add s_Constant to env (currently bool)
 
 instance ProveEquiv (Maybe A.Constant) where
   proveEquiv = proveEquivMaybe
     c_MC_Just_Constant c_MC_Nothing_Constant "Maybe Constant"
-
-instance ProveEquiv [Either FA.GroupID FA.FunctionAttribute] where
-  proveEquiv = proveEquivList
-    c_Cons_Either_GroupID_FunctionAttribute
-    c_Nil_Either_GroupID_FunctionAttribute
-    "List FunctionAttribute"
 
 instance ProveEquiv A.BasicBlock where
   proveEquiv _ _ = proveEquiv True True -- FIXME: add s_BasicBlock to env (currently bool)
