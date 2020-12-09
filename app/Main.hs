@@ -139,6 +139,9 @@ proveEquivPrimitive getEnvSort toSort name x y = do
 
   proveZ3Equiv [] Equiv{..} (name ++ " equivalent")
 
+----------------------------------
+-- Polymorphic typeclass helpers
+
 proveEquivMaybe :: (ProveEquiv a)
                 => (ProofEnv -> Z3Constructor)
                 -> (ProofEnv -> Z3Constructor)
@@ -152,6 +155,21 @@ proveEquivMaybe c_Just _ n (Just a) (Just b) = do
 proveEquivMaybe _ c_Nothing n Nothing Nothing =
   proveEquivGeneral c_Nothing [] $ "Nothing (" ++ n ++ ") equivalent"
 proveEquivMaybe _ _ n _ _ = proofFail $ "Maybe " ++ n ++ " not equivalent"
+
+proveEquivEither :: (ProveEquiv a, ProveEquiv b)
+                 => (ProofEnv -> Z3Constructor)
+                 -> (ProofEnv -> Z3Constructor)
+                 -> String
+                 -> Either a b
+                 -> Either a b
+                -> ProofM Equiv
+proveEquivEither c_Left _ n (Left a) (Left b) = do
+  e <- proveEquiv a b
+  proveEquivGeneral c_Left [e] $ "Left (" ++ n ++ ") equivalent"
+proveEquivEither _ c_Right n (Right a) (Right b) = do
+  e <- proveEquiv a b
+  proveEquivGeneral c_Right [e] $ "Right (" ++ n ++ ") equivalent"
+proveEquivEither _ _ n _ _ = proofFail $ "Either " ++ n ++ " not equivalent"
 
 proveEquivList :: (ProveEquiv a)
                => (ProofEnv -> Z3Constructor)
@@ -168,6 +186,20 @@ proveEquivList _ c_Nil n [] [] =
   proveEquivGeneral c_Nil [] $ "[] (" ++ n ++ ") equivalent"
 proveEquivList _ _ n _ _ = proofFail $ "[" ++ n ++ "] not equivalent"
 
+proveEquivTuple :: (ProveEquiv a, ProveEquiv b)
+                => (ProofEnv -> Z3Constructor)
+                -> String
+                -> (a, b)
+                -> (a, b)
+                -> ProofM Equiv
+proveEquivTuple c_Tup n (a1, a2) (b1, b2) = do
+  fst_eq <- proveEquiv a1 b1
+  snd_eq <- proveEquiv a2 b2
+  proveEquivGeneral c_Tup [fst_eq, snd_eq] $ "Tuple " ++ n ++ " equivalent"
+
+--------------------
+-- Primitive types
+
 instance ProveEquiv Bool where
   proveEquiv = proveEquivPrimitive s_Bool mkBool "Bool"
 
@@ -177,12 +209,35 @@ instance ProveEquiv Word32 where
 instance ProveEquiv Word64 where
   proveEquiv = proveEquivPrimitive s_Word64 (\x -> mkBitvector 64 (toInteger x)) "Word64"
 
+instance ProveEquiv Word where
+  proveEquiv = proveEquivPrimitive s_Word (\x -> mkBitvector 32 (toInteger x)) "Word"
+
 instance ProveEquiv ShortByteString where
   proveEquiv = proveEquivPrimitive s_String (\x -> mkString $ C.unpack $ fromShort x) "ShortByteString"
 
 instance ProveEquiv (Maybe ShortByteString) where
   proveEquiv = proveEquivMaybe
     c_MSBS_Just_ShortByteString c_MSBS_Nothing_ShortByteString "ShortByteString"
+
+------------------------------------
+-- LLVM types making up a Function
+
+instance ProveEquiv A.Linkage where
+  proveEquiv a b
+    | a == b    = proveEquivGeneral c [] (show a ++ " linkage equivalent")
+    | otherwise = proofFail "Linkage"
+    where c = case a of
+                A.Private     -> c_L_Private
+                A.Internal    -> c_L_Internal
+                A.LinkOnce    -> c_L_LinkOnce
+                A.Weak        -> c_L_Weak
+                A.Common      -> c_L_Common
+                A.Appending   -> c_L_Appending
+                A.ExternWeak  -> c_L_ExternWeak
+                A.LinkOnceODR -> c_L_LinkOnceODR
+                A.WeakODR     -> c_L_WeakODR
+                A.External    -> c_L_External
+                A.AvailableExternally -> c_L_AvailableExternally
 
 instance ProveEquiv A.Visibility where
   proveEquiv a b
@@ -202,24 +257,8 @@ instance ProveEquiv A.StorageClass where
                 A.Export -> c_SC_Export
 
 instance ProveEquiv (Maybe A.StorageClass) where
-  proveEquiv = proveEquivMaybe c_MSC_Just_StorageClass c_MSC_Nothing_StorageClass "Maybe StorageClass"
-
-instance ProveEquiv A.Linkage where
-  proveEquiv a b
-    | a == b    = proveEquivGeneral c [] (show a ++ " linkage equivalent")
-    | otherwise = proofFail "Linkage"
-    where c = case a of
-                A.Private     -> c_L_Private
-                A.Internal    -> c_L_Internal
-                A.LinkOnce    -> c_L_LinkOnce
-                A.Weak        -> c_L_Weak
-                A.Common      -> c_L_Common
-                A.Appending   -> c_L_Appending
-                A.ExternWeak  -> c_L_ExternWeak
-                A.LinkOnceODR -> c_L_LinkOnceODR
-                A.WeakODR     -> c_L_WeakODR
-                A.External    -> c_L_External
-                A.AvailableExternally -> c_L_AvailableExternally
+  proveEquiv = proveEquivMaybe
+    c_MSC_Just_StorageClass c_MSC_Nothing_StorageClass "Maybe StorageClass"
 
 instance ProveEquiv A.CallingConvention where
   proveEquiv (A.Numbered w1) (A.Numbered w2) = do
@@ -315,15 +354,14 @@ instance ProveEquiv A.ParameterAttribute where
 
 instance ProveEquiv [A.ParameterAttribute] where
   proveEquiv = proveEquivList
-     c_Cons_ParameterAttribute c_Nil_ParameterAttribute
-     "List ParameterAttribute"
+    c_Cons_ParameterAttribute c_Nil_ParameterAttribute "List ParameterAttribute"
 
 instance ProveEquiv A.AddrSpace where
   proveEquiv (A.AddrSpace a1) (A.AddrSpace a2) = do
     e <- proveEquiv a1 a2
     proveEquivGeneral c_AS_AddrSpace [e] "AddrSpace equivalent"
 
-instance ProveEquiv A.Type where
+instance ProveEquiv A.Type where -- FIXME: partial definition
   proveEquiv A.VoidType A.VoidType = do
     proveEquivGeneral c_T_VoidType [] "VoidType equivalent"
 
@@ -344,7 +382,7 @@ instance ProveEquiv A.Name where
     e <- proveEquiv s1 s2
     proveEquivGeneral c_N_Name [e] "Name equivalent"
   proveEquiv (A.UnName w1) (A.UnName w2) = do
-    e <- proveEquiv ((fromIntegral w1) :: Word32) ((fromIntegral w2) :: Word32)
+    e <- proveEquiv w1 w2
     proveEquivGeneral c_N_UnName [e] "UnName equivalent"
   proveEquiv _ _ = proofFail "Name != UnName"
 
@@ -356,52 +394,60 @@ instance ProveEquiv A.Parameter where
     proveEquivGeneral c_P_Parameter [t_eq, n_eq, pa_eq] "Parameter equivalent"
 
 instance ProveEquiv [A.Parameter] where
-  proveEquiv = proveEquivList c_Cons_Parameter c_Nil_Parameter "List Parameter"
+  proveEquiv = proveEquivList
+    c_Cons_Parameter c_Nil_Parameter "List Parameter"
 
 instance ProveEquiv ([A.Parameter], Bool) where
-  proveEquiv (ps1, b1) (ps2, b2) = do
-    ps_eq <- proveEquiv ps1 ps2
-    b_eq <- proveEquiv b1 b2
-    proveEquivGeneral c_Tup2_List_Parameter_Bool [ps_eq, b_eq]
-      "([A.Parameter], Bool) equivalent"
-
-instance ProveEquiv (Maybe A.Constant) where
-  proveEquiv _ _ = proveEquivGeneral c_MC_Nothing_Constant [] $
-                   "FIXME: Maybe Constant"
-
-instance ProveEquiv [(ShortByteString, A.MDRef A.MDNode)] where
-  proveEquiv _ _ = proveEquivGeneral c_Nil_Tup2_ShortByteString_MDRef_MDNode
-    [] $ "FIXME: Metadata list ignored" -- FIXME?
-
-instance ProveEquiv [A.BasicBlock] where
-  proveEquiv _ _ = proveEquivGeneral c_Nil_BasicBlock
-    [] $ "FIXME: Basic blocks ignored"
-
-instance ProveEquiv FA.FunctionAttribute where
-  proveEquiv _ _ = proveEquivGeneral c_FA_NoReturn
-    [] $ "FIXME: Function Attribute ignored"
-
-instance ProveEquiv Word where
-  proveEquiv = proveEquivPrimitive s_Word (\x -> mkBitvector 32 (toInteger x)) "Word"
-
+  proveEquiv = proveEquivTuple
+    c_Tup2_List_Parameter_Bool "([A.Parameter], Bool)"
 
 instance ProveEquiv FA.GroupID where
   proveEquiv (FA.GroupID i1) (FA.GroupID i2) = do
     e <- proveEquiv i1 i2
     proveEquivGeneral c_GID_GroupID [e] $ "GroupID"
 
+instance ProveEquiv FA.FunctionAttribute where
+  proveEquiv _ _ = proveEquivGeneral c_FA_NoReturn
+    [] $ "FIXME: Function Attribute ignored" -- FIXME: add to env
+
 instance ProveEquiv (Either FA.GroupID FA.FunctionAttribute) where
-  proveEquiv (Left g1) (Left g2) = do
-    e <- proveEquiv g1 g2
-    proveEquivGeneral c_EGIDFA_Left_GroupID_FunctionAttribute [e] $ "Left"
-  proveEquiv (Right a1) (Right a2) = do
-    e <- proveEquiv a1 a2
-    proveEquivGeneral c_EGIDFA_Right_GroupID_FunctionAttribute [e] $ "Right"
-  proveEquiv _ _ = proofFail "Either GroupID FunctionAttribute failed"
+  proveEquiv = proveEquivEither
+    c_EGIDFA_Left_GroupID_FunctionAttribute
+    c_EGIDFA_Right_GroupID_FunctionAttribute
+    "GroupID FunctionAttribute"
+
+instance ProveEquiv A.Constant where
+  proveEquiv _ _ = proveEquiv True True -- FIXME: add s_Constant to env (currently bool)
+
+instance ProveEquiv (Maybe A.Constant) where
+  proveEquiv = proveEquivMaybe
+    c_MC_Just_Constant c_MC_Nothing_Constant "Maybe Constant"
 
 instance ProveEquiv [Either FA.GroupID FA.FunctionAttribute] where
-  proveEquiv = proveEquivList c_Cons_Either_GroupID_FunctionAttribute
-                              c_Nil_Either_GroupID_FunctionAttribute "List functionAttributes"
+  proveEquiv = proveEquivList
+    c_Cons_Either_GroupID_FunctionAttribute
+    c_Nil_Either_GroupID_FunctionAttribute
+    "List FunctionAttribute"
+
+instance ProveEquiv A.BasicBlock where
+  proveEquiv _ _ = proveEquiv True True -- FIXME: add s_BasicBlock to env (currently bool)
+
+instance ProveEquiv [A.BasicBlock] where -- FIXME: should be an isomorphism check not a list check
+  proveEquiv = proveEquivList
+    c_Cons_BasicBlock c_Nil_BasicBlock "List BasicBlock"
+
+instance ProveEquiv (A.MDRef A.MDNode) where
+  proveEquiv _ _ = proveEquiv True True -- FIXME: add s_MDRef_MDNode to env (currently bool)
+
+instance ProveEquiv (ShortByteString, A.MDRef A.MDNode) where
+  proveEquiv = proveEquivTuple
+    c_Tup2_ShortByteString_MDRef_MDNode "(ShortByteString, MDRef MDNode)"
+
+instance ProveEquiv [(ShortByteString, A.MDRef A.MDNode)] where
+  proveEquiv = proveEquivList
+    c_Cons_Tup2_ShortByteString_MDRef_MDNode
+    c_Nil_Tup2_ShortByteString_MDRef_MDNode
+    "List (ShortByteString, MDRef MDNode)"
 
 instance ProveEquiv A.Global where
   proveEquiv f1@A.Function{} f2@A.Function{} = do
@@ -555,24 +601,6 @@ usageMessage = do prg <- getProgName
 main :: IO ()
 main = do
 
-{-
-  (rule', _, proofLog') <- runProofEnvironment initialState initialEnv $ do
-                              e <- proveEquiv A.VoidType A.VoidType
-                              _ <- proveEquiv (A.IntegerType 32) (A.IntegerType 32)
-                              _ <- proveEquiv (A.Default) (A.Default)
-                              _ <- proveEquiv (A.LinkOnce) (A.LinkOnce)
-                              _ <- proveEquiv (Just A.Import) (Just A.Import)
-                              _ <- proveEquiv True True
-                              logString "Complete"
-                              return e
-
-  --  print rule'
-  --  print proofLog'
-  mapM_ print proofLog'
-  exitSuccess
-
--}
-
   args <- getArgs
   let (actions, filenames, errors) =
         getOpt RequireOrder optionDescriptions args
@@ -614,3 +642,21 @@ main = do
 
   -- print rule
   mapM_ print proofLog
+
+{-
+  (rule', _, proofLog') <- runProofEnvironment initialState initialEnv $ do
+                              e <- proveEquiv A.VoidType A.VoidType
+                              _ <- proveEquiv (A.IntegerType 32) (A.IntegerType 32)
+                              _ <- proveEquiv (A.Default) (A.Default)
+                              _ <- proveEquiv (A.LinkOnce) (A.LinkOnce)
+                              _ <- proveEquiv (Just A.Import) (Just A.Import)
+                              _ <- proveEquiv True True
+                              logString "Complete"
+                              return e
+
+  --  print rule'
+  --  print proofLog'
+  mapM_ print proofLog'
+  exitSuccess
+
+-}
