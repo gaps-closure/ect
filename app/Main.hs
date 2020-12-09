@@ -39,14 +39,16 @@ import Control.Monad.IO.Class ( liftIO )
 import LLVM.Context (withContext)
 
 import qualified LLVM.Module as M
-import qualified LLVM.AST as A hiding ( callingConvention, alignment, returnAttributes )
+import qualified LLVM.AST as A hiding ( metadata, callingConvention, alignment, returnAttributes, functionAttributes )
 import qualified LLVM.AST.Global as A
 import qualified LLVM.AST.Visibility as A
 import qualified LLVM.AST.Linkage as A
 import qualified LLVM.AST.DLL as A
 import qualified LLVM.AST.CallingConvention as A
 import qualified LLVM.AST.ParameterAttribute as A
+import qualified LLVM.AST.FunctionAttribute as FA
 import qualified LLVM.AST.AddrSpace as A
+import qualified LLVM.AST.Constant as A
 
 import Z3.Monad
 
@@ -170,16 +172,17 @@ instance ProveEquiv Bool where
   proveEquiv = proveEquivPrimitive s_Bool mkBool "Bool"
 
 instance ProveEquiv Word32 where
-  proveEquiv = proveEquivPrimitive s_Bv32 (\x -> mkBitvector 32 (toInteger x)) "Word32"
+  proveEquiv = proveEquivPrimitive s_Word32 (\x -> mkBitvector 32 (toInteger x)) "Word32"
 
 instance ProveEquiv Word64 where
-  proveEquiv = proveEquivPrimitive s_Bv64 (\x -> mkBitvector 64 (toInteger x)) "Word64"
+  proveEquiv = proveEquivPrimitive s_Word64 (\x -> mkBitvector 64 (toInteger x)) "Word64"
 
 instance ProveEquiv ShortByteString where
   proveEquiv = proveEquivPrimitive s_String (\x -> mkString $ C.unpack $ fromShort x) "ShortByteString"
 
 instance ProveEquiv (Maybe ShortByteString) where
-  proveEquiv = proveEquivMaybe c_MbSbs_Just c_MbSbs_Nothing "ShortByteString"
+  proveEquiv = proveEquivMaybe
+    c_MSBS_Just_ShortByteString c_MSBS_Nothing_ShortByteString "ShortByteString"
 
 instance ProveEquiv A.Visibility where
   proveEquiv a b
@@ -195,11 +198,11 @@ instance ProveEquiv A.StorageClass where
     | a == b    = proveEquivGeneral c [] (show a ++ " storage class equivalent")
     | otherwise = proofFail "StorageClass"
     where c = case a of
-                A.Import -> c_S_Import
-                A.Export -> c_S_Export
+                A.Import -> c_SC_Import
+                A.Export -> c_SC_Export
 
 instance ProveEquiv (Maybe A.StorageClass) where
-  proveEquiv = proveEquivMaybe c_MS_Just c_MS_Nothing "StorageClass"
+  proveEquiv = proveEquivMaybe c_MSC_Just_StorageClass c_MSC_Nothing_StorageClass "Maybe StorageClass"
 
 instance ProveEquiv A.Linkage where
   proveEquiv a b
@@ -287,7 +290,8 @@ instance ProveEquiv A.ParameterAttribute where
     proveEquivGeneral c_PA_DereferenceableOrNull [e]
       "DereferenceableOrNull parameter attribute equivalent"
   proveEquiv a b
-    | a == b    = proveEquivGeneral c [] (show a ++ " parameter attribute equivalent")
+    | a == b    = proveEquivGeneral c []
+                        (show a ++ " parameter attribute equivalent")
     | otherwise = proofFail "ParameterAttribute"
     where c = case a of
                 A.ZeroExt    -> c_PA_ZeroExt
@@ -310,12 +314,14 @@ instance ProveEquiv A.ParameterAttribute where
                 _ -> error "unreachable pattern match"
 
 instance ProveEquiv [A.ParameterAttribute] where
-  proveEquiv = proveEquivList c_LstPA_Cons c_LstPA_Nil "ParameterAttribute"
+  proveEquiv = proveEquivList
+     c_Cons_ParameterAttribute c_Nil_ParameterAttribute
+     "List ParameterAttribute"
 
 instance ProveEquiv A.AddrSpace where
   proveEquiv (A.AddrSpace a1) (A.AddrSpace a2) = do
     e <- proveEquiv a1 a2
-    proveEquivGeneral c_T_AddrSpace [e] "AddrSpace equivalent"
+    proveEquivGeneral c_AS_AddrSpace [e] "AddrSpace equivalent"
 
 instance ProveEquiv A.Type where
   proveEquiv A.VoidType A.VoidType = do
@@ -350,13 +356,52 @@ instance ProveEquiv A.Parameter where
     proveEquivGeneral c_P_Parameter [t_eq, n_eq, pa_eq] "Parameter equivalent"
 
 instance ProveEquiv [A.Parameter] where
-  proveEquiv = proveEquivList c_LstP_Cons c_LstP_Nil "Parameter"
+  proveEquiv = proveEquivList c_Cons_Parameter c_Nil_Parameter "List Parameter"
 
 instance ProveEquiv ([A.Parameter], Bool) where
   proveEquiv (ps1, b1) (ps2, b2) = do
     ps_eq <- proveEquiv ps1 ps2
     b_eq <- proveEquiv b1 b2
-    proveEquivGeneral c_Argv [ps_eq, b_eq] "([A.Parameter], Bool) equivalent"
+    proveEquivGeneral c_Tup2_List_Parameter_Bool [ps_eq, b_eq]
+      "([A.Parameter], Bool) equivalent"
+
+instance ProveEquiv (Maybe A.Constant) where
+  proveEquiv _ _ = proveEquivGeneral c_MC_Nothing_Constant [] $
+                   "FIXME: Maybe Constant"
+
+instance ProveEquiv [(ShortByteString, A.MDRef A.MDNode)] where
+  proveEquiv _ _ = proveEquivGeneral c_Nil_Tup2_ShortByteString_MDRef_MDNode
+    [] $ "FIXME: Metadata list ignored" -- FIXME?
+
+instance ProveEquiv [A.BasicBlock] where
+  proveEquiv _ _ = proveEquivGeneral c_Nil_BasicBlock
+    [] $ "FIXME: Basic blocks ignored"
+
+instance ProveEquiv FA.FunctionAttribute where
+  proveEquiv _ _ = proveEquivGeneral c_FA_NoReturn
+    [] $ "FIXME: Function Attribute ignored"
+
+instance ProveEquiv Word where
+  proveEquiv = proveEquivPrimitive s_Word (\x -> mkBitvector 32 (toInteger x)) "Word"
+
+
+instance ProveEquiv FA.GroupID where
+  proveEquiv (FA.GroupID i1) (FA.GroupID i2) = do
+    e <- proveEquiv i1 i2
+    proveEquivGeneral c_GID_GroupID [e] $ "GroupID"
+
+instance ProveEquiv (Either FA.GroupID FA.FunctionAttribute) where
+  proveEquiv (Left g1) (Left g2) = do
+    e <- proveEquiv g1 g2
+    proveEquivGeneral c_EGIDFA_Left_GroupID_FunctionAttribute [e] $ "Left"
+  proveEquiv (Right a1) (Right a2) = do
+    e <- proveEquiv a1 a2
+    proveEquivGeneral c_EGIDFA_Right_GroupID_FunctionAttribute [e] $ "Right"
+  proveEquiv _ _ = proofFail "Either GroupID FunctionAttribute failed"
+
+instance ProveEquiv [Either FA.GroupID FA.FunctionAttribute] where
+  proveEquiv = proveEquivList c_Cons_Either_GroupID_FunctionAttribute
+                              c_Nil_Either_GroupID_FunctionAttribute "List functionAttributes"
 
 instance ProveEquiv A.Global where
   proveEquiv f1@A.Function{} f2@A.Function{} = do
@@ -369,10 +414,15 @@ instance ProveEquiv A.Global where
       , proveField A.returnType
       , proveField A.name
       , proveField A.parameters
+      , proveField A.functionAttributes
       , proveField A.section
       , proveField A.comdat
       , proveField A.alignment
       , proveField A.garbageCollectorName
+      , proveField A.prefix
+      , proveField A.basicBlocks
+      , proveField A.personalityFunction
+      , proveField A.metadata
       ]
     proveEquivGeneral c_G_Function fields $
       "functions " ++ (showName $ A.name f1) ++ " and " ++
