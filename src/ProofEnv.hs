@@ -2,18 +2,19 @@
 
 module ProofEnv where
 
---import Z3TypeGenerator
+import Z3TypeGenerator
 
 import Z3.Monad
 
---import qualified LLVM.AST as A
---import qualified LLVM.AST.DLL as A (StorageClass(..))
---import qualified LLVM.AST.AddrSpace as A
---import qualified LLVM.AST.Visibility as A
---import qualified LLVM.AST.Linkage as A
---import qualified LLVM.AST.AddrSpace as A
--- import qualified LLVM.AST.CallingConvention as A
+import qualified LLVM.AST as A
+import qualified LLVM.AST.DLL as A (StorageClass(..))
+import qualified LLVM.AST.AddrSpace as A
+import qualified LLVM.AST.Visibility as A
+import qualified LLVM.AST.Linkage as A
+import qualified LLVM.AST.CallingConvention as A
+import qualified LLVM.AST.ParameterAttribute as A
 --import qualified LLVM.AST.Global as A
+import Data.ByteString.Short (ShortByteString)
 
 
 ----------------------------------------------------------------------
@@ -36,24 +37,27 @@ type Z3Constructor = (FuncDecl, String, Z3Type)
 --                          , c_Import :: !Z3Constructor
 --                          , c_Export :: !Z3Constructor ... }
 
-{-
-
-declareProofEnvType
+declareProofEnvType "ProofEnv'"
   ["Bool"
   ,"Int"
   ,"String"
   ,"Word32"
   ]
-  [(''A.Type, ["VoidType"
-              ,"IntegerType"
-              ,"PointerType"])]
-  [''A.AddrSpace
-  ,''A.Visibility
-  ,''A.StorageClass
-  ,''A.Linkage
-  ,''A.CallingConvention]
-
--}
+  [([t| A.Type |], ["VoidType"
+                  ,"IntegerType"
+                  ,"PointerType"])]
+  [[t| A.Name |]
+  ,[t| A.AddrSpace |]
+  ,[t| A.Visibility |]
+  ,[t| A.StorageClass |]
+  ,[t| Maybe ShortByteString |]
+  ,[t| A.Linkage |]
+  ,[t| A.CallingConvention |]
+  ,[t| A.ParameterAttribute |]
+  ,[t| [A.ParameterAttribute] |]
+  ,[t| A.Parameter |]
+  ,[t| [A.Parameter] |]
+  ]
 
 data ProofEnv = ProofEnv
   { s_Int    :: !Sort -- Z3 sort for Int
@@ -191,3 +195,10 @@ data ProofEnv = ProofEnv
   -- Globals
   , c_G_Function :: !Z3Constructor
   }
+
+
+{- For testing z3TypeConstructors -}
+{- data Eith a b = ELeft a
+              | ERight b
+              | EBoth a b
+              | ENeither -}

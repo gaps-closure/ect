@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a4f21e923cefcf9ca8c4db23a610146085edddc228bf1a9547d1d18e9838d7d3
+-- hash: b524f9de565668ab43240b385f8fa34a436913e4cdeca9ba0244f245f08d42a5
 
 name:           ect
 version:        0.1.0.0
@@ -38,6 +38,7 @@ library
   ghc-options: -Wall -ddump-splices -ddump-to-file
   build-depends:
       base >=4.7 && <5
+    , bytestring
     , containers
     , llvm-hs-pure >=9.0.0
     , template-haskell

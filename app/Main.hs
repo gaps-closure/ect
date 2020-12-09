@@ -3,8 +3,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TemplateHaskell #-}
 
--- LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack ghci
-
 {-
 
 LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack build
@@ -12,6 +10,8 @@ LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack build
 stack run -- examples/example1/example1-refactored-9.ll examples/example1/example1-orange-9.ll examples/example1/example1-purple-9.ll
 
 
+LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack ghci
+:set -XTemplateHaskell
 -}
 
 
@@ -28,22 +28,13 @@ import Data.Maybe
 import Data.ByteString.UTF8 (fromString,toString)
 import Data.ByteString.Short (ShortByteString, toShort,fromShort) -- ShortByteString
 import qualified Data.ByteString.Char8 as C
---import Data.Maybe (mapMaybe)
 import Data.List (intercalate)
 import Data.Word ( Word32, Word64 )
 import qualified Data.Map.Strict as M
---import qualified Data.Set as S
 
 
 import Control.Monad ( unless, when )
 import Control.Monad.IO.Class ( liftIO )
---import Control.Monad.Trans.Writer.CPS ( WriterT, runWriterT, tell )
---import Control.Monad.Trans.State.Strict ( StateT(..), runStateT, evalStateT,
---                                          get, put )
---import Control.Monad.Trans.Reader ( ReaderT, runReaderT, withReaderT, asks )
---import Control.Monad.Trans.Class ( lift )
---import Control.Monad.Trans.Maybe
-
 
 import LLVM.Context (withContext)
 

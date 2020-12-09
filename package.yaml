@@ -34,6 +34,7 @@ library:
   - z3 >= 408.2
   - transformers
   - containers
+  - bytestring
 
 executables:
   ect:

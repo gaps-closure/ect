@@ -9,18 +9,18 @@ import ProofM
 
 import ProofEnv
 
---import Z3TypeGenerator
+import Z3TypeGenerator
 
 import Z3.Monad
 
-{-
 import qualified LLVM.AST as A
 import qualified LLVM.AST.DLL as A (StorageClass(..))
 import qualified LLVM.AST.AddrSpace as A
 import qualified LLVM.AST.Visibility as A
 import qualified LLVM.AST.Linkage as A
 import qualified LLVM.AST.CallingConvention as A
--}
+import qualified LLVM.AST.ParameterAttribute as A
+import Data.ByteString.Short (ShortByteString)
 
 -- | Build an equivalence checking function for a given Z3 type
 --   Needs the bool sort
@@ -66,27 +66,47 @@ mkZ3Constructors bool name fields = do
   constructors <- getDatatypeSortConstructors sort
   return $ (sort, zipWith3 (,,) constructors (map fst fields) (repeat z3Type))
 
+initialEnv' :: ProofM ProofEnv'
+initialEnv' = do
+  s1_Bool <- mkBoolSort
+  s1_Int <- mkIntSort
+  s1_String <- mkStringSort
+  s1_Word32 <- mkBvSort 32
+  let s1_Word = s1_Word32
+  s1_Word64 <- mkBvSort 64
+  s1_ShortByteString <- mkStringSort
+  $(initEnv "ProofEnv'" $
+        [z3Constructors [| s1_Bool |] [t| A.AddrSpace |]
+        ,z3ConstructorsOnly [| s1_Bool |] [t| A.Type |] ["VoidType"
+                                                        ,"IntegerType"
+                                                        ,"PointerType"]] ++
+        map (z3Constructors [| s1_Bool |])
+            [[t| A.Name |]
+            ,[t| A.Visibility |]
+            ,[t| A.StorageClass |]
+            ,[t| Maybe ShortByteString |]
+            ,[t| A.Linkage |]
+            ,[t| A.CallingConvention |]
+            ,[t| A.ParameterAttribute |]
+            ,[t| [A.ParameterAttribute] |]
+            ,[t| A.Parameter |]
+            ,[t| [A.Parameter] |]
+            ]
+   )
 
-{-
-initialEnv :: ProofM ProofEnv
-initialEnv = do
-  s_Bool <- mkBoolSort
-  s_Int <- mkIntSort
-  s_String <- mkStringSort
-  s_Word32 <- mkBvSort 32
-  $(initEnv "ProofEnv"
-        [z3Constructors [| s_Bool |] ''A.AddrSpace
-        ,z3ConstructorsOnly [| s_Bool |] ''A.Type ["VoidType"
-                                                  ,"IntegerType"
-                                                  ,"PointerType"]
-        ,z3Constructors [| s_Bool |] ''A.Visibility
-        ,z3Constructors [| s_Bool |] ''A.StorageClass
-        ,z3Constructors [| s_Bool |] ''A.Linkage
-        ,z3Constructors [| s_Bool |] ''A.CallingConvention
+{-       
+        ,z3Constructors [| s1_Bool |] [t| A.Visibility |]
+        ,z3Constructors [| s1_Bool |] [t| A.StorageClass |]
+        ,z3Constructors [| s1_Bool |] [t| Maybe ShortByteString |]
+        ,z3Constructors [| s1_Bool |] [t| A.Linkage |]
+        ,z3Constructors [| s1_Bool |] [t| Maybe A.StorageClass |]
+--        ,z3Constructors [| s1_Bool |] [t| Eith (Eith Int Bool) (Eith Bool Int) |]
+        ,z3Constructors [| s1_Bool |] [t| A.CallingConvention |]
         ])
-
--- FIXME: Handle Maybe StorageClass
 -}
+
+
+
 
 -- | Initialize Z3 types, etc. that will be made available during
 --   execution of the proof monad
