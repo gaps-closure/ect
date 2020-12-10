@@ -31,10 +31,13 @@ import qualified Data.ByteString.Char8 as C
 import Data.List (intercalate)
 import Data.Word ( Word32, Word64 )
 import qualified Data.Map.Strict as M
+import qualified Data.Set as S
 
 
-import Control.Monad ( unless, when )
+import Control.Monad ( unless, when, zipWithM_ )
 import Control.Monad.IO.Class ( liftIO )
+import Control.Monad.Trans.State.Strict ( get, gets, put )
+import Control.Monad.Trans.Class ( lift )
 
 import LLVM.Context (withContext)
 
@@ -138,6 +141,106 @@ proveEquivPrimitive getEnvSort toSort name x y = do
   assert =<< mkNot z3equiv
 
   proveZ3Equiv [] Equiv{..} (name ++ " equivalent")
+
+------------------------------------
+-- CFG isomorphism proof machinery
+
+-- | A map from basic block names to actual blocks
+type BBMap = M.Map A.Name A.BasicBlock
+
+-- | Convert a list of basic blocks to a map keyed to their names
+makeBBMap :: [A.BasicBlock] -> BBMap
+makeBBMap bbs = M.fromList $ map tokv bbs
+  where tokv bb@(A.BasicBlock n _ _) = (n, bb)
+
+-- | Return the list of named successor blocks for a block
+bbSuccessors :: A.BasicBlock -> [A.Name]
+bbSuccessors (A.BasicBlock _ _ term) = case unName term of
+  A.Ret {..}        -> []
+  A.CondBr {..}     -> [ trueDest, falseDest ]
+  A.Br {..}         -> [ dest ]
+  A.Switch {..}     -> defaultDest : map snd dests -- FIXME: assumes equal consts
+  A.IndirectBr {..} -> possibleDests
+  t                 -> error $ "unsupported terminator " ++ show t
+
+testVisiting :: A.Name -> ProofM Bool
+testVisiting n = ProofM $ lift $ gets $ (S.member n) . visiting
+  --EitherState $ \e -> (Right $ S.member n (visiting e), e)
+
+setVisiting :: A.Name -> ProofM ()
+setVisiting n = do
+  ProofState{..} <- ProofM $ lift get
+  ProofM $ lift $ put $ ProofState { visiting = S.insert n visiting, .. }
+  -- EitherState $ \e -> (Right (), e { visiting = S.insert n (visiting e) })
+
+resetMatching :: ProofM ()
+resetMatching = do
+  ProofState{..} <- ProofM $ lift get
+  ProofM $ lift $ put $ ProofState { matching = M.empty
+                                   , inverse = M.empty
+                                   , visiting = S.empty
+                                   , .. }
+  -- EitherState $ \e -> (Right (), e { matching = M.empty
+    --                                             , inverse = M.empty
+    --                                             , visiting = S.empty })
+
+getMatching :: ProofM NameMap
+getMatching = ProofM $ lift $ gets matching-- EitherState $ \e -> (Right (matching e), e)
+
+addMatch :: A.Name -> A.Name -> ProofM ()
+addMatch n1 n2 = do
+  --Env{..} <- eitherStateGet
+  ProofState{..} <- ProofM $ lift get
+  case M.lookup n1 matching of
+    Just n2' | n2' /= n2 -> proofFail $
+      "tried to match " ++ showName n1 ++ "-" ++
+      showName n2 ++ " but already have " ++ showName n1 ++ "-" ++ showName n2'
+    _ -> return ()
+  case M.lookup n2 inverse of
+    Just n1' | n1' /= n1 -> proofFail $
+      "tried to match " ++ showName n1 ++ "-" ++
+      showName n2 ++ " but already have " ++ showName n1' ++ "-" ++ showName n2
+    _ -> return ()
+  -- eitherStatePut
+  ProofM $ lift $ put $ ProofState { matching = M.insert n1 n2 matching
+                                   , inverse = M.insert n2 n1 inverse
+                                   , .. }
+
+proveEquivCFG :: [A.BasicBlock] -> [A.BasicBlock] -> ProofM Equiv
+proveEquivCFG cfg1@(A.BasicBlock n1 _ _:_) cfg2@(A.BasicBlock n2 _ _:_) = do
+
+  -- Establish isomorphism among the basic blocks
+   resetMatching
+   visit n1 n2
+
+   -- Compare pairs of matched basic blocks
+   matchingNames <- M.assocs <$> getMatching
+   cfg1' <- mapM (\(n, _) -> bblookup bbm1 n) $ matchingNames
+   cfg2' <- mapM (\(_, n) -> bblookup bbm2 n) $ matchingNames
+   proveEquivList c_Cons_BasicBlock c_Nil_BasicBlock "BasicBlock" cfg1' cfg2'
+  where
+    bbm1 = makeBBMap cfg1
+    bbm2 = makeBBMap cfg2
+    bblookup m n = case M.lookup n m of
+      Just b -> return b
+      Nothing -> error $ "lookup of bb " ++ showName n ++ " failed"
+
+    visit nbb1 nbb2 = do
+      addMatch nbb1 nbb2
+      visited <- testVisiting nbb1
+      unless visited $ do
+        setVisiting nbb1
+        bb1 <- bblookup bbm1 nbb1
+        bb2 <- bblookup bbm2 nbb2
+        let successors1 = bbSuccessors bb1
+            successors2 = bbSuccessors bb2
+        unless (length successors1 == length successors2) $
+           proofFail $ "basic blocks " ++ show nbb1 ++ " and " ++
+               show nbb2 ++ " have a different number of successors"
+        zipWithM_ visit successors1 successors2
+
+proveEquivCFG [] [] = proveEquivGeneral c_Nil_BasicBlock [] $ "[] (BasicBlock) equivalent"
+proveEquivCFG _ _ = proofFail "[BasicBlock] not equivalent (different lengths)"
 
 ----------------------------------
 -- Polymorphic typeclass helpers
@@ -491,9 +594,8 @@ instance ProveEquiv (Maybe A.Constant) where
 instance ProveEquiv A.BasicBlock where
   proveEquiv _ _ = proveEquiv True True -- FIXME: add s_BasicBlock to env (currently bool)
 
-instance ProveEquiv [A.BasicBlock] where -- FIXME: should be an isomorphism check not a list check
-  proveEquiv = proveEquivList
-    c_Cons_BasicBlock c_Nil_BasicBlock "List BasicBlock"
+instance ProveEquiv [A.BasicBlock] where
+  proveEquiv = proveEquivCFG
 
 instance ProveEquiv (A.MDRef A.MDNode) where
   proveEquiv _ _ = proveEquiv True True -- FIXME: add s_MDRef_MDNode to env (currently bool)
