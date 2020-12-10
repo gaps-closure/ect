@@ -24,6 +24,7 @@ import qualified LLVM.AST.FunctionAttribute as A
 import qualified LLVM.AST.Constant as A
 import Data.ByteString.Short (ShortByteString)
 import Data.Word (Word32)
+import Data.List (zipWith4)
 
 -- | Build an equivalence checking function for a given Z3 type
 --   Needs the bool sort
@@ -43,31 +44,52 @@ mkEquivFunc bool typ name = do
 
 mkSort :: String -> [(String, [(String, Maybe Sort)])] -> ProofM Sort
 mkSort sortName constrs = do
-  constructors <- T.sequence $ map (uncurry mkConstr) constrs
+  let unMutual (n, as) = (n, map (\(a, srt) -> (a, srt, 0)) as)
+  constructors <- T.sequence $ map (uncurry mkConstr . unMutual) constrs
   name         <- mkStringSymbol sortName
   mkDatatype name constructors
 
-mkAccessor :: String -> Maybe Sort -> ProofM (Symbol, Maybe Sort, Int)
-mkAccessor name dt = do
-  accessorName <- mkStringSymbol name
-  return (accessorName, dt, 0)
+mkMutualSorts :: [String] -> [[(String, [(String, Maybe Sort, Int)])]] -> ProofM [Sort]
+mkMutualSorts sortNames constrsSet = do
+  let mkConstrs cs = T.sequence $ map (uncurry mkConstr) cs
+  constructorsSet <- T.sequence $ map mkConstrs constrsSet
+  names <- T.sequence $ map mkStringSymbol sortNames
+  mkDatatypes names constructorsSet
 
-mkConstr :: String -> [(String, Maybe Sort)] -> ProofM Constructor
+mkAccessor :: String -> Maybe Sort -> Int -> ProofM (Symbol, Maybe Sort, Int)
+mkAccessor name dt i = do
+  accessorName <- mkStringSymbol name
+  return (accessorName, dt, i)
+
+mkConstr :: String -> [(String, Maybe Sort, Int)] -> ProofM Constructor
 mkConstr name fields = do
   constName  <- mkStringSymbol name
   recognizer <- mkStringSymbol $ "is_" ++ name
-  accessors  <- T.sequence $ map (uncurry mkAccessor) fields
+  accessors  <- T.sequence $ map ((\f (a,b,c) -> f a b c) mkAccessor) fields
   mkConstructor constName recognizer accessors
 
-
-mkZ3Constructors :: Sort -> String -> [(String, [(String, Maybe Sort)])]
-         -> ProofM (Sort, [Z3Constructor])
+mkZ3Constructors :: Sort
+                 -> String
+                 -> [(String, [(String, Maybe Sort)])]
+                 -> ProofM (Sort, [Z3Constructor])
 mkZ3Constructors bool name fields = do
   sort <- mkSort name fields
   equivFunc <- mkEquivFunc bool sort name
   let z3Type = Z3Type{..}
   constructors <- getDatatypeSortConstructors sort
   return $ (sort, zipWith3 (,,) constructors (map fst fields) (repeat z3Type))
+
+mkMutualZ3Constructors :: Sort
+                       -> [String]
+                       -> [[(String, [(String, Maybe Sort, Int)])]]
+                       -> ProofM [(Sort, [Z3Constructor])]
+mkMutualZ3Constructors bool names fieldsSet = do
+  sorts <- mkMutualSorts names fieldsSet
+  equivFuncs <- T.sequence $ zipWith (\s n -> mkEquivFunc bool s n) sorts names
+  constructorsSet <- T.sequence $ map getDatatypeSortConstructors sorts
+  let z3Types = zipWith (\s eq -> Z3Type s eq) sorts equivFuncs
+      merge srt cs fs z3t = (srt, zipWith3 (,,) cs (map fst fs) (repeat z3t))
+  return $ zipWith4 merge sorts constructorsSet fieldsSet z3Types
 
 
 -- | Initialize Z3 types, etc. that will be made available during
@@ -81,8 +103,8 @@ initialEnv = do
   let s_Word = s_Word32
   s_Word64 <- mkBvSort 64
   s_ShortByteString <- mkStringSort
-  let s_BasicBlock = s_Bool -- FIXME
-      s_Constant = s_Bool -- FIXME
+  let s_BasicBlock   = s_Bool -- FIXME
+      s_Constant     = s_Bool -- FIXME
       s_MDRef_MDNode = s_Bool -- FIXME
   $(initEnv "ProofEnv" $
         [z3Constructors [| s_Bool |] [t| A.AddrSpace |]
