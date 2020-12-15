@@ -1,0 +1,16 @@
+Rule Set for Basic Message Partitioning (MA 1.0 XDCC)
+-----------------------------------------------------
+
+component_heartbeats: 
+	Orange [MPU,MPX] -> Green [*]              // ISRM, EOIR, RDR on green
+	Green [ISRM, EOIR, RDR] -> Orange [*]      // MPU, MPX on orange
+updateMissionPlan:
+	Orange [MPU] -> Green [*]                  // ISRM, EOIR, RDR on green, (MPX on orange)
+pnt: 
+	Orange [MPX] -> Green [*]                  // RDR on green
+requestISRMDetections:
+	Orange [MPX] -> Green[*]                   // ISRM on green
+receiveISRMDetections:
+	Green [ISRM] -> Orange [*]                 // MPX on orange
+
+P.S.: requestEOIRDetections, recieveEOIRDetections, requestRDRDetections, recieveRDRDetections stay entirely on green side; also, updateConfig and updateNewTasking are not published by any component
