@@ -69,36 +69,38 @@ While the model is being encoded, the python will sanity check the
 application model and report errors with "error during encoding: foobar".
 Here is a non-exhaustive list of sanity checks.
 
-1. all foreign keys must exist
-2. each message must have a CLE label
-3. messages must be unique
-4. each component must have a CLE label
-5. components must be unique
-6. each component has inFlows and outFlows
-7. level and remotelevel of flowCLEs are consistent with the components
-8. that have it as inflow/outflow
-9. flow CLEs don't have taints
-10. cle label corresponds properly to message name, level, and remotelevel
-11. a single flow is used as an inflow exactly once and an outflow exactly once
-12. length of argtaints should match length(inflows ++ outflows)
-13. cdf elements should have different remote levels
+1. in topology, all elements must have component field, and component values must be unique
+2. each topology element (component) must have a CLE label
+3. each component has inFlows and outFlows
+4. in messages, all elements must have a name field, and the name values must be unique
+5. each element of messages must have a topic, schemaType, and schemaFile (these are otherwise ignored by the checker) 
+6. in cles, all elements must have a cle-label field, whose value must be unique
+7. in cles, all elements must have a cle-json field (for CLE-JSON portion there is a schema, see https://github.com/gaps-closure/mules/blob/develop/cle-spec/schema/cle-schema.json, but no schema defined yet for overall design spec)
+8. every element of flows, must have a flowID, a message, and a cle label
+9. all foreign keys (e.g., flow id, message name, cle label used anywhere) must exist (e.g., respectively in flows, messages, cles) 
+10. a single flow id is used as an inflow exactly once and an outflow exactly once
+11. flow CLEs don't have taints, while component CLEs do
+12. XXX: cle label corresponds properly to message name, level, and remotelevel --> label can be anything, but cle-json must be sane
+13. for each topology element (component), the length of argtaints in its component CLEs should match length(inflows ++ outflows) of the component
+14. for each topology element (component), the codtaints and rettaints in the cle-json corresponding to its label must be empty
+15. cdf elements in a cle-json should have different remote levels 
+16. warn (but not prohibit) levels/remote-levels that are defined and never used (no component is in that level)
+17. warn (but not prohibit) messages that are defined and never used (in any flow)
+18. warn (but not prohibit) labels that are defined and never used (in any component or flow)
 
 ## Second: consistency and minimum required ruleset
 
 Once the model is encoded, a set of consistency assertions should be added to
-the solver to generate a model representing a minimum required ruleset in order
-for the application to work (if the application is inconsistent, no such ruleset
-will exist, and the solver will report unsat). The consistency requirements are:
+the solver to generate a model for which there exists one or more rulesets under which
+the application can work (if the application is inconsistent, no such ruleset
+will exist, and the solver will report unsat). The consistency requirements on flows 
+and components are listed below (TODO: not comprehnesive, more to come).
 
-1. For each argtaint in component C, C.inflows[i] must have a label which is
-in C.argtaints[i].
-2. For each argtaint in component C, C.outflows[i] must have a label which
-is in C.argtaints[len(C.inflows) + i].
-3. For each argtaint in component C corresponding to an inflow, the
-inflow's remote level must be C.level, and for each argtaint in C corresponding
-to an outflow, the outflow's level must be C1.level.
+### Flow consistency
 
-(TODO: more to come)
+1. Intra-domain message flow cannot be denied, not enforceable
+2. The level and remotelevel of flowCLEs are consistent with the levels of the components that have it as inflow/outflow
+3. Message allowed from one enclave to another by label on one flow, but exchange of the same message across the same domains is disallowed by label on another flow (see example below)
 
 Sample inconsistency is as follows:
 
@@ -119,6 +121,15 @@ denied and allowed from C1.color -> C2.color
 There is no set of rules which can enforce this - i.e. the system is
 infeasible/not consistent
 
+### Component annotation consistency
+1. For each argtaint in component C, C.inflows[i] must have a label which is
+in C.argtaints[i].
+2. For each argtaint in component C, C.outflows[i] must have a label which
+is in C.argtaints[len(C.inflows) + i].
+3. For each argtaint in component C corresponding to an inflow, the
+inflow's remote level must be C.level, and for each argtaint in C corresponding
+to an outflow, the outflow's level must be C1.level.
+
 ## Third: checking against the provided rules
 
 The rules JSON file gives the set of cross-domain flows which are allowed (all
@@ -137,6 +148,10 @@ of the application is enforced and a minimal required ruleset is found. Checking
 the correctness of the rules/application means checking: is the ruleset ALLOWING
 the necessary flows in order for the application to work? i.e. it does not deny
 any message flows that exist in the minimal required ruleset.
+
+## Beyond consistency checking 
+
+Later (post February demo) we may extend this checker to accept inputs in which only a subset of the components and flows are assigned a label, and have the checker find a satisfying assignment using the available cles. This will require relaxing the sanity checker to allow missing labels. We can further extend this to include optimization criteria that limit the number of messages that go cross-domain, while honoring the labels on the components that are pinned.
 
 ## On Component CDF Design
 
