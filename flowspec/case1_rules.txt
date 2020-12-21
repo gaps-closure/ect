@@ -1,11 +1,11 @@
 # The guard cannot enforce any intra-domain rules. The following cross-domain messages are allowed by the guard, and the rest are blocked.
 
-component_heartbeats: 
+component_heartbeats:
 	Orange -> Green
 	Green  -> Orange
 updateMissionPlan:
 	Orange -> Green
-pnt: 
+pnt:
 	Orange -> Green
 requestISRMDetections:
 	Orange -> Green
