@@ -152,11 +152,13 @@ initializeRun initialization actions = do
 runProofEnvironment :: ProofState -> ProofM ProofEnv -> ProofM a
                     -> IO (Maybe a, ProofState, ProofLog)
 runProofEnvironment initialSt initializeEnv actions = do
-  ((Just (result, _), st), l) <-
+  ((jr, st), l) <-
       evalZ3 $ runWriterT $ runReaderT (
       runStateT (runMaybeT $ runProofM $
                   initializeRun initializeEnv actions) initialSt)
       undefined
+  let result = case jr of Just (r, _) -> r
+                          Nothing -> Nothing
   return (result, st, l)
 
 -- | Indicate a proof has failed; return Nothing in the Maybe monad

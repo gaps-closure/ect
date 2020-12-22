@@ -10,6 +10,12 @@ Debug by adding to package.yaml
   - -ddump-splices  # For debugging Template Haskell:
   - -ddump-to-file  # more $(find . -name "*splices")
 
+https://hackage.haskell.org/package/z3-408.2/docs/Z3-Monad.html
+
+https://z3prover.github.io/api/html/group__capi.html
+
+https://hackage.haskell.org/package/template-haskell-2.16.0.0/docs/Language-Haskell-TH.html
+
 -}
 
 module Z3TypeGenerator where
@@ -85,16 +91,23 @@ typeName _ ListT = "List"
 typeName _ (TupleT n) = "Tup" ++ show n
 typeName _ t = error $ "unsupported type " ++ show t
 
+-- | For Z3, name of the type constructor, then, for each
+-- data constructor, the name of the data constructor and a list
+-- of field-name, field-type-name pairs
+--
+-- (top-type-name, [constructor])
+-- where constructor = (constructor-name, [(field-name, field-type-name)])
+
+type StringConstructors = [(String, [(String, String)])]
+type StringTypeInfo = (String, StringConstructors)
 
 -- | A "monomorphized" version of the given type:
--- (top-type-name, [constructors])
--- where constructor = (constructor-name, [(field-name, field-type-name)])
 --
 -- For an algebraic data type,
 -- return its type constructor base name
 -- the base names of all its data constructors,
 -- and the names of the of each of its fields, if any
-monoType :: Type -> Q (String, [(String, [(String, String)])])
+monoType :: Type -> Q StringTypeInfo
 monoType theType = collectTArgs [] theType
   where
     collectTArgs args (AppT t1 t2) = collectTArgs (typeName [] t2 : args) t1
@@ -113,8 +126,7 @@ monoType theType = collectTArgs [] theType
     collectTArgs _ t = error $ "monoType: unsupported type " ++ show t
 
 
-    processConstructors :: Name -> [String]
-                        -> Q (String, [(String, [(String, String)])])
+    processConstructors :: Name -> [String] -> Q StringTypeInfo
     processConstructors typeConN argStrings =
       reify typeConN >>= \case
         TyConI (DataD _ tCon tVars _ dCons _) ->
@@ -148,20 +160,56 @@ monoType theType = collectTArgs [] theType
 -- | Only generate code for certain constructors
 z3ConstructorsOnly :: Q Exp -> Q Type -> [String] -> Q Stmt
 z3ConstructorsOnly boolSort typeE fields = do
-  (tConsName, dConsNames) <- algTypeInfoOnly typeE fields
+  typeInfo <- algTypeInfoOnly typeE fields
   boolSortE <- boolSort
-  return $ z3ConstructorsStmt boolSortE tConsName dConsNames
+  return $ z3ConstructorsStmt boolSortE typeInfo
 
 -- | $(z3Constructors [| s_BoolType |] [t| A.AddrSpace |]
 z3Constructors :: Q Exp -> Q Type -> Q Stmt
 z3Constructors boolSort ty = do
   boolSortE <- boolSort
   typ <- ty
-  (tConsName, dConsNames) <- monoType typ
-  return $ z3ConstructorsStmt boolSortE tConsName dConsNames
+  typeInfo <- monoType typ
+  return $ z3ConstructorsStmt boolSortE typeInfo
 
-z3ConstructorsStmt :: Exp -> String -> [(String, [(String, String)])] -> Stmt
-z3ConstructorsStmt boolSortE tConName dConsNames =
+varsFor :: StringTypeInfo -> Pat
+varsFor (tConName, dConsNames) = TupP [sortP, dConsPs]
+  where
+    sortP = VarP $ mkName $ sortPrefix ++ tConName
+    dConsPs = ListP $
+         map (\(n, _) -> VarP $ mkName $ constructorPrefix ++ n) dConsNames
+
+-- | $(z3MutualConstructors [| s_BoolType |] [ [t| A.Type |]
+--                                           , [t| [A.Type] |] ]
+z3MutualConstructors :: Q Exp -> [Q Type] -> Q Stmt
+z3MutualConstructors boolSort tys = do
+  boolSortE <- boolSort
+  typs <- sequence tys
+  tinfos <- mapM monoType typs
+  let ourSorts = zipWith (\(a,_) b -> (a, b)) tinfos [(0::Integer)..]
+      vars = ListP $ map varsFor tinfos
+      tConNames = ListE $ map (LitE . StringL . fst) tinfos
+      dConPairss = ListE $ map (ListE . map toDCons . snd) tinfos
+
+      toDCons (dc, fields) = TupE [ LitE (StringL dc)
+                                  , ListE (map toField fields) ]
+
+      toField (fn, ft) = TupE [LitE (StringL fn), typE]
+        where
+          typE = case lookup ft ourSorts of
+            Nothing -> rightE $ VarE $ mkName (sortPrefix ++ ft)
+            Just n -> leftE $ LitE $ IntegerL n
+          rightE = AppE $ ConE $ mkName "Right"
+          leftE = AppE $ ConE $ mkName "Left"
+
+  return $ BindS vars (foldl1 AppE [ VarE (mkName "mkMutualZ3Constructors")
+                                   , boolSortE
+                                   , tConNames
+                                   , dConPairss ])
+
+
+z3ConstructorsStmt :: Exp -> StringTypeInfo -> Stmt
+z3ConstructorsStmt boolSortE (tConName, dConsNames) =
    BindS vars (foldl1 AppE [VarE (mkName "mkZ3Constructors")
                                    ,boolSortE
                                    ,tConNameE
@@ -169,10 +217,7 @@ z3ConstructorsStmt boolSortE tConName dConsNames =
     where
       tConNameE = LitE $ StringL tConName
 
-      sortP = VarP $ mkName $ sortPrefix ++ tConName
-      dConsPs = ListP $
-         map (\(n, _) -> VarP $ mkName $ constructorPrefix ++ n) dConsNames
-      vars = TupP [sortP, dConsPs]
+      vars = varsFor (tConName, dConsNames)
 
       toDCPair (dc, fields) = TupE [LitE (StringL dc)
                                    ,ListE (map toField fields)]
@@ -180,13 +225,12 @@ z3ConstructorsStmt boolSortE tConName dConsNames =
       nothingE = ConE $ mkName "Nothing"
 
       toField (fn,ft) = TupE [LitE (StringL fn), typE]
-        where typE = if ft == tConName then nothingE
+        where typE = if ft == tConName then nothingE -- Handle self-recursive
                      else justE $ VarE $ mkName $ sortPrefix ++ ft
 
       dConPairsE = ListE $ map toDCPair dConsNames
 
-algTypeInfoOnly :: Q Type -> [String]
-                -> Q (String, [(String, [(String, String)])])
+algTypeInfoOnly :: Q Type -> [String] -> Q StringTypeInfo
 algTypeInfoOnly actualType fields = do
   ty <- actualType
   (tConsName, dConsNames') <- monoType ty

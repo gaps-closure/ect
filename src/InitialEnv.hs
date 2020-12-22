@@ -44,28 +44,34 @@ mkEquivFunc bool typ name = do
 
 mkSort :: String -> [(String, [(String, Maybe Sort)])] -> ProofM Sort
 mkSort sortName constrs = do
-  let unMutual (n, as) = (n, map (\(a, srt) -> (a, srt, 0)) as)
+  let unMutual (n, as) = (n, map unJust as)
+      unJust (a, Just srt) = (a, Right srt)
+      unJust (a, Nothing) = (a, Left 0)
   constructors <- T.sequence $ map (uncurry mkConstr . unMutual) constrs
   name         <- mkStringSymbol sortName
   mkDatatype name constructors
 
-mkMutualSorts :: [String] -> [[(String, [(String, Maybe Sort, Int)])]] -> ProofM [Sort]
+mkMutualSorts :: [String]
+              -> [[(String, [(String, Either Int Sort)])]]
+              -> ProofM [Sort]
 mkMutualSorts sortNames constrsSet = do
   let mkConstrs cs = T.sequence $ map (uncurry mkConstr) cs
   constructorsSet <- T.sequence $ map mkConstrs constrsSet
   names <- T.sequence $ map mkStringSymbol sortNames
   mkDatatypes names constructorsSet
 
-mkAccessor :: String -> Maybe Sort -> Int -> ProofM (Symbol, Maybe Sort, Int)
-mkAccessor name dt i = do
+mkAccessor :: String -> Either Int Sort -> ProofM (Symbol, Maybe Sort, Int)
+mkAccessor name dt = do
   accessorName <- mkStringSymbol name
-  return (accessorName, dt, i)
+  return $ case dt of
+    Right t -> (accessorName, Just t, 0) -- Number ignored
+    Left n -> (accessorName, Nothing, n)
 
-mkConstr :: String -> [(String, Maybe Sort, Int)] -> ProofM Constructor
+mkConstr :: String -> [(String, Either Int Sort)] -> ProofM Constructor
 mkConstr name fields = do
   constName  <- mkStringSymbol name
   recognizer <- mkStringSymbol $ "is_" ++ name
-  accessors  <- T.sequence $ map ((\f (a,b,c) -> f a b c) mkAccessor) fields
+  accessors  <- T.sequence $ map (uncurry mkAccessor) fields
   mkConstructor constName recognizer accessors
 
 mkZ3Constructors :: Sort
@@ -81,7 +87,7 @@ mkZ3Constructors bool name fields = do
 
 mkMutualZ3Constructors :: Sort
                        -> [String]
-                       -> [[(String, [(String, Maybe Sort, Int)])]]
+                       -> [[(String, [(String, Either Int Sort)])]]
                        -> ProofM [(Sort, [Z3Constructor])]
 mkMutualZ3Constructors bool names fieldsSet = do
   sorts <- mkMutualSorts names fieldsSet
@@ -107,13 +113,14 @@ initialEnv = do
       s_Constant     = s_Bool -- FIXME
       s_MDRef_MDNode = s_Bool -- FIXME
   $(initEnv "ProofEnv" $
-        [z3Constructors [| s_Bool |] [t| A.AddrSpace |]
-        ,z3ConstructorsOnly [| s_Bool |] [t| A.Type |] ["T_VoidType"
-                                                       ,"T_IntegerType"
-                                                       ,"T_PointerType"]] ++
+        [ z3Constructors [| s_Bool |] [t| A.AddrSpace |]
+        , z3Constructors [| s_Bool |] [t| A.Name |]
+        , z3Constructors [| s_Bool |] [t| A.FloatingPointType |]
+        , z3MutualConstructors [| s_Bool |] [ [t| A.Type   |]
+                                            , [t| [A.Type] |] ]
+        ] ++
         map (z3Constructors [| s_Bool |])
-            [[t| A.Name |]
-            ,[t| Maybe Word32 |]
+            [[t| Maybe Word32 |]
             ,[t| A.Visibility |]
             ,[t| A.StorageClass |]
             ,[t| Maybe A.StorageClass |]
@@ -134,5 +141,5 @@ initialEnv = do
             ,[t| (ShortByteString, A.MDRef A.MDNode) |]
             ,[t| [(ShortByteString, A.MDRef A.MDNode)] |]
             ] ++
-     [z3ConstructorsOnly [| s_Bool |] [t| A.Global |] ["G_Function"]]
+     [ z3ConstructorsOnly [| s_Bool |] [t| A.Global |] ["G_Function"]]
    )

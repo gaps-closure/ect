@@ -48,12 +48,14 @@ declareProofEnvType "ProofEnv"
   ,"Word64"
   ,"ShortByteString"
   ]
-  [([t| A.Type |], ["T_VoidType"
+  [ {- ([t| A.Type |], ["T_VoidType"
                   ,"T_IntegerType"
                   ,"T_PointerType"])
-  ,([t| A.Global |], ["G_Function"])
+  , -} ([t| A.Global |], ["G_Function"])
   ]
   [[t| A.Name |]
+  ,[t| A.Type |]
+  ,[t| [A.Type] |]
   ,[t| Maybe Word32 |]
   ,[t| A.AddrSpace |]
   ,[t| A.Visibility |]
