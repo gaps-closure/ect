@@ -1,16 +1,13 @@
-Rule Set for Basic Message Partitioning (MA 1.0 XDCC)
------------------------------------------------------
+# The guard cannot enforce any intra-domain rules. The following cross-domain messages are allowed by the guard, and the rest are blocked.
 
-component_heartbeats: 
-	Orange [MPU,MPX] -> Green [*]              // ISRM, EOIR, RDR on green
-	Green [ISRM, EOIR, RDR] -> Orange [*]      // MPU, MPX on orange
+component_heartbeats:
+	Orange -> Green
+	Green  -> Orange
 updateMissionPlan:
-	Orange [MPU] -> Green [*]                  // ISRM, EOIR, RDR on green, (MPX on orange)
-pnt: 
-	Orange [MPX] -> Green [*]                  // RDR on green
+	Orange -> Green
+pnt:
+	Orange -> Green
 requestISRMDetections:
-	Orange [MPX] -> Green[*]                   // ISRM on green
+	Orange -> Green
 receiveISRMDetections:
-	Green [ISRM] -> Orange [*]                 // MPX on orange
-
-P.S.: requestEOIRDetections, recieveEOIRDetections, requestRDRDetections, recieveRDRDetections stay entirely on green side; also, updateConfig and updateNewTasking are not published by any component
+	Green -> Orange

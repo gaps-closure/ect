@@ -15,7 +15,7 @@
         {
             "component": "ISRM",
             "label": "ISRM_CLE_LABEL",
-            "inFlows": [ 1002, 1006, 2005, 2993, 4001, 4993, 5002, 5993 ], 
+            "inFlows": [ 1002, 1006, 2005, 2993, 4001, 4993, 5002, 5993 ],
             "outFlows": [ 3001, 3002, 3003, 3991, 3992, 3994, 3995 ]
         },
         {
@@ -35,176 +35,176 @@
             "label": "External_CLE_LABEL",
             "inFlows": [ ],
             "outFlows": [ 6001, 6002 ]
-        }        
+        }
     ],
     "flows": [
         {
-            "flowId": 1001,            
+            "flowId": 1001,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_ORANGE_ORANGE"
         },
         {
-            "flowId": 1002,            
+            "flowId": 1002,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_ORANGE_PURPLE"
         },
         {
-            "flowId": 1003,            
+            "flowId": 1003,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_ORANGE_PURPLE"
         },
         {
-            "flowId": 1004,            
+            "flowId": 1004,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_ORANGE_PURPLE"
         },
         {
-            "flowId": 1005,            
+            "flowId": 1005,
             "message": "updateMissionPlan",
             "label": "UPDATE_MISSION_PLAN_ORANGE_ORANGE"
         },
         {
-            "flowId": 1006,            
+            "flowId": 1006,
             "message": "updateMissionPlan",
             "label": "UPDATE_MISSION_PLAN_ORANGE_PURPLE"
         },
         {
-            "flowId": 1007,            
+            "flowId": 1007,
             "message": "updateMissionPlan",
             "label": "UPDATE_MISSION_PLAN_ORANGE_PURPLE"
         },
         {
-            "flowId": 1008,            
+            "flowId": 1008,
             "message": "updateMissionPlan",
             "label": "UPDATE_MISSION_PLAN_ORANGE_PURPLE"
         },
         {
-            "flowId": 2004,            
+            "flowId": 2004,
             "message": "pnt",
             "label": "PNT_ORANGE_PURPLE"
         },
         {
-            "flowId": 9999,            
+            "flowId": 9999,
             "message": "pnt",
             "label": "PNT_ORANGE_BLUE"
         },
         {
-            "flowId": 2005,            
+            "flowId": 2005,
             "message": "requestISRMDetections",
             "label": "REQUEST_ISRM_DETECTIONS_ORANGE_PURPLE"
         },
         {
-            "flowId": 2991,            
+            "flowId": 2991,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_ORANGE_ORANGE"
         },
         {
-            "flowId": 2993,            
+            "flowId": 2993,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_ORANGE_PURPLE"
         },
         {
-            "flowId": 2994,            
+            "flowId": 2994,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_ORANGE_PURPLE"
         },
         {
-            "flowId": 2995,            
+            "flowId": 2995,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_ORANGE_PURPLE"
         },
         {
-            "flowId": 3001,            
+            "flowId": 3001,
             "message": "requestEOIRDetections",
             "label": "REQUEST_EOIR_DETECTIONS_PURPLE_PURPLE"
         },
         {
-            "flowId": 3002,            
+            "flowId": 3002,
             "message": "requestRDRDetections",
             "label": "REQUEST_RDR_DETECTIONS_PURPLE_PURPLE"
         },
         {
-            "flowId": 3003,            
+            "flowId": 3003,
             "message": "receiveISRMDetections",
             "label": "RECEIVE_ISRM_DETECTIONS_PURPLE_ORANGE"
         },
         {
-            "flowId": 3991,            
+            "flowId": 3991,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_PURPLE_ORANGE"
         },
         {
-            "flowId": 3992,            
+            "flowId": 3992,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_PURPLE_ORANGE"
         },
         {
-            "flowId": 3994,            
+            "flowId": 3994,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_PURPLE_PURPLE"
         },
         {
-            "flowId": 3995,            
+            "flowId": 3995,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_PURPLE_PURPLE"
         },
         {
-            "flowId": 4001,            
+            "flowId": 4001,
             "message": "recieveEOIRDetections",
             "label": "RECEIVE_EOIR_DETECTIONS_PURPLE_PURPLE"
         },
         {
-            "flowId": 4991,            
+            "flowId": 4991,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_PURPLE_ORANGE"
         },
         {
-            "flowId": 4992,            
+            "flowId": 4992,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_PURPLE_ORANGE"
         },
         {
-            "flowId": 4993,            
+            "flowId": 4993,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_PURPLE_PURPLE"
         },
         {
-            "flowId": 4995,            
+            "flowId": 4995,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_PURPLE_PURPLE"
         },
         {
-            "flowId": 5001,            
+            "flowId": 5001,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_PURPLE_ORANGE"
         },
         {
-            "flowId": 5002,            
+            "flowId": 5002,
             "message": "recieveRDRDetections",
             "label": "RECEIVE_RDR_DETECTIONS_PURPLE_PURPLE"
         },
         {
-            "flowId": 5992,            
+            "flowId": 5992,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_PURPLE_ORANGE"
         },
         {
-            "flowId": 5993,            
+            "flowId": 5993,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_PURPLE_PURPLE"
         },
         {
-            "flowId": 5994,            
+            "flowId": 5994,
             "message": "component_heartbeats",
             "label": "COMPONENT_HEARTBEATS_PURPLE_PURPLE"
         },
         {
-            "flowId": 6001,            
+            "flowId": 6001,
             "message": "groundMovers",
             "label": "GROUND_MOVERS_PURPLE_PURPLE"
         },
         {
-            "flowId": 6002,            
+            "flowId": 6002,
             "message": "groundMovers",
             "label": "GROUND_MOVERS_PURPLE_PURPLE"
         }
@@ -270,7 +270,7 @@
             "schemaType": "JSONSchema",
             "schemaFile": "schema/receiveRDRDetections_schema.json"
         }
-    ],    
+    ],
     "cles": [
         {
             "cle-label": "MPU_CLE_LABEL",
@@ -360,7 +360,7 @@
                             [ "COMPONENT_HEARTBEATS_PURPLE_PURPLE" ],
                             [ "RECEIVE_RDR_DETECTIONS_PURPLE_PURPLE" ],
                             [ "COMPONENT_HEARTBEATS_PURPLE_PURPLE" ],
-                            
+
                             [ "REQUEST_EOIR_DETECTIONS_PURPLE_PURPLE" ],
                             [ "REQUEST_RDR_DETECTIONS_PURPLE_PURPLE" ],
                             [ "RECEIVE_ISRM_DETECTIONS_PURPLE_ORANGE" ],
@@ -396,7 +396,7 @@
                             [ "COMPONENT_HEARTBEATS_PURPLE_PURPLE" ],
                             [ "COMPONENT_HEARTBEATS_PURPLE_PURPLE" ],
                             [ "GROUND_MOVERS_PURPLE_PURPLE" ],
-                            
+
                             [ "RECEIVE_EOIR_DETECTIONS_PURPLE_PURPLE" ],
                             [ "COMPONENT_HEARTBEATS_PURPLE_ORANGE" ],
                             [ "COMPONENT_HEARTBEATS_PURPLE_ORANGE" ],
@@ -431,7 +431,7 @@
                             [ "COMPONENT_HEARTBEATS_PURPLE_PURPLE" ],
                             [ "COMPONENT_HEARTBEATS_PURPLE_PURPLE" ],
                             [ "GROUND_MOVERS_PURPLE_PURPLE" ],
-                            
+
                             [ "COMPONENT_HEARTBEATS_PURPLE_ORANGE" ],
                             [ "RECEIVE_RDR_DETECTIONS_PURPLE_PURPLE" ],
                             [ "COMPONENT_HEARTBEATS_PURPLE_ORANGE" ],
@@ -458,7 +458,7 @@
                             "operation": "allow"
                         },
                         "argtaints": [
-                                
+
                             [ "GROUND_MOVERS_PURPLE_PURPLE" ],
                             [ "GROUND_MOVERS_PURPLE_PURPLE" ]
                         ],
@@ -485,7 +485,7 @@
                   }
                ]
             }
-        },        
+        },
         {
             "cle-label": "COMPONENT_HEARTBEATS_ORANGE_ORANGE",
             "cle-json": {
@@ -548,7 +548,7 @@
                      }
                   }
                ]
-            }            
+            }
         },
         {
             "cle-label": "PNT_ORANGE_BLUE",
@@ -564,7 +564,7 @@
                      }
                   }
                ]
-            }            
+            }
         },
         {
             "cle-label": "RECEIVE_EOIR_DETECTIONS_PURPLE_PURPLE",
