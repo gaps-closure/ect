@@ -56,6 +56,7 @@ declareProofEnvType "ProofEnv"
   [[t| A.Name |]
   ,[t| A.Type |]
   ,[t| [A.Type] |]
+  ,[t| A.FloatingPointType |]
   ,[t| Maybe Word32 |]
   ,[t| A.AddrSpace |]
   ,[t| A.Visibility |]
