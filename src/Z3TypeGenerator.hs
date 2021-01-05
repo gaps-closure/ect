@@ -101,61 +101,69 @@ typeName _ t = error $ "unsupported type " ++ show t
 type StringConstructors = [(String, [(String, String)])]
 type StringTypeInfo = (String, StringConstructors)
 
+-- | Add bound variables to a type environment
+-- The length of formals and actuals should match, but this is not checked
+extendEnv :: NameEnv -> [TyVarBndr] -> [String] -> NameEnv
+extendEnv env formals actuals = env' ++ env
+  where
+    env' = zipWith newBind formals actuals
+    newBind (PlainTV n) s = (n, s)
+    newBind (KindedTV n _) s = (n, s)
+
+-- | Derive constructor information for an algebraic data type
+-- with the given name and constructors
+monoConstructors :: NameEnv -> Name -> [Con] -> StringTypeInfo
+monoConstructors env tCon dCons = (tConName, dConsInfo)
+  where
+    typePrefix = filter isUpper tConName ++ "_"
+    typeSuffix = concatMap (\(_,n) -> "_" ++ n) env -- type variable bindings
+    tConName = nameBase tCon ++ typeSuffix
+    dConsInfo = map dConInfo dCons
+
+    dConInfo (NormalC n bts) = (typePrefix ++ nameBase n ++ typeSuffix,
+                                map (\(_,t) -> ("f", typeName env t)) bts)
+    dConInfo (RecC n vbts) = (typePrefix ++ nameBase n ++ typeSuffix,
+                       map (\(f,_,t) -> (nameBase f, typeName env t)) vbts)
+
+    dConInfo dc = error $ "unsupported constructors " ++ show dc
+
+-- | Return information about a monomorphic algebraic type
+monoDec :: NameEnv -> Dec -> [String] -> Q StringTypeInfo
+monoDec env (DataD _ tCon tVars _ dCons _) args =
+  return $ monoConstructors (extendEnv env tVars args) tCon dCons
+monoDec env (NewtypeD _ tCon tVars _ dCon _) args =
+  return $ monoConstructors (extendEnv env tVars args) tCon [dCon]
+monoDec env (TySynD name tVars ty) args = do
+  (_, dConsInfo) <- monoType (extendEnv env tVars args) ty
+  return ( nameBase name, dConsInfo ) -- FIXME?
+monoDec _ i _ = error $ "expecting a type constructor; got " ++ show i
+
 -- | A "monomorphized" version of the given type:
 --
 -- For an algebraic data type,
 -- return its type constructor base name
 -- the base names of all its data constructors,
 -- and the names of the of each of its fields, if any
-monoType :: Type -> Q StringTypeInfo
-monoType theType = collectTArgs [] theType
+monoType :: NameEnv -> Type -> Q StringTypeInfo
+monoType env ty = collect [] ty
   where
-    collectTArgs args (AppT t1 t2) = collectTArgs (typeName [] t2 : args) t1
-    collectTArgs args (ConT n) = processConstructors n args
-    collectTArgs [arg] ListT = return (tCon, dConsInfo)
+    collect args (AppT t1 t2) = collect (typeName env t2 : args) t1
+    collect args (ConT n) = do
+      reify n >>= \case
+        TyConI dec -> monoDec env dec args
+        i -> error $ "monoType: expecting a TyConI; got " ++ show i
+    collect [arg] ListT = return (tCon, dConsInfo)
       where tCon = "List_" ++ arg
             dConsInfo = [("Nil_" ++ arg, [])
                         ,("Cons_" ++ arg, [("head", arg)
                                           ,("tail", tCon)])]
-    collectTArgs args (TupleT n) = return (tcon, dConsInfo)
-      where tcon = "Tup" ++ show n ++ concatMap ("_"++) args
-            dConsInfo = [(tcon, fields)]
+    collect args (TupleT n) = return (tCon, dConsInfo)
+      where tCon = "Tup" ++ show n ++ concatMap ("_"++) args
+            dConsInfo = [(tCon, fields)]
             fields = zipWith field args ([1..] :: [Int])
             field t fn = ("field" ++ show fn, t)
-
-    collectTArgs _ t = error $ "monoType: unsupported type " ++ show t
-
-
-    processConstructors :: Name -> [String] -> Q StringTypeInfo
-    processConstructors typeConN argStrings =
-      reify typeConN >>= \case
-        TyConI (DataD _ tCon tVars _ dCons _) ->
-          algConstructors argStrings tCon tVars dCons
-        TyConI (NewtypeD _ tCon tVars _ dCon _) ->
-          algConstructors argStrings tCon tVars [dCon]
-
-        i -> error $ "expecting a type constructor; got " ++ show i
-
-    algConstructors argStrings tCon tVars dCons = return (tConName, dConsInfo)
-      where
-        nameEnv = zipWith (\tvb s -> (tyVarBndrName tvb, s)) tVars argStrings
-
-        tyVarBndrName (PlainTV n) = n
-        tyVarBndrName (KindedTV n _) = n
-
-        typePrefix = filter isUpper tConName ++ "_"
-        typeSuffix = concatMap ("_"++) argStrings
-        tConName = nameBase tCon ++ typeSuffix
-        dConsInfo = map dConInfo dCons
-
-        dConInfo (NormalC n bts) =
-          (typePrefix ++ nameBase n ++ typeSuffix,
-            map (\(_,t) -> ("f", typeName nameEnv t)) bts)
-        dConInfo (RecC n vbts) =
-          (typePrefix ++ nameBase n ++ typeSuffix,
-            map (\(f,_,t) -> (nameBase f, typeName nameEnv t)) vbts)
-
-        dConInfo dc = error $ "unsupported constructors " ++ show dc
+        
+    collect _ t = error $ "monoType: expecting a type; got " ++ show t
 
 -- | Only generate code for certain constructors
 z3ConstructorsOnly :: Q Exp -> Q Type -> [String] -> Q Stmt
@@ -169,7 +177,7 @@ z3Constructors :: Q Exp -> Q Type -> Q Stmt
 z3Constructors boolSort ty = do
   boolSortE <- boolSort
   typ <- ty
-  typeInfo <- monoType typ
+  typeInfo <- monoType [] typ
   return $ z3ConstructorsStmt boolSortE typeInfo
 
 varsFor :: StringTypeInfo -> Pat
@@ -185,7 +193,7 @@ z3MutualConstructors :: Q Exp -> [Q Type] -> Q Stmt
 z3MutualConstructors boolSort tys = do
   boolSortE <- boolSort
   typs <- sequence tys
-  tinfos <- mapM monoType typs
+  tinfos <- mapM (monoType []) typs
   let ourSorts = zipWith (\(a,_) b -> (a, b)) tinfos [(0::Integer)..]
       vars = ListP $ map varsFor tinfos
       tConNames = ListE $ map (LitE . StringL . fst) tinfos
@@ -233,7 +241,7 @@ z3ConstructorsStmt boolSortE (tConName, dConsNames) =
 algTypeInfoOnly :: Q Type -> [String] -> Q StringTypeInfo
 algTypeInfoOnly actualType fields = do
   ty <- actualType
-  (tConsName, dConsNames') <- monoType ty
+  (tConsName, dConsNames') <- monoType [] ty
   let dConsNames = filter (\(dc, _) -> elem dc fields) dConsNames'
   return (tConsName, dConsNames)
 
@@ -254,7 +262,7 @@ declareProofEnvType proofEnvType primitives limitedTypes types = do
   limitedFields <- concatMap infoToFields <$>
                    mapM (uncurry algTypeInfoOnly) limitedTypes
   typeEs <- sequence types
-  fields <- concatMap infoToFields <$> mapM monoType typeEs
+  fields <- concatMap infoToFields <$> mapM (monoType []) typeEs
   return $ [DataD [] proofEnvTypeName [] Nothing
               [RecC proofEnvTypeName
                 (primitiveFields ++ limitedFields ++ fields)] []]

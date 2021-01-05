@@ -15,6 +15,10 @@ import qualified LLVM.AST.CallingConvention as A
 import qualified LLVM.AST.ParameterAttribute as A
 import qualified LLVM.AST.FunctionAttribute as A
 import qualified LLVM.AST.Constant as A
+import qualified LLVM.AST.InlineAssembly as A
+import qualified LLVM.AST.RMWOperation as A
+import qualified LLVM.AST.IntegerPredicate as A
+import qualified LLVM.AST.FloatingPointPredicate as A
 import Data.ByteString.Short (ShortByteString)
 import Data.Word (Word32)
 
@@ -39,6 +43,9 @@ type Z3Constructor = (FuncDecl, String, Z3Type)
 --                          , c_Import :: !Z3Constructor
 --                          , c_Export :: !Z3Constructor ... }
 
+
+data NonEmpty a = Colon a [a]
+
 declareProofEnvType "ProofEnv"
   ["Bool"
   ,"Int"
@@ -54,10 +61,14 @@ declareProofEnvType "ProofEnv"
   , -} ([t| A.Global |], ["G_Function"])
   ]
   [[t| A.Name |]
+  ,[t| [A.Name] |]
+  ,[t| Maybe A.Name |]
+  ,[t| NonEmpty A.Name |]
   ,[t| A.Type |]
   ,[t| [A.Type] |]
   ,[t| A.FloatingPointType |]
   ,[t| Maybe Word32 |]
+  ,[t| [Word32] |]
   ,[t| A.AddrSpace |]
   ,[t| A.Visibility |]
   ,[t| A.StorageClass |]
@@ -75,6 +86,30 @@ declareProofEnvType "ProofEnv"
   ,[t| Either A.GroupID A.FunctionAttribute |]
   ,[t| [Either A.GroupID A.FunctionAttribute] |]
   ,[t| [A.BasicBlock] |]
+  ,[t| A.Instruction |]
+  ,[t| A.Terminator |]
+  ,[t| A.Operand |]
+  ,[t| [A.Operand] |]
+  ,[t| [(A.Operand, A.Name)] |]
+  ,[t| [(A.Operand, [A.ParameterAttribute])] |]
+  ,[t| A.LandingPadClause |]
+  ,[t| [A.LandingPadClause] |]
+  ,[t| [(A.Constant, A.Name)] |]
+  ,[t| A.InlineAssembly |]
+  ,[t| A.CallableOperand |]
+  ,[t| A.Dialect |]
+  ,[t| Maybe A.Dialect |]
+  ,[t| A.TailCallKind |]
+  ,[t| Maybe A.TailCallKind |]
+  ,[t| Maybe A.Operand |]
+  ,[t| A.SynchronizationScope |]
+  ,[t| A.Atomicity |]
+  ,[t| Maybe A.Atomicity |]
+  ,[t| A.MemoryOrdering |]
+  ,[t| A.RMWOperation |]
+  ,[t| A.IntegerPredicate |]
+  ,[t| A.FloatingPointPredicate |]
+  ,[t| A.FastMathFlags |]
   ,[t| Maybe A.Constant |]
   ,[t| (ShortByteString, A.MDRef A.MDNode) |]
   ,[t| [(ShortByteString, A.MDRef A.MDNode)] |]

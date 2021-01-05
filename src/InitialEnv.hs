@@ -22,6 +22,10 @@ import qualified LLVM.AST.CallingConvention as A
 import qualified LLVM.AST.ParameterAttribute as A
 import qualified LLVM.AST.FunctionAttribute as A
 import qualified LLVM.AST.Constant as A
+import qualified LLVM.AST.InlineAssembly as A
+import qualified LLVM.AST.RMWOperation as A
+import qualified LLVM.AST.IntegerPredicate as A
+import qualified LLVM.AST.FloatingPointPredicate as A
 import Data.ByteString.Short (ShortByteString)
 import Data.Word (Word32)
 import Data.List (zipWith4)
@@ -112,6 +116,9 @@ initialEnv = do
   let s_BasicBlock   = s_Bool -- FIXME
       s_Constant     = s_Bool -- FIXME
       s_MDRef_MDNode = s_Bool -- FIXME
+      s_InstructionMetadata = s_Bool -- FIXME
+      s_Metadata = s_Bool -- FIXME
+      s_ByteString = s_Bool
   $(initEnv "ProofEnv" $
         [ z3Constructors [| s_Bool |] [t| A.AddrSpace |]
         , z3Constructors [| s_Bool |] [t| A.Name |]
@@ -121,6 +128,10 @@ initialEnv = do
         ] ++
         map (z3Constructors [| s_Bool |])
             [[t| Maybe Word32 |]
+            ,[t| [Word32] |]
+            ,[t| [A.Name] |]
+            ,[t| Maybe A.Name |]
+            ,[t| NonEmpty A.Name |]
             ,[t| A.Visibility |]
             ,[t| A.StorageClass |]
             ,[t| Maybe A.StorageClass |]
@@ -137,6 +148,33 @@ initialEnv = do
             ,[t| Either A.GroupID A.FunctionAttribute |]
             ,[t| [Either A.GroupID A.FunctionAttribute] |]
             ,[t| [A.BasicBlock] |]
+            ,[t| A.FastMathFlags |]
+            ,[t| A.RMWOperation |]
+            ,[t| A.IntegerPredicate |]
+            ,[t| A.FloatingPointPredicate |]           
+            ,[t| A.SynchronizationScope |]
+            ,[t| A.MemoryOrdering |]
+            ,[t| A.Atomicity |]
+            ,[t| Maybe A.Atomicity |]
+            ,[t| A.TailCallKind |]
+            ,[t| Maybe A.TailCallKind |]
+            ,[t| A.Dialect |]
+            ,[t| Maybe A.Dialect |]           
+            ,[t| A.InlineAssembly |]
+            ,[t| A.Operand |]
+            ,[t| Maybe A.Operand |]
+            ,[t| [A.Operand] |]
+            ,[t| (A.Operand, A.Name) |]
+            ,[t| [(A.Operand, A.Name)] |]
+            ,[t| (A.Operand, [A.ParameterAttribute]) |]
+            ,[t| [(A.Operand, [A.ParameterAttribute])] |]
+            ,[t| A.CallableOperand |]
+            ,[t| A.LandingPadClause |]
+            ,[t| [A.LandingPadClause] |]
+            ,[t| (A.Constant, A.Name) |]            
+            ,[t| [(A.Constant, A.Name)] |]            
+            ,[t| A.Instruction |]
+            ,[t| A.Terminator |]
             ,[t| Maybe A.Constant |]
             ,[t| (ShortByteString, A.MDRef A.MDNode) |]
             ,[t| [(ShortByteString, A.MDRef A.MDNode)] |]
