@@ -23,6 +23,11 @@ module Z3TypeGenerator where
 import Data.Char (isUpper)
 import Language.Haskell.TH
 
+import Data.List (intercalate)
+
+import qualified Data.Set as S
+import Data.Foldable (foldrM)
+
 -- | Prefixes inserted before the name of each Z3 sort (type),
 -- and data constructor
 sortPrefix, constructorPrefix :: String
@@ -266,3 +271,76 @@ declareProofEnvType proofEnvType primitives limitedTypes types = do
   return $ [DataD [] proofEnvTypeName [] Nothing
               [RecC proofEnvTypeName
                 (primitiveFields ++ limitedFields ++ fields)] []]
+
+
+
+
+
+type TypeEnv = [(Name, Type)]
+
+-- | Replace variables from the environment with types
+instantiate :: TypeEnv -> Type -> Type
+instantiate env (AppT t1 t2) = AppT (instantiate env t1) (instantiate env t2)
+instantiate env (VarT n) = case lookup n env of
+  Just t -> t
+  Nothing -> error $ "undefined type variable " ++ nameBase n
+instantiate _ t = t
+
+conTypes :: TypeEnv -> [Con] -> [Type]
+conTypes env = concatMap conType
+  where
+    conType (NormalC _ bts) = map (instantiate env . snd) bts
+    conType (RecC _ vbts) = map (\(_,_,t) -> instantiate env t) vbts
+    conType (InfixC (_,t1) _ (_,t2)) = map (instantiate env) [t1, t2]
+    conType c = error $ "conType: do not know how to handle " ++ show c
+
+-- | Extend a type environment by finding formals to actuals
+extendTypeEnv :: TypeEnv -> [TyVarBndr] -> [Type] -> TypeEnv
+extendTypeEnv env formals actuals = zipWith newBind formals actuals ++ env
+  where
+    newBind (PlainTV n) t = (n, t)
+    newBind (KindedTV n _) t = (n, t)
+
+decTypes :: TypeEnv -> Dec -> [Type] -> Q [Type]
+decTypes env (DataD _ _ tVars _ dCons _) args =
+  return $ conTypes (extendTypeEnv env tVars args) dCons
+decTypes env (NewtypeD _ _ tVars _ dCon _) args =
+  return $ conTypes (extendTypeEnv env tVars args) [dCon]
+decTypes env (TySynD _ tVars t) args =
+  dependingTypes (extendTypeEnv env tVars args) t
+decTypes _ d _ = error $ "decTypes: unhandled declaration " ++ show d
+
+dependingTypes :: TypeEnv -> Type -> Q [Type]
+dependingTypes env ty = collect [] ty
+  where
+    collect args (AppT t1 t2) = collect (t2 : args) t1
+    collect args (ConT n) = do
+      reify n >>= \case
+        TyConI dec -> decTypes env dec args
+        PrimTyConI _ _ _ -> return [] -- Stop at primitives
+        i -> error $ "dependingTypes : expecting TyConI; got " ++ show i
+    collect args ListT = return args
+    collect args (TupleT _) = return args
+    collect _ t = error $ "dependingTypes: unhandled " ++ show t
+
+visitRequired :: Type -> S.Set Type -> Q (S.Set Type)
+visitRequired t visited | t `S.member` visited = return visited
+visitRequired t visited = do
+  types <- dependingTypes [] t 
+  foldrM visitRequired (S.insert t visited) types
+
+-- | Enumerate all the types that depend on the given type
+requiredTypes :: Q Type -> Q Exp
+requiredTypes ty = do
+  typ <- ty
+  typs <- visitRequired typ S.empty
+  return $ LitE $ StringL $ show (map haskellTypeName (S.toList typs))
+
+haskellTypeName :: Type -> String
+haskellTypeName = collect []
+  where
+    collect args (AppT t1 t2) = collect (t2 : args) t1
+    collect args (ConT n) = nameBase n ++ concatMap (\t -> " " ++ collect [] t) args
+    collect [t] ListT = "[" ++ collect [] t ++ "]"
+    collect args (TupleT _) = "(" ++ intercalate "," (map (collect []) args) ++ ")"
+    collect _ t = show t

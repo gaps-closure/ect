@@ -114,3 +114,6 @@ declareProofEnvType "ProofEnv"
   ,[t| (ShortByteString, A.MDRef A.MDNode) |]
   ,[t| [(ShortByteString, A.MDRef A.MDNode)] |]
   ]
+
+reqTypes :: String
+reqTypes = $(requiredTypes [t| A.Global |] )
