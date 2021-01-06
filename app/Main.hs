@@ -320,7 +320,7 @@ instance ProveEquiv Word where
   proveEquiv = proveEquivPrimitive s_Word (\x -> mkBitvector 32 (toInteger x)) "Word"
 
 instance ProveEquiv ShortByteString where
-  proveEquiv = proveEquivPrimitive s_String (\x -> mkString $ C.unpack $ fromShort x) "ShortByteString"
+  proveEquiv = proveEquivPrimitive s_ShortByteString (\x -> mkString $ C.unpack $ fromShort x) "ShortByteString"
 
 instance ProveEquiv (Maybe ShortByteString) where
   proveEquiv = proveEquivMaybe
@@ -591,15 +591,20 @@ instance ProveEquiv (Maybe A.Constant) where
   proveEquiv = proveEquivMaybe
     c_MC_Just_Constant c_MC_Nothing_Constant "Maybe Constant"
 
+-- FIXME: Handle basic blocks.  This is causing things to fail now
 instance ProveEquiv A.BasicBlock where
-  proveEquiv _ _ = proveEquiv True True -- FIXME: add s_BasicBlock to env (currently bool)
+  proveEquiv _ _ =
+    proveEquivGeneral c_BB_BasicBlock [] "basic block matched trivially"
 
 instance ProveEquiv [A.BasicBlock] where
   proveEquiv = proveEquivCFG
 
+{-
 instance ProveEquiv (A.MDRef A.MDNode) where
   proveEquiv _ _ = proveEquiv True True -- FIXME: add s_MDRef_MDNode to env (currently bool)
+-}
 
+{-
 instance ProveEquiv (ShortByteString, A.MDRef A.MDNode) where
   proveEquiv = proveEquivTuple
     c_Tup2_ShortByteString_MDRef_MDNode "(ShortByteString, MDRef MDNode)"
@@ -609,6 +614,7 @@ instance ProveEquiv [(ShortByteString, A.MDRef A.MDNode)] where
     c_Cons_Tup2_ShortByteString_MDRef_MDNode
     c_Nil_Tup2_ShortByteString_MDRef_MDNode
     "List (ShortByteString, MDRef MDNode)"
+-}
 
 instance ProveEquiv A.Global where
   proveEquiv f1@A.Function{} f2@A.Function{} = do
@@ -629,7 +635,7 @@ instance ProveEquiv A.Global where
       , proveField A.prefix
       , proveField A.basicBlocks
       , proveField A.personalityFunction
-      , proveField A.metadata
+      , proveEquiv True True -- proveField A.metadata
       ]
     proveEquivGeneral c_G_Function fields $
       "functions " ++ (showName $ A.name f1) ++ " and " ++

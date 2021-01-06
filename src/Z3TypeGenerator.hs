@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 {-
 
@@ -27,6 +28,10 @@ import Data.List (intercalate)
 
 import qualified Data.Set as S
 import Data.Foldable (foldrM)
+
+import Data.Graph
+
+
 
 -- | Prefixes inserted before the name of each Z3 sort (type),
 -- and data constructor
@@ -129,7 +134,10 @@ monoConstructors env tCon dCons = (tConName, dConsInfo)
                                 map (\(_,t) -> ("f", typeName env t)) bts)
     dConInfo (RecC n vbts) = (typePrefix ++ nameBase n ++ typeSuffix,
                        map (\(f,_,t) -> (nameBase f, typeName env t)) vbts)
-
+    dConInfo (InfixC (_,t1) _ (_,t2)) =
+      (typePrefix ++ "infix" ++ typeSuffix,    -- FIXME: name is like ":-"
+        [("l", typeName env t1)
+        ,("r", typeName env t2)])
     dConInfo dc = error $ "unsupported constructors " ++ show dc
 
 -- | Return information about a monomorphic algebraic type
@@ -323,24 +331,64 @@ dependingTypes env ty = collect [] ty
     collect args (TupleT _) = return args
     collect _ t = error $ "dependingTypes: unhandled " ++ show t
 
+-- | Produce a Haskell-syntax-style version of a type
+haskellTypeName :: Type -> String
+haskellTypeName = collect []
+  where
+    collect args (AppT t1 t2) = collect (t2 : args) t1
+    collect args (ConT n) = modn ++ nameBase n ++ concatMap (\t -> " " ++ collect [] t) args
+      where
+        modn = case nameModule n of
+          Just ('L':'L':'V':'M':_) -> "A."
+          Just ('G':'H':'C':_) -> ""
+          Just s -> s ++ "."
+          Nothing -> ""
+    collect [t] ListT = "[" ++ collect [] t ++ "]"
+    collect args (TupleT _) =
+      "(" ++ intercalate ", " (map (collect []) args) ++ ")"
+    collect _ t = show t
+
 visitRequired :: Type -> S.Set Type -> Q (S.Set Type)
 visitRequired t visited | t `S.member` visited = return visited
 visitRequired t visited = do
   types <- dependingTypes [] t 
   foldrM visitRequired (S.insert t visited) types
 
--- | Enumerate all the types that depend on the given type
-requiredTypes :: Q Type -> Q Exp
-requiredTypes ty = do
-  typ <- ty
-  typs <- visitRequired typ S.empty
-  return $ LitE $ StringL $ show (map haskellTypeName (S.toList typs))
+data SCCGroup a = SCCSequence [a]
+                | SCCCyclic [a]
 
-haskellTypeName :: Type -> String
-haskellTypeName = collect []
+instance Show (SCCGroup Type) where
+  show (SCCSequence ts) =
+    "map (z3Constructors [| s_Bool |]) [ " ++
+    intercalate "\n, " (map (\t -> "[t| " ++ haskellTypeName t ++ " |]") ts) ++
+    " ] ++"
+  show (SCCCyclic ts) =
+    "[z3MutualConstructors [| s_Bool |] [ " ++
+    intercalate "\n, " (map (\t -> "[t| " ++ haskellTypeName t ++ " |]") ts) ++
+    " ]] ++"
+
+
+-- | Convert SCCs (singletons and cycles) into sequences and cycles
+groupSCC :: [SCC a] -> [SCCGroup a]
+groupSCC [] = []
+groupSCC ((CyclicSCC as) : ss) = SCCCyclic as : groupSCC ss
+groupSCC ss = SCCSequence (map (\(AcyclicSCC t) -> t) acyclic) : groupSCC rest
   where
-    collect args (AppT t1 t2) = collect (t2 : args) t1
-    collect args (ConT n) = nameBase n ++ concatMap (\t -> " " ++ collect [] t) args
-    collect [t] ListT = "[" ++ collect [] t ++ "]"
-    collect args (TupleT _) = "(" ++ intercalate "," (map (collect []) args) ++ ")"
-    collect _ t = show t
+    (acyclic, rest) = span (\case (AcyclicSCC _) -> True
+                                  (CyclicSCC _) -> False) ss
+
+-- | Enumerate all the types that depend on the given type
+requiredTypes :: [Q Type] -> Q Type -> Q Exp
+requiredTypes leaves ty = do
+  typ <- ty
+  leaves' <- sequence leaves
+  typs <- visitRequired typ (S.fromList leaves')
+  let typs' = typs S.\\ S.fromList leaves'
+      types = S.toList typs'
+  typSuccessors <- mapM (dependingTypes []) types
+  let graph = map (\t -> (t, t, [])) leaves' ++
+              zipWith (\t s -> (t,t,s)) types typSuccessors
+      sccs = stronglyConnComp graph
+      proofEnv = ListE $ map (LitE . StringL . haskellTypeName) $ S.toList typs'
+      initialEnv = ListE $ map (LitE . StringL . show) (groupSCC sccs)
+  return $ TupE [proofEnv, initialEnv]

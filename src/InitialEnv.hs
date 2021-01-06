@@ -26,7 +26,10 @@ import qualified LLVM.AST.InlineAssembly as A
 import qualified LLVM.AST.RMWOperation as A
 import qualified LLVM.AST.IntegerPredicate as A
 import qualified LLVM.AST.FloatingPointPredicate as A
+import qualified LLVM.AST.ThreadLocalStorage as A
+import qualified LLVM.AST.Float as A
 import Data.ByteString.Short (ShortByteString)
+--import Data.ByteString (ByteString)
 import Data.Word (Word32)
 import Data.List (zipWith4)
 
@@ -101,83 +104,88 @@ mkMutualZ3Constructors bool names fieldsSet = do
       merge srt cs fs z3t = (srt, zipWith3 (,,) cs (map fst fs) (repeat z3t))
   return $ zipWith4 merge sorts constructorsSet fieldsSet z3Types
 
-
 -- | Initialize Z3 types, etc. that will be made available during
 --   execution of the proof monad
 initialEnv :: ProofM ProofEnv
 initialEnv = do
   s_Bool <- mkBoolSort
   s_Int <- mkIntSort
-  s_String <- mkStringSort
+  s_Word16 <- mkBvSort 16
   s_Word32 <- mkBvSort 32
   let s_Word = s_Word32
   s_Word64 <- mkBvSort 64
-  s_ShortByteString <- mkStringSort
-  let s_BasicBlock   = s_Bool -- FIXME
-      s_Constant     = s_Bool -- FIXME
-      s_MDRef_MDNode = s_Bool -- FIXME
-      s_InstructionMetadata = s_Bool -- FIXME
-      s_Metadata = s_Bool -- FIXME
-      s_ByteString = s_Bool
+  let s_Integer = s_Int
+  s_ShortByteString <- mkStringSort  
+  let s_ByteString = s_ShortByteString
+  let s_Float = s_Bool -- FIXME
+      s_Double = s_Bool -- FIXME
+      s_InstructionMetadata = s_Bool
+      s_List_Tup2_ShortByteString_MDRef_MDNode = s_Bool
+      s_Metadata = s_Bool
   $(initEnv "ProofEnv" $
-        [ z3Constructors [| s_Bool |] [t| A.AddrSpace |]
-        , z3Constructors [| s_Bool |] [t| A.Name |]
-        , z3Constructors [| s_Bool |] [t| A.FloatingPointType |]
-        , z3MutualConstructors [| s_Bool |] [ [t| A.Type   |]
-                                            , [t| [A.Type] |] ]
-        ] ++
-        map (z3Constructors [| s_Bool |])
-            [[t| Maybe Word32 |]
-            ,[t| [Word32] |]
-            ,[t| [A.Name] |]
-            ,[t| Maybe A.Name |]
-            ,[t| NonEmpty A.Name |]
-            ,[t| A.Visibility |]
-            ,[t| A.StorageClass |]
-            ,[t| Maybe A.StorageClass |]
-            ,[t| Maybe ShortByteString |]
-            ,[t| A.Linkage |]
-            ,[t| A.CallingConvention |]
-            ,[t| A.ParameterAttribute |]
-            ,[t| [A.ParameterAttribute] |]
-            ,[t| A.Parameter |]
-            ,[t| [A.Parameter] |]
-            ,[t| ([A.Parameter], Bool) |]
-            ,[t| A.GroupID |]
-            ,[t| A.FunctionAttribute |]
-            ,[t| Either A.GroupID A.FunctionAttribute |]
-            ,[t| [Either A.GroupID A.FunctionAttribute] |]
-            ,[t| [A.BasicBlock] |]
-            ,[t| A.FastMathFlags |]
-            ,[t| A.RMWOperation |]
-            ,[t| A.IntegerPredicate |]
-            ,[t| A.FloatingPointPredicate |]           
-            ,[t| A.SynchronizationScope |]
-            ,[t| A.MemoryOrdering |]
-            ,[t| A.Atomicity |]
-            ,[t| Maybe A.Atomicity |]
-            ,[t| A.TailCallKind |]
-            ,[t| Maybe A.TailCallKind |]
-            ,[t| A.Dialect |]
-            ,[t| Maybe A.Dialect |]           
-            ,[t| A.InlineAssembly |]
-            ,[t| A.Operand |]
-            ,[t| Maybe A.Operand |]
-            ,[t| [A.Operand] |]
-            ,[t| (A.Operand, A.Name) |]
-            ,[t| [(A.Operand, A.Name)] |]
-            ,[t| (A.Operand, [A.ParameterAttribute]) |]
-            ,[t| [(A.Operand, [A.ParameterAttribute])] |]
-            ,[t| A.CallableOperand |]
-            ,[t| A.LandingPadClause |]
-            ,[t| [A.LandingPadClause] |]
-            ,[t| (A.Constant, A.Name) |]            
-            ,[t| [(A.Constant, A.Name)] |]            
-            ,[t| A.Instruction |]
-            ,[t| A.Terminator |]
-            ,[t| Maybe A.Constant |]
-            ,[t| (ShortByteString, A.MDRef A.MDNode) |]
-            ,[t| [(ShortByteString, A.MDRef A.MDNode)] |]
-            ] ++
-     [ z3ConstructorsOnly [| s_Bool |] [t| A.Global |] ["G_Function"]]
+    map (z3Constructors [| s_Bool |]) [ [t| A.Visibility |]
+                                      , [t| A.FloatingPointType |]
+                                      , [t| A.Model |]
+                                      , [t| A.RMWOperation |]
+                                      , [t| A.Linkage |]
+                                      , [t| A.IntegerPredicate |]
+                                      , [t| A.TailCallKind |]
+                                      , [t| A.SynchronizationScope |]
+                                      , [t| A.MemoryOrdering |]
+                                      , [t| A.Atomicity |]
+                                      , [t| A.Dialect |]
+                                      , [t| A.UnnamedAddr |]
+                                      , [t| A.FloatingPointPredicate |]
+                                      , [t| A.StorageClass |]
+                                      , [t| A.GroupID |]
+                                      , [t| A.FastMathFlags |]
+                                      , [t| A.Name |]
+                                      , [t| A.ParameterAttribute |]
+                                      , [t| A.AddrSpace |]
+                                      , [t| A.CallingConvention |]
+                                      , [t| A.SomeFloat |] ] ++
+    [z3MutualConstructors [| s_Bool |] [ [t| [A.Type] |]
+                                       , [t| A.Type |] ] ] ++
+    map (z3Constructors [| s_Bool |]) [ [t| A.InlineAssembly |]
+                                      , [t| [A.ParameterAttribute] |]
+                                      , [t| A.Parameter |]
+                                      , [t| [A.Name] |]
+                                      , [t| [A.Parameter] |]
+                                      , [t| [Word32] |]
+                                      , [t| Maybe A.Model |]
+                                      , [t| Maybe A.Name |] ] ++
+    [z3MutualConstructors [| s_Bool |] [ [t| A.Constant |]
+                                       , [t| [A.Constant] |] ]] ++
+    map (z3Constructors [| s_Bool |]) [ [t| A.LandingPadClause |]
+                                       , [t| [A.LandingPadClause] |]
+                                       , [t| A.Operand |] ] ++
+    map (z3Constructors [| s_Bool |]) [ [t| Maybe A.Operand |]
+                                      , [t| [A.Operand] |]
+                                      , [t| A.CallableOperand |]
+                                      , [t| Maybe A.TailCallKind |]
+                                      , [t| Maybe A.Atomicity |]
+                                      , [t| Maybe A.UnnamedAddr |]
+                                      , [t| Maybe A.StorageClass |]
+                                      , [t| Maybe A.Constant |]
+                                      , [t| Maybe ShortByteString |]
+                                      , [t| Maybe Word32 |]
+                                      , [t| A.FunctionAttribute |]
+                                      , [t| NonEmpty A.Name |]
+                                      , [t| (A.Operand, A.Name) |]
+                                      , [t| [(A.Operand, A.Name)] |]
+                                      , [t| (A.Operand, [A.ParameterAttribute]) |]
+                                      , [t| [(A.Operand, [A.ParameterAttribute])] |]
+                                      , [t| (A.Constant, A.Name) |]
+                                      , [t| [(A.Constant, A.Name)] |]
+                                      , [t| ([A.Parameter], Bool) |]
+                                      , [t| Either A.GroupID A.FunctionAttribute |]
+                                      , [t| [Either A.GroupID A.FunctionAttribute] |]
+                                      , [t| A.Instruction |]
+                                      , [t| A.Named A.Instruction |]
+                                      , [t| [A.Named A.Instruction] |]
+                                      , [t| A.Terminator |]
+                                      , [t| A.Named A.Terminator |]
+                                      , [t| A.BasicBlock |]
+                                      , [t| [A.BasicBlock] |]
+                                      , [t| A.Global |] ]
    )

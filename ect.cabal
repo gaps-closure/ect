@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b524f9de565668ab43240b385f8fa34a436913e4cdeca9ba0244f245f08d42a5
+-- hash: 0fa238135113c426e17ab89b912c90cd12a8d5b56cf58e55d9518ff3b6972a5d
 
 name:           ect
 version:        0.1.0.0
@@ -49,10 +49,31 @@ library
 executable ect
   main-is: Main.hs
   other-modules:
+      PrintTypes
       Paths_ect
   hs-source-dirs:
       app
   ghc-options: -Wall -dynamic
+  build-depends:
+      base >=4.7 && <5
+    , bytestring
+    , containers
+    , ect
+    , llvm-hs >=9.0.1
+    , llvm-hs-pure >=9.0.0
+    , transformers
+    , utf8-string
+    , z3 >=408.2
+  default-language: Haskell2010
+
+executable printTypes
+  main-is: PrintTypes.hs
+  other-modules:
+      Main
+      Paths_ect
+  hs-source-dirs:
+      app
+  ghc-options: -main-is PrintTypes -dynamic -Wall
   build-depends:
       base >=4.7 && <5
     , bytestring
