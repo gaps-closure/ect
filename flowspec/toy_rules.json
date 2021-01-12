@@ -1,11 +1,11 @@
 {
     "rules": [
         {
-            "message": "msg_name"
+            "message": "msg_name",
             "flows": [
                 {
-                    "level": "orange/green"
-                    "remotelevel": "orange/green"
+                    "level": "orange/green",
+                    "remotelevel": "orange/green",
                     "operation": "allow/deny/redact"
                 }
             ]

@@ -73,17 +73,17 @@ Here is a non-exhaustive list of sanity checks.
 2. each topology element (component) must have a CLE label
 3. each component has inFlows and outFlows
 4. in messages, all elements must have a name field, and the name values must be unique
-5. each element of messages must have a topic, schemaType, and schemaFile (these are otherwise ignored by the checker) 
+5. each element of messages must have a topic, schemaType, and schemaFile (these are otherwise ignored by the checker)
 6. in cles, all elements must have a cle-label field, whose value must be unique
 7. in cles, all elements must have a cle-json field (for CLE-JSON portion there is a schema, see https://github.com/gaps-closure/mules/blob/develop/cle-spec/schema/cle-schema.json, but no schema defined yet for overall design spec)
 8. every element of flows, must have a flowID, a message, and a cle label
-9. all foreign keys (e.g., flow id, message name, cle label used anywhere) must exist (e.g., respectively in flows, messages, cles) 
+9. all foreign keys (e.g., flow id, message name, cle label used anywhere) must exist (e.g., respectively in flows, messages, cles)
 10. a single flow id is used as an inflow exactly once and an outflow exactly once
 11. flow CLEs don't have taints, while component CLEs do
 12. XXX: cle label corresponds properly to message name, level, and remotelevel --> label can be anything, but cle-json must be sane
 13. for each topology element (component), the length of argtaints in its component CLEs should match length(inflows ++ outflows) of the component
 14. for each topology element (component), the codtaints and rettaints in the cle-json corresponding to its label must be empty
-15. cdf elements in a cle-json should have different remote levels 
+15. cdf elements in a cle-json should have different remote levels
 16. warn (but not prohibit) levels/remote-levels that are defined and never used (no component is in that level)
 17. warn (but not prohibit) messages that are defined and never used (in any flow)
 18. warn (but not prohibit) labels that are defined and never used (in any component or flow)
@@ -93,7 +93,7 @@ Here is a non-exhaustive list of sanity checks.
 Once the model is encoded, a set of consistency assertions should be added to
 the solver to generate a model for which there exists one or more rulesets under which
 the application can work (if the application is inconsistent, no such ruleset
-will exist, and the solver will report unsat). The consistency requirements on flows 
+will exist, and the solver will report unsat). The consistency requirements on flows
 and components are listed below (TODO: not comprehnesive, more to come).
 
 ### Flow consistency
@@ -149,7 +149,7 @@ the correctness of the rules/application means checking: is the ruleset ALLOWING
 the necessary flows in order for the application to work? i.e. it does not deny
 any message flows that exist in the minimal required ruleset.
 
-## Beyond consistency checking 
+## Beyond consistency checking
 
 Later (post February demo) we may extend this checker to accept inputs in which only a subset of the components and flows are assigned a label, and have the checker find a satisfying assignment using the available cles. This will require relaxing the sanity checker to allow missing labels. We can further extend this to include optimization criteria that limit the number of messages that go cross-domain, while honoring the labels on the components that are pinned.
 
