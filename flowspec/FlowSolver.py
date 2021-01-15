@@ -350,7 +350,7 @@ def main():
     print("solving...")
     fs.solve()
 
-    #print(fs.s.sexpr())
+    print(fs.s.sexpr())
 
     # Write results
     with open('results.txt', 'w') as out:

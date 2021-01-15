@@ -1,0 +1,120 @@
+sat
+
+Component: MPU
+    inflows: ['2101', '3101', '4101', '5101']
+    outflows: ['1201', '1301', '1401', '1501', '1202', '1302', '1402', '1502']
+    argtaints: ['ALLOW_ORANGE_ORANGE', 'ALLOW_GREEN_ORANGE', 'ALLOW_GREEN_ORANGE', 'ALLOW_GREEN_ORANGE', 'ALLOW_ORANGE_ORANGE', 'ALLOW_ORANGE_GREEN', 'ALLOW_ORANGE_GREEN', 'ALLOW_ORANGE_GREEN', 'ALLOW_ORANGE_ORANGE', 'ALLOW_ORANGE_GREEN', 'ALLOW_ORANGE_GREEN', 'ALLOW_ORANGE_GREEN']
+    level: orange
+
+Component: MPX
+    inflows: ['1201', '3201', '4201', '5201', '1202', '3205']
+    outflows: ['2101', '2301', '2401', '2501', '2503', '2304']
+    argtaints: ['ALLOW_ORANGE_ORANGE', 'ALLOW_GREEN_ORANGE', 'ALLOW_GREEN_ORANGE', 'ALLOW_GREEN_ORANGE', 'ALLOW_ORANGE_ORANGE', 'ALLOW_GREEN_ORANGE', 'ALLOW_ORANGE_ORANGE', 'ALLOW_ORANGE_GREEN', 'ALLOW_ORANGE_GREEN', 'ALLOW_ORANGE_GREEN', 'ALLOW_ORANGE_GREEN', 'ALLOW_ORANGE_GREEN']
+    level: orange
+
+Component: ISRM
+    inflows: ['1301', '2301', '4301', '5301', '1302', '2304', '4307', '5309']
+    outflows: ['3101', '3201', '3401', '3501', '3205', '3406', '3508']
+    argtaints: ['ALLOW_ORANGE_GREEN', 'ALLOW_ORANGE_GREEN', 'ALLOW_GREEN_GREEN', 'ALLOW_GREEN_GREEN', 'ALLOW_ORANGE_GREEN', 'ALLOW_ORANGE_GREEN', 'ALLOW_GREEN_GREEN', 'ALLOW_GREEN_GREEN', 'ALLOW_GREEN_ORANGE', 'ALLOW_GREEN_ORANGE', 'ALLOW_GREEN_GREEN', 'ALLOW_GREEN_GREEN', 'ALLOW_GREEN_ORANGE', 'ALLOW_GREEN_GREEN', 'ALLOW_GREEN_GREEN']
+    level: green
+
+Component: EOIR
+    inflows: ['1401', '2401', '3401', '5401', '1402', '3406', '6410']
+    outflows: ['4101', '4201', '4301', '4501', '4307']
+    argtaints: ['ALLOW_ORANGE_GREEN', 'ALLOW_ORANGE_GREEN', 'ALLOW_GREEN_GREEN', 'ALLOW_GREEN_GREEN', 'ALLOW_ORANGE_GREEN', 'ALLOW_GREEN_GREEN', 'ALLOW_GREEN_GREEN', 'ALLOW_GREEN_ORANGE', 'ALLOW_GREEN_ORANGE', 'ALLOW_GREEN_GREEN', 'ALLOW_GREEN_GREEN', 'ALLOW_GREEN_GREEN']
+    level: green
+
+Component: RDR
+    inflows: ['1501', '2501', '3501', '4501', '1502', '2503', '3508', '6510']
+    outflows: ['5101', '5201', '5301', '5401', '5309']
+    argtaints: ['ALLOW_ORANGE_GREEN', 'ALLOW_ORANGE_GREEN', 'ALLOW_GREEN_GREEN', 'ALLOW_GREEN_GREEN', 'ALLOW_ORANGE_GREEN', 'ALLOW_ORANGE_GREEN', 'ALLOW_GREEN_GREEN', 'ALLOW_GREEN_GREEN', 'ALLOW_GREEN_ORANGE', 'ALLOW_GREEN_ORANGE', 'ALLOW_GREEN_GREEN', 'ALLOW_GREEN_GREEN', 'ALLOW_GREEN_GREEN']
+    level: green
+
+Component: External
+    inflows: []
+    outflows: ['6410', '6510']
+    argtaints: ['ALLOW_GREEN_GREEN', 'ALLOW_GREEN_GREEN']
+    level: green
+
+Flow: 1201 | message: component_heartbeats | label: ALLOW_ORANGE_ORANGE
+
+Flow: 1301 | message: component_heartbeats | label: ALLOW_ORANGE_GREEN
+
+Flow: 1401 | message: component_heartbeats | label: ALLOW_ORANGE_GREEN
+
+Flow: 1501 | message: component_heartbeats | label: ALLOW_ORANGE_GREEN
+
+Flow: 2101 | message: component_heartbeats | label: ALLOW_ORANGE_ORANGE
+
+Flow: 2301 | message: component_heartbeats | label: ALLOW_ORANGE_GREEN
+
+Flow: 2401 | message: component_heartbeats | label: ALLOW_ORANGE_GREEN
+
+Flow: 2501 | message: component_heartbeats | label: ALLOW_ORANGE_GREEN
+
+Flow: 3101 | message: component_heartbeats | label: ALLOW_GREEN_ORANGE
+
+Flow: 3201 | message: component_heartbeats | label: ALLOW_GREEN_ORANGE
+
+Flow: 3401 | message: component_heartbeats | label: ALLOW_GREEN_GREEN
+
+Flow: 3501 | message: component_heartbeats | label: ALLOW_GREEN_GREEN
+
+Flow: 4101 | message: component_heartbeats | label: ALLOW_GREEN_ORANGE
+
+Flow: 4201 | message: component_heartbeats | label: ALLOW_GREEN_ORANGE
+
+Flow: 4301 | message: component_heartbeats | label: ALLOW_GREEN_GREEN
+
+Flow: 4501 | message: component_heartbeats | label: ALLOW_GREEN_GREEN
+
+Flow: 5101 | message: component_heartbeats | label: ALLOW_GREEN_ORANGE
+
+Flow: 5201 | message: component_heartbeats | label: ALLOW_GREEN_ORANGE
+
+Flow: 5301 | message: component_heartbeats | label: ALLOW_GREEN_GREEN
+
+Flow: 5401 | message: component_heartbeats | label: ALLOW_GREEN_GREEN
+
+Flow: 1202 | message: updateMissionPlan | label: ALLOW_ORANGE_ORANGE
+
+Flow: 1302 | message: updateMissionPlan | label: ALLOW_ORANGE_GREEN
+
+Flow: 1402 | message: updateMissionPlan | label: ALLOW_ORANGE_GREEN
+
+Flow: 1502 | message: updateMissionPlan | label: ALLOW_ORANGE_GREEN
+
+Flow: 2503 | message: pnt | label: ALLOW_ORANGE_GREEN
+
+Flow: 2304 | message: requestISRMDetections | label: ALLOW_ORANGE_GREEN
+
+Flow: 3205 | message: recieveISRMDetections | label: ALLOW_GREEN_ORANGE
+
+Flow: 3406 | message: requestEOIRDetections | label: ALLOW_GREEN_GREEN
+
+Flow: 4307 | message: recieveEOIRDetections | label: ALLOW_GREEN_GREEN
+
+Flow: 3508 | message: requestRDRDetections | label: ALLOW_GREEN_GREEN
+
+Flow: 5309 | message: recieveRDRDetections | label: ALLOW_GREEN_GREEN
+
+Flow: 6410 | message: groundMovers | label: ALLOW_GREEN_GREEN
+
+Flow: 6510 | message: groundMovers | label: ALLOW_GREEN_GREEN
+
+Label: ALLOW_ORANGE_ORANGE
+    local: orange
+    remote: orange
+
+Label: ALLOW_GREEN_ORANGE
+    local: green
+    remote: orange
+
+Label: ALLOW_ORANGE_GREEN
+    local: orange
+    remote: green
+
+Label: ALLOW_GREEN_GREEN
+    local: green
+    remote: green
+
