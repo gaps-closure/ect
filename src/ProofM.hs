@@ -71,13 +71,13 @@ mkPropConst (PID n) str sort = do
 
 -- | An equivalence proposition: a verification of the equivalence of
 --   two LLVM AST objects that has been checked by Z3
-data Equiv = Equiv { z3equiv :: !AST -- | asserts two variables are equivalent
-                   , z3v1 :: !AST    -- | Variable representing the first object
-                   , z3v2 :: !AST    -- |     "          "      second object
-                   , equivID :: !PID -- | Name of this equivalence
+data Equiv = Equiv { z3equiv :: !AST -- ^ asserts two variables are equivalent
+                   , z3v1 :: !AST    -- ^ Variable representing the first object
+                   , z3v2 :: !AST    -- ^     "          "      second object
+                   , equivID :: !PID -- ^ Name of this equivalence
                    }
 
-data BBIso = BBIso { bbisoID :: !PID -- | Name of this equivalence
+data BBIso = BBIso { bbisoID :: !PID -- ^ Name of this equivalence
                    -- FIXME: More fields here
                    }
 
@@ -97,10 +97,10 @@ type NameMap = M.Map A.Name A.Name
 
 
 data ProofState = ProofState
-  { currentPID :: !PID         -- | ID for the next proposition
-  , matching :: !NameMap       -- | For name isomorphisms
-  , inverse :: !NameMap        -- | Inverse of matching
-  , visiting :: !(S.Set A.Name)  -- | For DFS algorithms
+  { currentPID :: !PID         -- ^ ID for the next proposition
+  , matching :: !NameMap       -- ^ For name isomorphisms
+  , inverse :: !NameMap        -- ^ Inverse of matching
+  , visiting :: !(S.Set A.Name)  -- ^ For DFS algorithms
   }
 
 initialState :: ProofState
