@@ -1,0 +1,10 @@
+unsat
+
+Reason for unsatisfiability:
+
+The remotelevel of flow '5309' must match the level of the component for which it is an inflow.
+Label 'ALLOW_GREEN_GREEN' has remotelevel 'orange'.
+Flow '5309' has label 'ALLOW_GREEN_GREEN'.
+Component 'ISRM' has level 'green'.
+Component 'ISRM' has '8' inflows.
+Component 'ISRM' has inflow '5309' at index '7'.

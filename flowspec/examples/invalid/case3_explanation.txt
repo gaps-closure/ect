@@ -1,0 +1,10 @@
+unsat
+
+Reason for unsatisfiability:
+
+The remotelevel of flow '2401' must match the level of the component for which it is an inflow.
+Label 'ALLOW_ORANGE_GREEN' has remotelevel 'green'.
+Flow '2401' has label 'ALLOW_ORANGE_GREEN'.
+Component 'MPU' has level 'orange'.
+Component 'MPU' has '6' inflows.
+Component 'MPU' has inflow '2401' at index '5'.
