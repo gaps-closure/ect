@@ -1,15 +1,17 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-{-
+{-|
 
 Template Haskell code for generating various Z3-type-related boilerplate
 
 Debug by adding to package.yaml
 
+@
   ghc-options:
   - -ddump-splices  # For debugging Template Haskell:
   - -ddump-to-file  # more $(find . -name "*splices")
+@
 
 https://hackage.haskell.org/package/z3-408.2/docs/Z3-Monad.html
 
@@ -29,22 +31,48 @@ import Data.List (intercalate)
 import qualified Data.Set as S
 import Data.Foldable (foldrM)
 
-import Data.Graph
+import Data.Graph ( stronglyConnComp, SCC(CyclicSCC, AcyclicSCC) )
 
 
 
--- | Prefixes inserted before the name of each Z3 sort (type),
--- and data constructor
-sortPrefix, constructorPrefix :: String
+-- | Prefix inserted before the name of each Z3 sort (type)
+sortPrefix :: String
 sortPrefix = "s_"
-constructorPrefix = "c_"
--- | Name of the proof environment type and data constructor
 
--- | Create a do block that initializes all the fields of the
--- initial proof environment.  Rather than emitting something like
--- ProofEnv{..}, this generates ProofEnv { s_Int = s_Int ; s_Bool = s_Bool ;...}
--- because RecordWildCards doesn't work the way you'd want in Template Haskell
-initEnv :: String -> [Q Stmt] -> Q Exp
+-- | Prefix inserted before the name of each Z3 constructor function
+constructorPrefix :: String
+constructorPrefix = "c_"
+
+{-|
+Create a @do@ block that initializes all the fields of the
+initial proof environment.  The generated code ultimately looks
+something like
+
+@
+  do
+    ...
+    (s_UnnamedAddr, [c_UA_LocalAddr, c_UA_GlobalAddr]) <-
+      ((mkZ3Constructors s_Bool_a3iXD) "UnnamedAddr")
+       [("UA_LocalAddr", []), ("UA_GlobalAddr", [])]
+    ...
+    return ProofEnv { ...
+     , s_UnnamedAddr = s_UnnamedAddr
+     , c_UA_LocalAddr = c_UA_LocalAddr
+     , c_UA_GlobalAddr = c_UA_GlobalAddr
+       ...
+    }
+@
+
+The @RecordWildCards@ language extension turns out not to work here
+because of some Template Haskell quirk.  Otherwise, 
+@return ProofEnv{..}@ would be correct
+
+-}
+initEnv :: String   -- ^ Name of the ProofEnv type, typically "ProofEnv"
+        -> [Q Stmt] -- ^ do-block statements for filling in the various
+                    -- various fields of the ProofEnv object, typically
+                    -- 'z3Constructors' and 'z3MutualConstructors'
+        -> Q Exp    -- ^ do initialization-statements ; return ProofEnv {...}
 initEnv envType stmts = do
   stmts' <- sequence stmts
   Just envTypeName <- lookupTypeName envType
@@ -85,13 +113,25 @@ Eith_Eith_Int_Bool_Eith_Bool_Int
 -}
 
 
--- | Bindings for type variables: the name to return for a type variable
+-- | Simple environment for looking up type variable bindings.
+-- Used, e.g., by 'typeName' to see what concrete type has been bound
+-- to a particular type variable.
 type NameEnv = [(Name, String)]
 
--- | Return a text name for a specific type, e.g., "Maybe_Bool"
--- Assumes the type in question is monomorphic, i.e., that it does not
--- include any free type variables
-typeName :: NameEnv -> Type -> String
+{-| Return a text name for a specific type, e.g., @Maybe_Bool@
+
+Assumes the type in question is monomorphic, i.e., that it does not
+include any free type variables; the passed-in environment should
+have bindings for all referenced type variables.
+
+List types @[..]@ are named "List"
+
+Tuple types @(..,..)@ are named, e.g., "Tup3"
+
+-}
+typeName :: NameEnv -- ^ Bindings for all type variables
+         -> Type -- ^ The type in question
+         -> String -- ^ The generated string
 typeName env (VarT n) = case lookup n env of
   Just s -> s
   Nothing -> error $ "undefined type variable " ++ show n
@@ -101,19 +141,20 @@ typeName _ ListT = "List"
 typeName _ (TupleT n) = "Tup" ++ show n
 typeName _ t = error $ "unsupported type " ++ show t
 
--- | For Z3, name of the type constructor, then, for each
--- data constructor, the name of the data constructor and a list
--- of field-name, field-type-name pairs
---
--- (top-type-name, [constructor])
--- where constructor = (constructor-name, [(field-name, field-type-name)])
-
-type StringConstructors = [(String, [(String, String)])]
+-- | For a Haskell type, the name of the type constructor and
+-- the names and fields of its data constructors
 type StringTypeInfo = (String, StringConstructors)
 
--- | Add bound variables to a type environment
+-- | A list of data-constructor names paired with
+-- lists of (field-name, field-type-name) pairs
+type StringConstructors = [(String, [(String, String)])]
+
+-- | Add bound variables to a type environment.
 -- The length of formals and actuals should match, but this is not checked
-extendEnv :: NameEnv -> [TyVarBndr] -> [String] -> NameEnv
+extendEnv :: NameEnv     -- ^ Existing type variable bindings
+          -> [TyVarBndr] -- ^ Formals (type variables)
+          -> [String]    -- ^ Actuals (type names)
+          -> NameEnv     -- ^ Updated type variable bindings
 extendEnv env formals actuals = env' ++ env
   where
     env' = zipWith newBind formals actuals
@@ -151,7 +192,7 @@ monoDec env (TySynD name tVars ty) args = do
   return ( nameBase name, dConsInfo ) -- FIXME?
 monoDec _ i _ = error $ "expecting a type constructor; got " ++ show i
 
--- | A "monomorphized" version of the given type:
+-- | Derive a monomorphized version of the given type:
 --
 -- For an algebraic data type,
 -- return its type constructor base name
@@ -178,21 +219,37 @@ monoType env ty = collect [] ty
         
     collect _ t = error $ "monoType: expecting a type; got " ++ show t
 
--- | Only generate code for certain constructors
-z3ConstructorsOnly :: Q Exp -> Q Type -> [String] -> Q Stmt
-z3ConstructorsOnly boolSort typeE fields = do
-  typeInfo <- algTypeInfoOnly typeE fields
-  boolSortE <- boolSort
-  return $ z3ConstructorsStmt boolSortE typeInfo
+{-| Generate @do@-block code that creates the sort and constructor
+    functions for the given type.  Used within the 'initEnv' block.
+    
+Usage, e.g.,
 
--- | $(z3Constructors [| s_BoolType |] [t| A.AddrSpace |]
-z3Constructors :: Q Exp -> Q Type -> Q Stmt
+@
+$(z3Constructors [| s_BoolType |] [t| Maybe A.Model |]
+@
+
+turns into something like
+
+@
+(s_Maybe_Model, [c_MM_Nothing_Model, c_MM_Just_Model]) <-
+   ((mkZ3Constructors s_Bool_a3iXD) "Maybe_Model")
+      [("MM_Nothing_Model", [])
+      ,("MM_Just_Model", [("f", Just s_Model)])]
+@
+
+Passes the results of 'monoType' to 'z3ConstructorsStmt'
+-}
+z3Constructors :: Q Exp  -- ^ The Boolean sort, passed to 'z3ConstructorsStmt'
+               -> Q Type -- ^ The type for which to generate the statement 
+               -> Q Stmt
 z3Constructors boolSort ty = do
   boolSortE <- boolSort
   typ <- ty
   typeInfo <- monoType [] typ
   return $ z3ConstructorsStmt boolSortE typeInfo
 
+-- | Build a pattern for assigning to the sort and
+-- constructors generated by, e.g., 'InitialEnv.mkZ3Constructors'
 varsFor :: StringTypeInfo -> Pat
 varsFor (tConName, dConsNames) = TupP [sortP, dConsPs]
   where
@@ -200,8 +257,34 @@ varsFor (tConName, dConsNames) = TupP [sortP, dConsPs]
     dConsPs = ListP $
          map (\(n, _) -> VarP $ mkName $ constructorPrefix ++ n) dConsNames
 
--- | $(z3MutualConstructors [| s_BoolType |] [ [t| A.Type |]
---                                           , [t| [A.Type] |] ]
+{-| Like "z3Constructors" but handle mutually recursive types using
+    "mkMutualZ3Constuctors".
+
+E.g.,
+
+@
+$(z3MutualConstructors [| s_BoolType |] [ [t| A.Type |]
+                                        , [t| [A.Type] |] ]
+@
+
+generates code like
+
+@
+ [(s_List_Type, [c_Nil_Type, c_Cons_Type]),
+  (s_Type, [c_T_VoidType, c_T_IntegerType, c_T_PointerType, ...])] <-
+     ((mkMutualZ3Constructors s_Bool_a3iXD)
+                      ["List_Type", "Type"])
+                       [[("Nil_Type", []),
+                        ("Cons_Type", [("head", Left 1), ("tail", Left 0)])],
+                      [("T_VoidType", []),
+                       ("T_IntegerType", [("typeBits", Right s_Word32)]),
+                       ("T_PointerType",
+                             [("pointerReferent", Left 1),
+                             ("pointerAddrSpace", Right s_AddrSpace)]),
+                      ..]
+@
+
+-}
 z3MutualConstructors :: Q Exp -> [Q Type] -> Q Stmt
 z3MutualConstructors boolSort tys = do
   boolSortE <- boolSort
@@ -229,6 +312,13 @@ z3MutualConstructors boolSort tys = do
                                    , dConPairss ])
 
 
+{-|
+Generate @do@-block code that creates the sort and constructor
+functions for the given type.
+
+Generated code calls 'InitialEnv.mkZ3Constructors'.
+
+-}
 z3ConstructorsStmt :: Exp -> StringTypeInfo -> Stmt
 z3ConstructorsStmt boolSortE (tConName, dConsNames) =
    BindS vars (foldl1 AppE [VarE (mkName "mkZ3Constructors")
@@ -251,20 +341,24 @@ z3ConstructorsStmt boolSortE (tConName, dConsNames) =
 
       dConPairsE = ListE $ map toDCPair dConsNames
 
-algTypeInfoOnly :: Q Type -> [String] -> Q StringTypeInfo
-algTypeInfoOnly actualType fields = do
-  ty <- actualType
-  (tConsName, dConsNames') <- monoType [] ty
-  let dConsNames = filter (\(dc, _) -> elem dc fields) dConsNames'
-  return (tConsName, dConsNames)
+{-| Create a data type declaration for the 'ProofEnv.ProofEnv' data type
 
--- Create
---
--- data ProofEnv = ProofEnv { ... }
+@
+  data ProofEnv
+      = ProofEnv {s_Bool :: !Sort,   -- One for each primitive sort
+                  s_Int :: !Sort,
+                  s_UnnamedAddr :: !Sort,  -- 
+                  c_UA_LocalAddr :: !Z3Constructor,
+                  c_UA_GlobalAddr :: !Z3Constructor,
+                  }
+@
 
-declareProofEnvType :: String -> [String] -> [(Q Type, [String])] -> [Q Type]
-                    -> Q [Dec]
-declareProofEnvType proofEnvType primitives limitedTypes types = do
+-}
+declareProofEnvType :: String -- ^ The name of the new type (usually "ProofEnv")
+                    -> [String] -- ^ List of primitive sorts: these are turned directly into fields of type @Sort@
+                    -> [Q Type] -- ^ Each type in this list will expand into a 'Z3.Sort' field and 'ProofEnv.Z3Constructor' fields for each of its constructors
+                    -> Q [Dec] -- ^ The generated declaration
+declareProofEnvType proofEnvType primitives types = do
   let sBang = Bang NoSourceUnpackedness SourceStrict
       sortField n = (mkName $ sortPrefix ++ n, sBang, ConT $ mkName "Sort")
       ctorField n = (mkName $ constructorPrefix ++ n, sBang
@@ -272,21 +366,20 @@ declareProofEnvType proofEnvType primitives limitedTypes types = do
       primitiveFields = map sortField primitives
       infoToFields (tCon, dCons) = sortField tCon : map (ctorField . fst) dCons
       proofEnvTypeName = mkName proofEnvType
-  limitedFields <- concatMap infoToFields <$>
-                   mapM (uncurry algTypeInfoOnly) limitedTypes
   typeEs <- sequence types
   fields <- concatMap infoToFields <$> mapM (monoType []) typeEs
   return $ [DataD [] proofEnvTypeName [] Nothing
-              [RecC proofEnvTypeName
-                (primitiveFields ++ limitedFields ++ fields)] []]
+              [RecC proofEnvTypeName (primitiveFields ++ fields)] []]
 
 
 
 
-
+-- | Type variable-to-Type binding environment for monomorphizing while
+-- determining all the dependent types with, e.g., 'dependingTypes'
 type TypeEnv = [(Name, Type)]
 
--- | Replace variables from the environment with types
+-- | Replace type variables in a type with concrete types
+-- from the given environment
 instantiate :: TypeEnv -> Type -> Type
 instantiate env (AppT t1 t2) = AppT (instantiate env t1) (instantiate env t2)
 instantiate env (VarT n) = case lookup n env of
@@ -294,6 +387,8 @@ instantiate env (VarT n) = case lookup n env of
   Nothing -> error $ "undefined type variable " ++ nameBase n
 instantiate _ t = t
 
+-- | From a list of constructors, generate a list of types whose
+-- type variables have been instantiated from the environment
 conTypes :: TypeEnv -> [Con] -> [Type]
 conTypes env = concatMap conType
   where
@@ -302,14 +397,20 @@ conTypes env = concatMap conType
     conType (InfixC (_,t1) _ (_,t2)) = map (instantiate env) [t1, t2]
     conType c = error $ "conType: do not know how to handle " ++ show c
 
--- | Extend a type environment by finding formals to actuals
+-- | Extend a type environment by binding formal type variables to
+-- the actual types they are given
 extendTypeEnv :: TypeEnv -> [TyVarBndr] -> [Type] -> TypeEnv
 extendTypeEnv env formals actuals = zipWith newBind formals actuals ++ env
   where
     newBind (PlainTV n) t = (n, t)
     newBind (KindedTV n _) t = (n, t)
 
-decTypes :: TypeEnv -> Dec -> [Type] -> Q [Type]
+
+-- | From a type environment, bind type arguments to a declaration
+decTypes :: TypeEnv -- ^ Existing type environment
+         -> Dec     -- ^ Declaration to be instantiated
+         -> [Type]  -- ^ Type arguments, if any, to be applied to the 'Dec'
+         -> Q [Type]
 decTypes env (DataD _ _ tVars _ dCons _) args =
   return $ conTypes (extendTypeEnv env tVars args) dCons
 decTypes env (NewtypeD _ _ tVars _ dCon _) args =
@@ -318,6 +419,9 @@ decTypes env (TySynD _ tVars t) args =
   dependingTypes (extendTypeEnv env tVars args) t
 decTypes _ d _ = error $ "decTypes: unhandled declaration " ++ show d
 
+-- | In a given environment, for a given type, return the list
+-- of concrete types it depends on.  Do so by collecting any type arguments
+-- being applied to a type declaration before using 'decTypes'
 dependingTypes :: TypeEnv -> Type -> Q [Type]
 dependingTypes env ty = collect [] ty
   where
@@ -331,7 +435,11 @@ dependingTypes env ty = collect [] ty
     collect args (TupleT _) = return args
     collect _ t = error $ "dependingTypes: unhandled " ++ show t
 
--- | Produce a Haskell-syntax-style version of a type
+-- | Produce a Haskell-syntax-style version of a type.
+--
+-- Names in the "LLVM" module are given an @A.@ prefix.
+--
+-- Names in the "GHC" module have their prefix removed
 haskellTypeName :: Type -> String
 haskellTypeName = collect []
   where
@@ -348,15 +456,22 @@ haskellTypeName = collect []
       "(" ++ intercalate ", " (map (collect []) args) ++ ")"
     collect _ t = show t
 
-visitRequired :: Type -> S.Set Type -> Q (S.Set Type)
+-- | Depth-first search of types and those they depend on.
+-- Uses 'dependingTypes' to determine successors
+visitRequired :: Type -- ^ Type to visit
+              -> S.Set Type -- ^ Set of already-visited types
+              -> Q (S.Set Type) -- ^ Set of types ultimately visited
 visitRequired t visited | t `S.member` visited = return visited
 visitRequired t visited = do
   types <- dependingTypes [] t 
   foldrM visitRequired (S.insert t visited) types
 
-data SCCGroup a = SCCSequence [a]
-                | SCCCyclic [a]
+-- | Groups of singleton SCCs and larger SCCs
+data SCCGroup a = SCCSequence [a] -- ^ A list of singletons in topological order
+                | SCCCyclic [a]   -- ^ A strongly-connected compoent
 
+-- | Print an @SCCGroup Type@ as calls to either 'z3Constructors' or
+-- 'z3MutualConstructors'
 instance Show (SCCGroup Type) where
   show (SCCSequence ts) =
     "map (z3Constructors [| s_Bool |]) [ " ++
@@ -377,7 +492,8 @@ groupSCC ss = SCCSequence (map (\(AcyclicSCC t) -> t) acyclic) : groupSCC rest
     (acyclic, rest) = span (\case (AcyclicSCC _) -> True
                                   (CyclicSCC _) -> False) ss
 
--- | Enumerate all the types that depend on the given type
+-- | Enumerate all the types that depend on the given type.
+-- Uses 'visitRequired' and 'stronglyConnComp' from "Data.Graph'
 requiredTypes :: [Q Type] -> Q Type -> Q Exp
 requiredTypes leaves ty = do
   typ <- ty
