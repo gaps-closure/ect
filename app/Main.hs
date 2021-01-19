@@ -633,7 +633,7 @@ instance ProveEquiv A.Global where
       , proveField A.alignment
       , proveField A.garbageCollectorName
       , proveField A.prefix
-      , proveField A.basicBlocks
+      , proveEquiv [] ([] :: [A.BasicBlock]) -- Disable basic block comparison
       , proveField A.personalityFunction
       , proveEquiv True True -- proveField A.metadata
       ]
