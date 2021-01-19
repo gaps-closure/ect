@@ -133,7 +133,7 @@ proveEquivPrimitive getEnvSort toSort name x y = do
   equivID <- getNextPID
   z3v1 <- mkPropConst equivID "x" sort
   z3v2 <- mkPropConst equivID "y" sort
-  z3equiv <- mkEq z3v1 z3v2 -- the conclusion
+  z3equiv <- mkEq z3v1 z3v2 -- the conclusion: that these two things are equivalent
 
   push
   assert =<< mkEq z3v1 =<< toSort x
@@ -306,8 +306,33 @@ proveEquivTuple c_Tup n (a1, a2) (b1, b2) = do
 instance ProveEquiv Bool where
   proveEquiv = proveEquivPrimitive s_Bool mkBool "Bool"
 
+{-|
+Generates something like
+
+Variables for the two literals being compared,
+which are kept around globally:
+@
+(declare-fun p11x () (_ BitVec 32))
+(declare-fun p11y () (_ BitVec 32))
+@
+
+Constraints on the values of the two literals (what is being compared):
+@
+(assert (= p11x #x00000008))
+(assert (= p11y #x00000008))
+@
+
+The equivalence returned is @(= p11x p11y)@, indicating that these two
+literals are equal.  Locally, the converse of this is checked and found
+unsatisfiable (i.e., it is not possible for these two to not be equal):
+@
+(assert (not (= p11x p11y)))
+@
+-}
 instance ProveEquiv Word32 where
-  proveEquiv = proveEquivPrimitive s_Word32 (\x -> mkBitvector 32 (toInteger x)) "Word32"
+  proveEquiv = proveEquivPrimitive s_Word32
+                                   (\x -> mkBitvector 32 (toInteger x))
+                                   "Word32"
 
 instance ProveEquiv (Maybe Word32) where
   proveEquiv = proveEquivMaybe

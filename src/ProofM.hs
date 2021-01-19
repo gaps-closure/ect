@@ -71,7 +71,7 @@ mkPropConst (PID n) str sort = do
 
 -- | An equivalence proposition: a verification of the equivalence of
 --   two LLVM AST objects that has been checked by Z3
-data Equiv = Equiv { z3equiv :: !AST -- ^ asserts two variables are equivalent
+data Equiv = Equiv { z3equiv :: !AST -- ^ the conclusion: that the two variables are equivalent.  This is passed up to the next level, and is typically used as part of the assumptions above this
                    , z3v1 :: !AST    -- ^ Variable representing the first object
                    , z3v2 :: !AST    -- ^     "          "      second object
                    , equivID :: !PID -- ^ Name of this equivalence
