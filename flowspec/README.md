@@ -3,11 +3,12 @@
 This is a z3-backed solver/verifier for GAPS-CLOSURE application design
 specifications. It verifies that specifications are self-consistent and can
 find satisfying values for fields which are omitted from the specification,
-such as component levels or flow labels.
+such as component levels or flow labels. It automatically derives and outputs
+a minimal cross-domain message flow policy for the specification.
 
-In the near future, it will also be able to check specifications against
-provided cross-domain message policies for correctness, and also derive minimal
-versions of those policies given only the specification.
+If the command-line option is specified, it will also constrain the solution to
+a provided cross-domain message policy, and report on whether the policy is
+overly permissive.
 
 ## Assumptions
 
@@ -64,7 +65,8 @@ These assumptions will be gradually phased out as the solver matures.
 ## Formulas
 
 Relationships between Components, Flows, and FlowLabels, and their fields, are
-modeled as integers and functions mapping integers to other integers.
+modeled as integers/strings and functions mapping integers/strings to other
+integers/strings.
 
 TK: The set of mathematical formulas checked by the solver.
 
@@ -81,6 +83,10 @@ This solver requires z3. To install z3 for python, run:
 To use the solver, in the `flowspec` directory run:
 
 `python3 FlowSolver.py examples/valid/case1.json`
+
+To add a cross-domain message policy, use the `--rules` option:
+
+`python3 FlowSolver.py examples/valid/case1.json --rules examples/rules/case1.json`
 
 To see all options, use:
 

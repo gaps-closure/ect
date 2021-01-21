@@ -10,12 +10,11 @@ class FlowSolver:
     def __init__(self, model):
 
         self.s = Solver()
-        self.s.set(':core.minimize', True)
+        # self.s.set(':core.minimize', True)
         self.m = model
         self.status = "unsolved"
         self.constraints = []
         self.explanations = {}
-
 
         self.initDomain()
         self.encodeModel()
@@ -41,20 +40,36 @@ class FlowSolver:
 
     def solve(self):
         self.status = self.s.check(self.constraints)
-        if self.status == sat:
-            m = self.s.model()
-            accs = [self.lvl, self.msg, self.label, self.local, self.remote, self.allowed]
-            self.m.populate(m, *accs)
+        if self.status != sat:
+            return
 
-    def explain(self):
-        if self.status != unsat:
-            return "Cannot explain '{}' status".format(str(self.status))
+        solution = self.s.model()
+        for c in self.m.components:
+            if not c.lvl:
+                c.lvl = solution.evaluate(self.lvl(c.id))
 
-        # Explain result using unsat core
-        core = self.s.unsat_core()
-        e = 'Reason for unsatisfiability:\n\n'
-        e += '\n'.join([self.explanations[fml] for fml in core])
-        return e
+        for f in self.m.flows:
+            if not f.msg:
+                f.msg = solution.evaluate(self.msg(f.id))
+            if not f.label:
+                lid = solution.evaluate(self.label(f.id))
+                match = [l for l in self.m.labels if l.id == lid]
+                f.label = match[0]
+
+        for l in self.m.labels:
+            if not l.local:
+                f.local = solution.evaluate(self.local(l.id))
+            if not l.remote:
+                f.remote = solution.evaluate(self.remote(l.id))
+
+        self.m.rules = {}
+        for message in { f.msg for f in self.m.flows }:
+            for (c1, c2) in [('orange', 'green'), ('green', 'orange')]:
+                zm, zc1, zc2 = StringVal(message), StringVal(c1), StringVal(c2)
+                if solution.evaluate(self.cdf_allowed(zm, zc1, zc2)):
+                    if message not in self.m.rules:
+                        self.m.rules[message] = []
+                    self.m.rules[message].append((c1, c2))
 
     def initDomain(self):
 
@@ -81,37 +96,51 @@ class FlowSolver:
         self.local  = Function('local', id, color)
         self.remote = Function('remote', id, color)
 
-        self.allowed = Function('allowed', message, color, color, bool)
+        self.cdf_allowed = Function('cdf_allowed', message, color, color, bool)
 
     def encodeModel(self):
 
         for c in self.m.components:
             def addList(fxn, xs, exFxn):
                 for i in range(len(xs)):
-                    self.add(fxn(c.id, i) == xs[i].id, exFxn(c, i))
+                    self.add(fxn(c.id, i) == xs[i].id,
+                             exFxn(c, i))
             if c.inflows != None:
                 addList(self.inflows, c.inflows, E.inflowIndex)
-                self.add(self.nInflows(c.id) == len(c.inflows), E.nInflows(c))
+                self.assume(self.nInflows(c.id) == len(c.inflows))
             if c.outflows != None:
                 addList(self.outflows, c.outflows, E.outflowIndex)
-                self.add(self.nOutflows(c.id) == len(c.outflows), E.nOutflows(c))
+                self.assume(self.nOutflows(c.id) == len(c.outflows))
             if c.argtaints != None:
                 addList(self.argtaints, c.argtaints, E.taintIndex)
-                self.add(self.nArgtaints(c.id) == len(c.argtaints), E.nTaints(c))
+                self.assume(self.nArgtaints(c.id) == len(c.argtaints))
             if c.lvl:
-                self.add(self.lvl(c.id) == StringVal(c.lvl), E.componentLvl(c))
+                self.add(self.lvl(c.id) == StringVal(c.lvl),
+                         E.componentLvl(c))
 
         for f in self.m.flows:
             if f.msg != None:
-                self.add(self.msg(f.id) == StringVal(f.msg), E.flowMsg(f))
+                self.add(self.msg(f.id) == StringVal(f.msg),
+                         E.flowMsg(f))
             if f.label != None:
-                self.add(self.label(f.id) == f.label.id, E.flowLabel(f))
+                self.add(self.label(f.id) == f.label.id,
+                         E.flowLabel(f))
 
         for fl in self.m.labels:
             if fl.local:
-                self.add(self.local(fl.id) == StringVal(fl.local), E.labelLocal(fl))
+                self.add(self.local(fl.id) == StringVal(fl.local),
+                         E.labelLocal(fl))
             if fl.remote:
-                self.add(self.remote(fl.id) == StringVal(fl.remote), E.labelRemote(fl))
+                self.add(self.remote(fl.id) == StringVal(fl.remote),
+                         E.labelRemote(fl))
+
+        if self.m.rules:
+            for s in { f.msg for f in self.m.flows }:
+                for (c1, c2) in [('orange', 'green'), ('green', 'orange')]:
+                    zs, zc1, zc2 = StringVal(s), StringVal(c1), StringVal(c2)
+                    if s not in self.m.rules or (c1, c2) not in self.m.rules[s]:
+                        self.add(self.cdf_allowed(zs, zc1, zc2) == False,
+                                 E.denyFlow(s, c1, c2))
 
     def encodeConstraints(self):
 
@@ -150,13 +179,13 @@ class FlowSolver:
         self.assume(ForAll(l, Implies(is_label(l), is_color(self.local(l)))))
         self.assume(ForAll(l, Implies(is_label(l), is_color(self.remote(l)))))
 
-        self.assume(ForAll([m, c1, c2], self.allowed(m, c1, c2) == And([
-                    is_message(m), is_color(c1), is_color(c2),
-                    Exists(f, is_msg_flow(f, m, c1, c2))])))
-
         self.validate()
 
         # Add constraints
+        self.assume(ForAll([m, c1, c2], self.cdf_allowed(m, c1, c2) == And([
+                    is_message(m), is_color(c1), is_color(c2),
+                    Exists(f, is_msg_flow(f, m, c1, c2))])))
+
         oc = lambda f, c, i : Implies(And([is_outflow(c, i),
                                            self.outflows(c, i) == f]),
                                       self.lvl(c) == self.local(self.label(f)))
@@ -164,14 +193,49 @@ class FlowSolver:
                                            self.inflows(c, i) == f]),
                                       self.lvl(c) == self.remote(self.label(f)))
         for f in self.m.flows:
-            self.add(ForAll([c, i], oc(f.id, c, i)), E.outflowLevel(f))
-            self.add(ForAll([c, i], ic(f.id, c, i)), E.inflowLevel(f))
+            self.add(ForAll([c, i], oc(f.id, c, i)),
+                     E.outflowLevel(f))
+            self.add(ForAll([c, i], ic(f.id, c, i)),
+                     E.inflowLevel(f))
+
+    def explain(self):
+        if self.status != unsat:
+            return "Cannot explain '{}' status".format(str(self.status))
+
+        # Explain result using unsat core
+        print("\nretrieving unsat core...")
+        core = self.s.unsat_core()
+        print('reason for unsatisfiability:')
+        print('\n'.join([self.explanations[fml] for fml in core]))
+
+    def compareRules(self, provided_json):
+        if self.status != sat:
+            msg = "no derived rules to compare with for {} result"
+            return "msg".format(str(self.status))
+
+        # Construct derived ruleset and provided ruleset
+        derived = set([])
+        for (msg, rules) in self.m.rules.items():
+            derived |= {(msg, c1, c2) for (c1, c2) in rules}
+
+        provided = set([])
+        for data in provided_json['rules']:
+            provided |= {(data['message'], c[0], c[1]) for c in data['cdf']}
+
+        # Compare rulesets
+        if derived == provided:
+            print("\nderived cross-domain ruleset matches provided ruleset")
+        else:
+            diff = provided.difference(derived)
+            print("\nwarning: given ruleset allows flows the app doesn't need:")
+            for (msg, c1, c2) in diff:
+                print("    {}: {} -> {}".format(msg, c1, c2))
 
 def getArgs():
     h1 = 'filepath for application design spec'
     h2 = 'filepath for cross-domain message policy'
     parser = ArgumentParser(description='Verify a GAPS-CLOSURE design spec.')
-    parser.add_argument('--cdf', metavar='cdf.json', type=str, help=h2)
+    parser.add_argument('--rules', metavar='rules.json', type=str, help=h2)
     parser.add_argument('spec', metavar='spec.json', type=str, help=h1)
     return parser.parse_args()
 
@@ -182,30 +246,47 @@ def main():
 
     # Read JSON spec
     print("parsing...")
-    with open(args.spec) as fp:
-        spec = json.load(fp)
+    with open(args.spec) as f:
+        spec = json.load(f)
+    if args.rules:
+        with open(args.rules) as f:
+            rules = json.load(f)
+    else:
+        rules = None
 
     # Encode spec
     print("encoding...")
-    m = FlowModel.fromSpec(spec)
-    fs = FlowSolver(m)
+    model = FlowModel.fromSpec(spec, rules)
+    fs = FlowSolver(model)
 
     # Write constraints
-    with open('constraints.smt2', 'w') as fp:
+    with open('constraints.smt2', 'w') as out:
         cs = Solver()
         cs.add(list(fs.s.assertions()) + fs.constraints)
-        fp.write(cs.sexpr())
+        out.write(cs.sexpr())
 
     # Solve
     print("solving...")
     fs.solve()
 
     # Write results
-    with open('results.txt', 'w') as fp:
-        fp.write(str(fs.status) + '\n\n')
-        if fs.status == sat: fp.write(str(fs.m))
-        else:                fp.write(fs.explain())
-    print("done, check constraints.smt2 for problem, results.txt for solution")
+    print("\n" + str(fs.status))
+    if fs.status == sat:
+
+        with open('model.txt', 'w') as out1, open('rules.txt', 'w') as out2:
+            out1.write("model for '{}':\n\n".format(args.spec))
+            out1.write(fs.m.modelToString())
+            out2.write("derived rules for '{}':\n\n".format(args.spec))
+            out2.write(fs.m.rulesToString())
+
+        if args.rules: fs.compareRules(rules)
+        print("\ncheck constraints.smt2 for input to z3")
+        print("check model.txt for derived specification")
+        print("check rules.txt for derived cross-domain rules")
+
+    else:
+        fs.explain()
+        print("\ncheck constraints.smt2 for input to z3")
 
 if __name__ == '__main__':
     main()
