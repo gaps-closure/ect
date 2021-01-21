@@ -24,7 +24,8 @@ Component
     inflows:     [Flow]
     outflows:    [Flow]
     argtaints:   [FlowLabel]
-    lvl:         Enum(Orange | Green)
+    level:       Enum("orange" | "green")
+    remotelevel: Enum("orange" | "green")
 
 Flow:
     id:        Int
@@ -33,8 +34,8 @@ Flow:
 
 FlowLabel:
     id:        Int
-    local:     Enum(Orange | Green)
-    remote:    Enum(Orange | Green)
+    local:     Enum("orange" | "green")
+    remote:    Enum("orange" | "green")
 ```
 
 CLE labels are split between labels for components and labels for flows - it

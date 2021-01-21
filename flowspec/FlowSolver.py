@@ -42,11 +42,13 @@ class FlowSolver:
         self.status = self.s.check(self.constraints)
         if self.status != sat:
             return
-
         solution = self.s.model()
+
         for c in self.m.components:
-            if not c.lvl:
-                c.lvl = solution.evaluate(self.lvl(c.id))
+            if not c.level:
+                c.level = solution.evaluate(self.level(c.id))
+            if not c.remotelevel:
+                c.remotelevel = solution.evaluate(self.remotelevel(c.id))
 
         for f in self.m.flows:
             if not f.msg:
@@ -82,13 +84,14 @@ class FlowSolver:
         bool    = BoolSort()
 
         # Relations
-        self.inflows    = Function('inflows', id, index, id)
-        self.outflows   = Function('outflows', id, index, id)
-        self.argtaints  = Function('argtaints', id, index, id)
-        self.nInflows   = Function('nInflows', id, size)
-        self.nOutflows  = Function('nOutflows', id, size)
-        self.nArgtaints = Function('nArgtaints', id, size)
-        self.lvl        = Function('lvl', id, color)
+        self.inflows     = Function('inflows', id, index, id)
+        self.outflows    = Function('outflows', id, index, id)
+        self.argtaints   = Function('argtaints', id, index, id)
+        self.nInflows    = Function('nInflows', id, size)
+        self.nOutflows   = Function('nOutflows', id, size)
+        self.nArgtaints  = Function('nArgtaints', id, size)
+        self.level       = Function('level', id, color)
+        self.remotelevel = Function('remotelevel', id, color)
 
         self.msg   = Function('msg', id, message)
         self.label = Function('label', id, id)
@@ -114,9 +117,12 @@ class FlowSolver:
             if c.argtaints != None:
                 addList(self.argtaints, c.argtaints, E.taintIndex)
                 self.assume(self.nArgtaints(c.id) == len(c.argtaints))
-            if c.lvl:
-                self.add(self.lvl(c.id) == StringVal(c.lvl),
+            if c.level:
+                self.add(self.level(c.id) == StringVal(c.level),
                          E.componentLvl(c))
+            if c.remotelevel:
+                self.add(self.remotelevel(c.id) == StringVal(c.remotelevel),
+                         E.remoteLvl(c))
 
         for f in self.m.flows:
             if f.msg != None:
@@ -171,7 +177,10 @@ class FlowSolver:
                                            is_flow(self.outflows(c, i)))))
         self.assume(ForAll([c, i], Implies(is_argtaint(c, i),
                                            is_label(self.argtaints(c, i)))))
-        self.assume(ForAll(c, Implies(is_comp(c), is_color(self.lvl(c)))))
+        self.assume(ForAll(c, Implies(is_comp(c),
+                                      is_color(self.level(c)))))
+        self.assume(ForAll(c, Implies(is_comp(c),
+                                      is_color(self.remotelevel(c)))))
 
         self.assume(ForAll(f, Implies(is_flow(f), is_message(self.msg(f)))))
         self.assume(ForAll(f, Implies(is_flow(f), is_label(self.label(f)))))
@@ -188,15 +197,18 @@ class FlowSolver:
 
         oc = lambda f, c, i : Implies(And([is_outflow(c, i),
                                            self.outflows(c, i) == f]),
-                                      self.lvl(c) == self.local(self.label(f)))
+                                      self.level(c) == self.local(self.label(f)))
         ic = lambda f, c, i : Implies(And([is_inflow(c, i),
                                            self.inflows(c, i) == f]),
-                                      self.lvl(c) == self.remote(self.label(f)))
+                                      self.level(c) == self.remote(self.label(f)))
         for f in self.m.flows:
             self.add(ForAll([c, i], oc(f.id, c, i)),
                      E.outflowLevel(f))
             self.add(ForAll([c, i], ic(f.id, c, i)),
                      E.inflowLevel(f))
+        # for c in self.m.components:
+        #     self.add(ForAll(i, And([self.local(self.argtaints(c.id, i)) == self.local(self.label(self.inflows(c.id, i))),
+        #                             self.remote(self.argtaints(c.id, i)) == self.remote(self.label(self.outflows(c.id, i)))])))
 
     def explain(self):
         if self.status != unsat:

@@ -32,22 +32,23 @@ class Flow:
 
 class Component:
 
-    def __init__(self, id, name, inflows, outflows, argtaints, lvl):
+    def __init__(self, id, name, inflows, outflows, argtaints, level, rl):
         self.id = id
         self.name = name
         self.inflows = inflows
         self.outflows = outflows
         self.argtaints = argtaints
-        self.lvl = lvl
+        self.level = level
+        self.remotelevel = rl
         #print("Component {}: {}".format(name, id))
 
     def __repr__(self):
-        n, l = self.name, self.lvl
+        n, l, r = self.name, self.level, self.remotelevel
         i, o = [x.name for x in self.inflows], [x.name for x in self.outflows]
         a = [x.name for x in self.argtaints]
         s = ("Component: {}\n    inflows: {}\n    outflows: {}\n    " +
-             "argtaints: {}\n    level: {}\n")
-        return s.format(n, i, o, a, l)
+             "argtaints: {}\n    level: {}\n    remotelevel: {}\n")
+        return s.format(n, i, o, a, l, r)
 
 class FlowModel:
 
@@ -83,9 +84,11 @@ def fromSpec(spec, rjson):
     rules = None
 
     # Helpers
+    clrs = ['green', 'orange']
     err  = lambda msg: sys.exit("error: " + msg)
     get  = lambda d, k: d[k] if k in d else err("no '{}' key: {}".format(k, d))
     warn = lambda msg: print("warning: assumption violated: {}".format(msg))
+    vc   = lambda s: err(s + " is not a valid color") if s not in clrs else None
     freshId = itertools.count()
 
     # Rules
@@ -112,11 +115,13 @@ def fromSpec(spec, rjson):
         local = None
         if 'level' in cle['cle-json']:
             local = cle['cle-json']['level']
+            vc(local)
 
         remote = None
         cdf = cle['cle-json']['cdf'][0]
         if 'remotelevel' in cdf:
             remote = cdf['remotelevel']
+            vc(remote)
 
         # Add to spec
         id = next(freshId)
@@ -194,13 +199,19 @@ def fromSpec(spec, rjson):
             warn(taint_warn.format(l))
         taint_labels = [[fkFlowLabel[t] for t in ts][0] for ts in taints]
 
-        lvl = None
+        level = None
         if 'level' in cle:
-            lvl = cle['level']
+            level = cle['level']
+            vc(level)
+
+        rl = None
+        if 'remotelevel' in cle['cdf'][0]:
+            rl = cle['cdf'][0]['remotelevel']
+            vc(rl)
 
         # Add to spec
         id = next(freshId)
-        new_c = Component(id, name, inflows, outflows, taint_labels, lvl)
+        new_c = Component(id, name, inflows, outflows, taint_labels, level, rl)
         if name in fkComponent:
             err("duplicate component '{}'".format(name))
         fkComponent[name] = new_c
