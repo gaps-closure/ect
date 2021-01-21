@@ -27,17 +27,6 @@ class FlowSolver:
         self.constraints.append(constraint)
         self.explanations[constraint] = ex
 
-    def validate(self):
-
-        cs = Solver()
-        res = cs.check(list(self.s.assertions()) + self.constraints)
-        if res != sat:
-            core = cs.unsat_core()
-            msg = ("Provided specification is 'unsat' when encoded as is, with "
-                + "no constraints on assignments. Unsat core:\n\n " + str(core))
-            print("error: " + msg)
-            exit(1)
-
     def solve(self):
         self.status = self.s.check(self.constraints)
         if self.status != sat:
@@ -188,27 +177,73 @@ class FlowSolver:
         self.assume(ForAll(l, Implies(is_label(l), is_color(self.local(l)))))
         self.assume(ForAll(l, Implies(is_label(l), is_color(self.remote(l)))))
 
-        self.validate()
-
-        # Add constraints
+        # Flows allowed by rules
         self.assume(ForAll([m, c1, c2], self.cdf_allowed(m, c1, c2) == And([
                     is_message(m), is_color(c1), is_color(c2),
                     Exists(f, is_msg_flow(f, m, c1, c2))])))
 
-        oc = lambda f, c, i : Implies(And([is_outflow(c, i),
-                                           self.outflows(c, i) == f]),
-                                      self.level(c) == self.local(self.label(f)))
-        ic = lambda f, c, i : Implies(And([is_inflow(c, i),
-                                           self.inflows(c, i) == f]),
-                                      self.level(c) == self.remote(self.label(f)))
+        # Add constraints
+        flow_local = lambda f: self.local(self.label(f))
+        flow_remote = lambda f: self.remote(self.label(f))
+        outflow_mtch = lambda f, c, i : Implies(And([is_outflow(c, i),
+                                                     self.outflows(c, i) == f]),
+                                                self.level(c) == flow_local(f))
+        inflow_mtch = lambda f, c, i : Implies(And([is_inflow(c, i),
+                                                    self.inflows(c, i) == f]),
+                                               self.level(c) == flow_remote(f))
         for f in self.m.flows:
-            self.add(ForAll([c, i], oc(f.id, c, i)),
+            self.add(ForAll([c, i], outflow_mtch(f.id, c, i)),
                      E.outflowLevel(f))
-            self.add(ForAll([c, i], ic(f.id, c, i)),
+            self.add(ForAll([c, i], inflow_mtch(f.id, c, i)),
                      E.inflowLevel(f))
-        # for c in self.m.components:
-        #     self.add(ForAll(i, And([self.local(self.argtaints(c.id, i)) == self.local(self.label(self.inflows(c.id, i))),
-        #                             self.remote(self.argtaints(c.id, i)) == self.remote(self.label(self.outflows(c.id, i)))])))
+
+        for c in self.m.components:
+            c_sum = self.nInflows(c.id) + self.nOutflows(c.id)
+            self.add(c_sum == self.nArgtaints(c.id),
+                     E.nFlowsEqTaints(c))
+
+            at    = lambda i: self.argtaints(c.id, i)
+            lb_in = lambda i: self.label(self.inflows(c.id, i))
+
+            # 1. Forall c i, c.inflows[i].label == c.argtaints[i]
+            self.add(ForAll(i,
+                            Implies(is_inflow(c.id, i), lb_in(i) == at(i))),
+                     E.inflowEqTaint(c))
+
+            lb_out = lambda i: self.label(self.outflows(c.id, i))
+
+            # 2. Forall c i, c.outflows[i].label ==
+            #    c.argtaints[len(c.inflows) + i]
+            self.add(ForAll(i,
+                            Implies(is_outflow(c.id, i),
+                                    lb_out(i) == at(self.nInflows(c.id) + i))),
+                     E.outflowEqTaint(c))
+
+            c_lc  = self.level(c.id)
+            c_rm  = self.remotelevel(c.id)
+            n_in  = self.nInflows(c.id)
+            lc_at = lambda i: self.local(at(i))
+            rm_at = lambda i: self.remote(at(i))
+
+            # 3. Forall c i, i < len(c.inflows) =>
+            #    c.argtaints[i].remote == c.level &&
+            #    (c.argtaints[i].local == c.level ||
+            #     c.argtaints[i].local == c.remotelevel)
+            self.add(ForAll(i, Implies(And([is_argtaint(c.id, i), i < n_in]),
+                                       And([rm_at(i) == c_lc,
+                                            Or([lc_at(i) == c_lc,
+                                                lc_at(i) == c_rm])]))),
+                     E.inflowTaintLvl(c))
+
+            # 4. Forall c i, i >= len(c.inflows) =>
+            # c.argtaints[i].local == c.level &&
+            # (c.argtaints[i].remote == c.level ||
+            #  c.argtaints[i].remote == c.remotelevel)
+            self.add(ForAll(i, Implies(And([is_argtaint(c.id, i), i >= n_in]),
+                                       And([lc_at(i) == c_lc,
+                                            Or([rm_at(i) == c_lc,
+                                                rm_at(i) == c_rm])]))),
+                     E.outflowTaintLvl(c))
 
     def explain(self):
         if self.status != unsat:

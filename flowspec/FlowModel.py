@@ -198,6 +198,9 @@ def fromSpec(spec, rjson):
             taint_warn = "cle '{}' has an argtaint with multiple options"
             warn(taint_warn.format(l))
         taint_labels = [[fkFlowLabel[t] for t in ts][0] for ts in taints]
+        if len(taint_labels) != len(inflows) + len(outflows):
+            e = "cle '{}' has len(argtaints) != len(inflows) + len(outflows)"
+            err(e.format(name))
 
         level = None
         if 'level' in cle:
@@ -216,5 +219,30 @@ def fromSpec(spec, rjson):
             err("duplicate component '{}'".format(name))
         fkComponent[name] = new_c
         components.append(new_c)
+
+    # Some additional warnings/errors
+    flatten = lambda t: [item for sublist in t for item in sublist]
+    all_inflows = flatten([c['inFlows'] for c in spec['topology']])
+    all_outflows = flatten([c['outFlows'] for c in spec['topology']])
+    for f in spec['flows']:
+        fid = f['flowId']
+        used_in = all_inflows.count(fid)
+        used_out = all_outflows.count(fid)
+        if used_in != 1:
+            err("flow '{}' must occur exactly once in all inflows".format(fid))
+        if used_out != 1:
+            err("flow '{}' must occur exactly once in all outflows".format(fid))
+
+    used_msgs = { f.msg for f in flows }
+    for msg in spec['messages']:
+        if msg['name'] not in used_msgs:
+            warn("message '{}' is defined but never used".format(msg['name']))
+
+    used_labels = { c['label'] for c in spec['topology'] }
+    used_labels |= { f['label'] for f in spec['flows'] }
+    for cle in spec['cles']:
+        lbl = cle['cle-label']
+        if lbl not in used_labels:
+            warn("cle-label '{}' is defined but never used".format(lbl))
 
     return FlowModel(components, flows, labels, rules)
