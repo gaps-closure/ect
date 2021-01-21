@@ -1,6 +1,8 @@
 import itertools
 import sys
 
+from z3 import *
+
 class FlowLabel:
 
     def __init__(self, id, name, local, remote):
@@ -52,12 +54,18 @@ class FlowModel:
         self.components = components
         self.flows = flows
         self.labels = labels
+        self.rules = {}
 
     def __repr__(self):
         elems = self.components + self.flows + self.labels
-        return '\n'.join([str(e) for e in elems])
+        rules = "RULES:\n"
+        for msg in self.rules:
+            rules += "\n{}: \n".format(msg)
+            for (c1, c2) in self.rules[msg]:
+                rules += "    {} -> {}\n".format(c1, c2)
+        return rules + '\nMODEL:\n\n' + '\n'.join([str(e) for e in elems])
 
-    def populate(self, m, lvl, msg, label, local, remote):
+    def populate(self, m, lvl, msg, label, local, remote, allowed):
         for c in self.components:
             if not c.lvl:
                 c.lvl = m.evaluate(lvl(c.id))
@@ -75,6 +83,14 @@ class FlowModel:
                 f.local = m.evaluate(local(l.id))
             if not l.remote:
                 f.remote = m.evaluate(remote(l.id))
+
+        for message in { f.msg for f in self.flows }:
+            for (c1, c2) in [('orange', 'green'), ('green', 'orange')]:
+                if m.evaluate(allowed(StringVal(message), StringVal(c1), StringVal(c2))):
+                    if message not in self.rules:
+                        self.rules[message] = []
+                    self.rules[message].append((c1, c2))
+
 
 def fromSpec(spec):
     components = []

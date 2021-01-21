@@ -43,7 +43,7 @@ class FlowSolver:
         self.status = self.s.check(self.constraints)
         if self.status == sat:
             m = self.s.model()
-            accs = [self.lvl, self.msg, self.label, self.local, self.remote]
+            accs = [self.lvl, self.msg, self.label, self.local, self.remote, self.allowed]
             self.m.populate(m, *accs)
 
     def explain(self):
@@ -64,21 +64,24 @@ class FlowSolver:
         size    = IntSort()
         color   = StringSort()
         message = StringSort()
+        bool    = BoolSort()
 
         # Relations
-        self.inflows     = Function('inflows', id, index, id)
-        self.outflows    = Function('outflows', id, index, id)
-        self.argtaints   = Function('argtaints', id, index, id)
+        self.inflows    = Function('inflows', id, index, id)
+        self.outflows   = Function('outflows', id, index, id)
+        self.argtaints  = Function('argtaints', id, index, id)
         self.nInflows   = Function('nInflows', id, size)
         self.nOutflows  = Function('nOutflows', id, size)
         self.nArgtaints = Function('nArgtaints', id, size)
-        self.lvl         = Function('lvl', id, color)
+        self.lvl        = Function('lvl', id, color)
 
         self.msg   = Function('msg', id, message)
         self.label = Function('label', id, id)
 
         self.local  = Function('local', id, color)
         self.remote = Function('remote', id, color)
+
+        self.allowed = Function('allowed', message, color, color, bool)
 
     def encodeModel(self):
 
@@ -114,18 +117,23 @@ class FlowSolver:
 
         # Helpers for identifying valid ids and strings in z3
         f, c, l, i  = Ints('f c l i')
-        is_id_of    = lambda x, s : Or([x == t.id for t in s])
-        is_comp     = lambda x : is_id_of(x, self.m.components)
-        is_flow     = lambda x : is_id_of(x, self.m.flows)
-        is_label    = lambda x : is_id_of(x, self.m.labels)
-        in_bounds   = lambda c, i, fn : And([is_comp(c), i >= 0, i < fn(c)])
-        is_inflow   = lambda c, i : in_bounds(c, i, self.nInflows)
-        is_outflow  = lambda c, i : in_bounds(c, i, self.nOutflows)
-        is_argtaint = lambda c, i : in_bounds(c, i, self.nArgtaints)
-        is_color    = lambda x : Or([x == StringVal('orange'),
+        m, c1, c2   = Strings('m c1 c2')
+        is_id_of    = lambda x, s: Or([x == t.id for t in s])
+        is_comp     = lambda x: is_id_of(x, self.m.components)
+        is_flow     = lambda x: is_id_of(x, self.m.flows)
+        is_label    = lambda x: is_id_of(x, self.m.labels)
+        in_bounds   = lambda c, i, fn: And([is_comp(c), i >= 0, i < fn(c)])
+        is_inflow   = lambda c, i: in_bounds(c, i, self.nInflows)
+        is_outflow  = lambda c, i: in_bounds(c, i, self.nOutflows)
+        is_argtaint = lambda c, i: in_bounds(c, i, self.nArgtaints)
+        is_color    = lambda x: Or([x == StringVal('orange'),
                                      x == StringVal('green')])
         all_msgs    = { f.msg for f in self.m.flows }
-        is_message  = lambda x : Or([x == StringVal(m) for m in all_msgs])
+        is_message  = lambda x: Or([x == StringVal(m) for m in all_msgs])
+        is_msg_flow = lambda f, m, g, o: And([is_flow(f),
+                                              self.local(self.label(f)) == g,
+                                              self.remote(self.label(f)) == o,
+                                              self.msg(f) == m])
 
         # Restrict functions to valid inputs and outputs
         self.assume(ForAll([c, i], Implies(is_inflow(c, i),
@@ -141,6 +149,10 @@ class FlowSolver:
 
         self.assume(ForAll(l, Implies(is_label(l), is_color(self.local(l)))))
         self.assume(ForAll(l, Implies(is_label(l), is_color(self.remote(l)))))
+
+        self.assume(ForAll([m, c1, c2], self.allowed(m, c1, c2) == And([
+                    is_message(m), is_color(c1), is_color(c2),
+                    Exists(f, is_msg_flow(f, m, c1, c2))])))
 
         self.validate()
 
