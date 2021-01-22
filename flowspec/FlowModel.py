@@ -4,17 +4,29 @@ import json
 
 from z3 import *
 
+msgToId = {}
+idToMsg = {}
+
+def colorToId(c):
+    if c not in ['orange', 'green']:
+        sys.exit("error: invalid color->id conversion: {}".format(c))
+    return 998 if c == 'orange' else 999
+
+def idToColor(i):
+    if i not in [998, 999]:
+        sys.exit("error: invalid id->color conversion: {}".format(i))
+    return 'orange' if i == 998 else 'green'
+
 class FlowLabel:
 
     def __init__(self, id, name, local, remote):
         self.id = id
         self.name = name
-        self.local = local
-        self.remote = remote
-        #print("FlowLabel {}: {}".format(name, id))
+        self.local = colorToId(local) if local != None else None
+        self.remote = colorToId(remote) if remote != None else None
 
     def __repr__(self):
-        n, l, r = self.name, self.local, self.remote
+        n, l, r = self.name, idToColor(self.local), idToColor(self.remote)
         return "Label: {}\n    local: {}\n    remote: {}\n".format(n, l, r)
 
 class Flow:
@@ -24,11 +36,10 @@ class Flow:
         self.name = name
         self.msg = msg
         self.label = label
-        #print("Flow {}: {}".format(name, id))
 
     def __repr__(self):
         n, m, l = self.name, self.msg, self.label.name if self.label else "None"
-        return "Flow: {} | message: {} | label: {}\n".format(n, m, l)
+        return "Flow: {} | message: {} | label: {}\n".format(n, idToMsg[m], l)
 
 class Component:
 
@@ -38,12 +49,11 @@ class Component:
         self.inflows = inflows
         self.outflows = outflows
         self.argtaints = argtaints
-        self.level = level
-        self.remotelevel = rl
-        #print("Component {}: {}".format(name, id))
+        self.level = colorToId(level) if level != None else None
+        self.remotelevel = colorToId(rl) if rl != None else None
 
     def __repr__(self):
-        n, l, r = self.name, self.level, self.remotelevel
+        n, l, r = self.name, idToColor(self.level), idToColor(self.remotelevel)
         i, o = [x.name for x in self.inflows], [x.name for x in self.outflows]
         a = [x.name for x in self.argtaints]
         s = ("Component: {}\n    inflows: {}\n    outflows: {}\n    " +
@@ -66,9 +76,10 @@ class FlowModel:
         rules = ""
         if self.rules:
             for msg in self.rules:
-                rules += "{}: \n".format(msg)
+                rules += "{}: \n".format(idToMsg[msg])
                 for (c1, c2) in self.rules[msg]:
-                    rules += "    {} -> {}\n".format(c1, c2)
+                    o, g = idToColor(c1), idToColor(c2)
+                    rules += "    {} -> {}\n".format(o, g)
         return rules
 
     def modelToJson(self, outfile):
@@ -78,6 +89,8 @@ class FlowModel:
         return
 
 def fromSpec(spec, rjson):
+    global msgToId, idToMsg
+
     components = []
     flows = []
     labels = []
@@ -88,14 +101,31 @@ def fromSpec(spec, rjson):
     err  = lambda msg: sys.exit("error: " + msg)
     get  = lambda d, k: d[k] if k in d else err("no '{}' key: {}".format(k, d))
     warn = lambda msg: print("warning: assumption violated: {}".format(msg))
-    vc   = lambda s: err(s + " is not a valid color") if s not in clrs else None
+    vc   = lambda s: err(s + " is not a valid color") if s not in clrs else s
     freshId = itertools.count()
+
+    # Messages
+    msgs = get(spec, 'messages')
+    names = [get(m, 'name') for m in msgs]
+    for n in names:
+        msg_id = next(freshId)
+        msgToId[n] = msg_id
+        idToMsg[msg_id] = n
 
     # Rules
     if rjson:
         rules = {}
         for data in rjson['rules']:
-            rules[data['message']] = [(c[0], c[1]) for c in data['cdf']]
+            msg_id = msgToId[data['message']]
+            rules[msg_id] = []
+            for c in data['cdf']:
+                if len(c) != 2:
+                    err("every rule in rules.json must have list length == 2")
+                o = vc(c[0])
+                g = vc(c[1])
+                if o == g:
+                    err("intra-domain rule {}->{} not enforceable".format(o, g))
+                rules[msg_id].append((colorToId(o), colorToId(g)))
 
     # Flow labels
     fkFlowLabel = {}
@@ -141,7 +171,7 @@ def fromSpec(spec, rjson):
 
         msg = None
         if 'message' in f:
-            msg = f['message']
+            msg = msgToId[f['message']]
 
         label = None
         if 'label' in f:
@@ -232,17 +262,5 @@ def fromSpec(spec, rjson):
             err("flow '{}' must occur exactly once in all inflows".format(fid))
         if used_out != 1:
             err("flow '{}' must occur exactly once in all outflows".format(fid))
-
-    used_msgs = { f.msg for f in flows }
-    for msg in spec['messages']:
-        if msg['name'] not in used_msgs:
-            warn("message '{}' is defined but never used".format(msg['name']))
-
-    used_labels = { c['label'] for c in spec['topology'] }
-    used_labels |= { f['label'] for f in spec['flows'] }
-    for cle in spec['cles']:
-        lbl = cle['cle-label']
-        if lbl not in used_labels:
-            warn("cle-label '{}' is defined but never used".format(lbl))
 
     return FlowModel(components, flows, labels, rules)

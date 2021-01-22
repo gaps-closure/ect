@@ -34,33 +34,35 @@ class FlowSolver:
         solution = self.s.model()
 
         for c in self.m.components:
-            if not c.level:
-                c.level = solution.evaluate(self.level(c.id))
-            if not c.remotelevel:
-                c.remotelevel = solution.evaluate(self.remotelevel(c.id))
+            if c.level == None:
+                c.level = solution.evaluate(self.level(c.id)).as_long()
+            if c.remotelevel == None:
+                rl = solution.evaluate(self.remotelevel(c.id)).as_long()
+                c.remotelevel = rl
 
         for f in self.m.flows:
-            if not f.msg:
-                f.msg = solution.evaluate(self.msg(f.id))
-            if not f.label:
-                lid = solution.evaluate(self.label(f.id))
+            if f.msg == None:
+                f.msg = solution.evaluate(self.msg(f.id)).as_long()
+            if f.label == None:
+                lid = solution.evaluate(self.label(f.id)).as_long()
                 match = [l for l in self.m.labels if l.id == lid]
                 f.label = match[0]
 
         for l in self.m.labels:
-            if not l.local:
-                f.local = solution.evaluate(self.local(l.id))
-            if not l.remote:
-                f.remote = solution.evaluate(self.remote(l.id))
+            if l.local == None:
+                f.local = solution.evaluate(self.local(l.id)).as_long()
+            if l.remote == None:
+                f.remote = solution.evaluate(self.remote(l.id)).as_long()
 
         self.m.rules = {}
-        for message in { f.msg for f in self.m.flows }:
-            for (c1, c2) in [('orange', 'green'), ('green', 'orange')]:
-                zm, zc1, zc2 = StringVal(message), StringVal(c1), StringVal(c2)
-                if solution.evaluate(self.cdf_allowed(zm, zc1, zc2)):
-                    if message not in self.m.rules:
-                        self.m.rules[message] = []
-                    self.m.rules[message].append((c1, c2))
+        for msg in { f.msg for f in self.m.flows }:
+            orange = FlowModel.colorToId('orange')
+            green = FlowModel.colorToId('green')
+            for (c1, c2) in [(orange, green), (green, orange)]:
+                if solution.evaluate(self.cdf_allowed(msg, c1, c2)):
+                    if msg not in self.m.rules:
+                        self.m.rules[msg] = []
+                    self.m.rules[msg].append((c1, c2))
 
     def initDomain(self):
 
@@ -68,8 +70,8 @@ class FlowSolver:
         id      = IntSort()
         index   = IntSort()
         size    = IntSort()
-        color   = StringSort()
-        message = StringSort()
+        color   = IntSort()
+        message = IntSort()
         bool    = BoolSort()
 
         # Relations
@@ -106,42 +108,47 @@ class FlowSolver:
             if c.argtaints != None:
                 addList(self.argtaints, c.argtaints, E.taintIndex)
                 self.assume(self.nArgtaints(c.id) == len(c.argtaints))
-            if c.level:
-                self.add(self.level(c.id) == StringVal(c.level),
+            if c.level != None:
+                self.add(self.level(c.id) == c.level,
                          E.componentLvl(c))
-            if c.remotelevel:
-                self.add(self.remotelevel(c.id) == StringVal(c.remotelevel),
+            if c.remotelevel != None:
+                self.add(self.remotelevel(c.id) == c.remotelevel,
                          E.remoteLvl(c))
 
         for f in self.m.flows:
             if f.msg != None:
-                self.add(self.msg(f.id) == StringVal(f.msg),
+                self.add(self.msg(f.id) == f.msg,
                          E.flowMsg(f))
             if f.label != None:
                 self.add(self.label(f.id) == f.label.id,
                          E.flowLabel(f))
 
         for fl in self.m.labels:
-            if fl.local:
-                self.add(self.local(fl.id) == StringVal(fl.local),
+            if fl.local != None:
+                self.add(self.local(fl.id) == fl.local,
                          E.labelLocal(fl))
-            if fl.remote:
-                self.add(self.remote(fl.id) == StringVal(fl.remote),
+            if fl.remote != None:
+                self.add(self.remote(fl.id) == fl.remote,
                          E.labelRemote(fl))
 
-        if self.m.rules:
-            for s in { f.msg for f in self.m.flows }:
-                for (c1, c2) in [('orange', 'green'), ('green', 'orange')]:
-                    zs, zc1, zc2 = StringVal(s), StringVal(c1), StringVal(c2)
-                    if s not in self.m.rules or (c1, c2) not in self.m.rules[s]:
-                        self.add(self.cdf_allowed(zs, zc1, zc2) == False,
-                                 E.denyFlow(s, c1, c2))
+        if self.m.rules != None:
+            for i in { f.msg for f in self.m.flows }:
+                orange = FlowModel.colorToId('orange')
+                green = FlowModel.colorToId('green')
+                for (c1, c2) in [(orange, green), (green, orange)]:
+                    if i not in self.m.rules or (c1, c2) not in self.m.rules[i]:
+                        allowed = self.cdf_allowed(i, c1, c2)
+                        self.add(allowed == False, E.denyFlow(i, c1, c2))
 
     def encodeConstraints(self):
 
         # Helpers for identifying valid ids and strings in z3
-        f, c, l, i  = Ints('f c l i')
-        m, c1, c2   = Strings('m c1 c2')
+        f, c, l, i, m, c1, c2 = Ints('f c l i m c1 c2')
+
+        orange      = FlowModel.colorToId('orange')
+        green       = FlowModel.colorToId('green')
+        all_msgs    = { f.msg for f in self.m.flows }
+
         is_id_of    = lambda x, s: Or([x == t.id for t in s])
         is_comp     = lambda x: is_id_of(x, self.m.components)
         is_flow     = lambda x: is_id_of(x, self.m.flows)
@@ -150,10 +157,8 @@ class FlowSolver:
         is_inflow   = lambda c, i: in_bounds(c, i, self.nInflows)
         is_outflow  = lambda c, i: in_bounds(c, i, self.nOutflows)
         is_argtaint = lambda c, i: in_bounds(c, i, self.nArgtaints)
-        is_color    = lambda x: Or([x == StringVal('orange'),
-                                     x == StringVal('green')])
-        all_msgs    = { f.msg for f in self.m.flows }
-        is_message  = lambda x: Or([x == StringVal(m) for m in all_msgs])
+        is_color    = lambda x: Or([x == orange, x == green])
+        is_message  = lambda x: Or([x == m for m in all_msgs])
         is_msg_flow = lambda f, m, g, o: And([is_flow(f),
                                               self.local(self.label(f)) == g,
                                               self.remote(self.label(f)) == o,
@@ -258,12 +263,14 @@ class FlowSolver:
     def compareRules(self, provided_json):
         if self.status != sat:
             msg = "no derived rules to compare with for {} result"
-            return "msg".format(str(self.status))
+            return msg.format(str(self.status))
 
         # Construct derived ruleset and provided ruleset
         derived = set([])
         for (msg, rules) in self.m.rules.items():
-            derived |= {(msg, c1, c2) for (c1, c2) in rules}
+            i2c = FlowModel.idToColor
+            i2m = FlowModel.idToMsg
+            derived |= {(i2m[msg], i2c(c1), i2c(c2)) for (c1, c2) in rules}
 
         provided = set([])
         for data in provided_json['rules']:

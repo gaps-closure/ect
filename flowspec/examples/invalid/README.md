@@ -11,4 +11,4 @@ reader before solving, so no explanation is printed.
 `case2_edit.json` has the flow CLE 'ALLOW_GREEN_GREEN' incorrectly use
 remotelevel 'orange'.
 
-`case3_edit.json` has an extra inflow, '2401', assigned to the 'MPU' component.
+`case3_edit.json` has had inflows, '2401' and '7101' switched.
