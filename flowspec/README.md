@@ -10,6 +10,10 @@ If the command-line option is specified, it will also constrain the solution to
 a provided cross-domain message policy, and report on whether the policy is
 overly permissive.
 
+If there is a problem with the provided specification such that it is not
+consistent with itself or the provided policy, the solver will output a simple
+english explanation of what went wrong.
+
 ## Assumptions
 
 The solver currently makes a number of simplifying assumptions about the
@@ -29,7 +33,7 @@ Component
 
 Flow:
     id:        Int
-    msg:       String
+    msg:       Int
     label:     FlowLabel
 
 FlowLabel:
@@ -58,18 +62,59 @@ that each argtaint is a singleton list. Finally, the solver assumes that there
 are exactly two levels, `orange` and `green`.
 
 Internally, the solver passes integer IDs to z3 and converts between IDs and
-component/flow/label names, because z3 works far more quickly with integers.
-Thus each component, flow, and flow label has an ID.
+component/flow/label/message names, because z3 works far more quickly with
+integers. Thus each component, flow, flow label, and message has an ID. The
+strings "orange" and "green" are also tied to integer IDs.
 
 These assumptions will be gradually phased out as the solver matures.
 
-## Formulas
+## Constraint formulas
 
 Relationships between Components, Flows, and FlowLabels, and their fields, are
-modeled as integers/strings and functions mapping integers/strings to other
-integers/strings.
+modeled as integers and functions mapping integers to other integers. The solver
+gets a partial interpretation of each function from the provided spec/rules,
+and uses the constraints to assign a full interpretation to each mapping
+function.
 
-TK: The set of mathematical formulas checked by the solver.
+Integer IDs are constrained to valid values in context. For example, the `label`
+function maps a flow to its corresponding label, so `label`'s domain is
+technically `Int` x `Int` (`id` -> `id`), but it is bounded such that the input
+must be an integer which corresponds to a flow ID, and the output must
+be an integer which corresponds to a label ID.
+
+Beyond these boundary conditions, the main constraints are given below:
+
+#### Inflows and outflows must match flow levels and component levels
+
+`f` is a flow, `c` is a component, `i` is an index.
+
+1. `Forall f c i, c.outflows[i] == f => c.level == f.label.local`
+2. `Forall f c i, c.inflows[i] == f => c.level == f.label.remote`
+
+#### Argtaints must match component inflows, outflows, level, and remotelevel
+
+`c` is a component, `i` is an index.
+
+1. `Forall c i, c.inflows[i].label == c.argtaints[i]`
+2. `Forall c i, c.outflows[i].label == c.argtaints[len(c.inflows) + i]`
+3. `Forall c i, i < len(c.inflows) => c.argtaints[i].remote == c.level &&
+(c.argtaints[i].local == c.level || c.argtaints[i].local == c.remotelevel)`
+4. `Forall c i, i >= len(c.inflows) => c.argtaints[i].local == c.level &&
+(c.argtaints[i].remote == c.level || c.argtaints[i].remote == c.remotelevel)`
+
+#### Deriving a cross-domain message flow policy
+
+A function `cdf_allowed` is used to track whether a cross-domain message flow is
+a.) needed by the application and b.) allowed by the given policy (if a policy
+was given). During solving, if the constraints imply a CDF which was already
+denied by the provided policy, `cdf_allowed` is unsatisfiable. After solving,
+`cdf_allowed` is queried for each message and cross-domain flow to determine
+what policy the application needs.
+
+The function is defined in the solver as follows:
+
+`cdf_allowed(MessageID m, ColorID c1, ColorID c2) ==
+Exists (Flow f), f.label.local == c1 && f.label.remote == c2 && f.msg == m`
 
 ## Testing
 
