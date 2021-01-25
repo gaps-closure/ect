@@ -327,16 +327,14 @@ def main():
     print("\n" + str(fs.status))
     if fs.status == sat:
 
-        with open('model.txt', 'w') as out1, open('rules.txt', 'w') as out2:
-            out1.write("model for '{}':\n\n".format(args.spec))
-            out1.write(fs.m.modelToString())
-            out2.write("derived rules for '{}':\n\n".format(args.spec))
-            out2.write(fs.m.rulesToString())
+        with open('model.json', 'w') as out1, open('rules.json', 'w') as out2:
+            out1.write(fs.m.modelToJson(spec))
+            out2.write(fs.m.rulesToJson())
 
         if args.rules: fs.compareRules(rules)
         print("\ncheck constraints.smt2 for input to z3")
-        print("check model.txt for derived specification")
-        print("check rules.txt for derived cross-domain rules")
+        print("check model.json for derived specification")
+        print("check rules.json for derived cross-domain rules")
 
     else:
         fs.explain()

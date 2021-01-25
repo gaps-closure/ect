@@ -82,11 +82,74 @@ class FlowModel:
                     rules += "    {} -> {}\n".format(o, g)
         return rules
 
-    def modelToJson(self, outfile):
-        return
+    def modelToJson(self, spec):
+        json_model = {'topology': [], 'flows': [], 'messages': [], 'cles': []}
+        json_model['comment'] = spec['comment']
+        json_model['messages'] = spec['messages']
 
-    def rulesToJson(self, outfile):
-        return
+        # topology and component cles
+        for c in self.components:
+            topo = spec['topology']
+            lbl = [t['label'] for t in topo if t['component'] == c.name][0]
+            json_model['topology'].append({
+                'component': c.name,
+                'label': lbl,
+                'inFlows': [int(i.name) for i in c.inflows],
+                'outFlows': [int(o.name) for o in c.outflows]
+            })
+
+            cle = [cl for cl in spec['cles'] if cl['cle-label'] == lbl]
+            json_model['cles'].append({
+                'cle-label': lbl,
+                'cle-json': {
+                    'level': idToColor(c.level),
+                    'cdf': [{
+                        'remotelevel': idToColor(c.remotelevel),
+                        'direction': 'egress',
+                        'guarddirective': {'operation': 'allow'},
+                        'argtaints': [[fl.name] for fl in c.argtaints],
+                        'codtaints': [],
+                        'rettaints': []
+                    }]
+                }
+            })
+
+        # flows
+        for f in self.flows:
+            json_model['flows'].append({
+                'flowId': int(f.name),
+                'message': idToMsg[f.msg],
+                'label': f.label.name
+            })
+
+        # flow cles
+        for fl in self.labels:
+            json_model['cles'].append({
+                'cle-label': fl.name,
+                'cle-json': {
+                    'level': idToColor(fl.local),
+                    'cdf': [{
+                        'remotelevel': idToColor(fl.remote),
+                        'direction': 'egress',
+                        'guarddirective': {'operation': 'allow', 'oneway': True}
+                    }]
+                }
+            })
+
+        # convert to JSON string
+        return json.dumps(json_model, indent=4)
+
+    def rulesToJson(self):
+        json_rules = {'rules': []}
+        toList = lambda c1, c2: [idToColor(c1), idToColor(c2)]
+        for msg in self.rules:
+            json_rules['rules'].append({
+                'message': idToMsg[msg],
+                'cdf': [toList(c1, c2) for (c1, c2) in self.rules[msg]]
+            })
+
+        # convert to JSON string
+        return json.dumps(json_rules, indent=4)
 
 def fromSpec(spec, rjson):
     global msgToId, idToMsg
