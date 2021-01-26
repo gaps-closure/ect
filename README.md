@@ -50,7 +50,7 @@ Generate documentation with
 LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack build --haddock
 ```
 
-The docuemntation is built deep under the .stack-work directory under doc/ect-0.1.0.0/. Find it with
+The documentation is built deep under the .stack-work directory under doc/ect-0.1.0.0/. Find it with
 
 ```
 chromium-browser $(stack path --local-doc-root)/ect-0.1.0.0/index.html
@@ -62,4 +62,13 @@ The program expects three filenames: the refactored .ll file and two partitioned
 
 ```
 stack run -- examples/example1/example1-refactored-9.ll examples/example1/example1-orange-9.ll examples/example1/example1-purple-9.ll
+```
+
+## Running HLint
+
+This is a Haskell style checker
+
+```
+stack install hlint
+hlint src --report
 ```

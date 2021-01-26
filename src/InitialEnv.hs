@@ -1,7 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module InitialEnv (initialEnv) where
+module InitialEnv where
 
 import qualified Data.Traversable as T
 
@@ -32,8 +32,9 @@ import Data.ByteString.Short (ShortByteString)
 --import Data.ByteString (ByteString)
 import Data.Word (Word32)
 import Data.List (zipWith4)
+import Control.Monad (zipWithM)
 
--- | Build an equivalence checking function for a given Z3 type
+-- | Build an equivalence checking function for a given Z3 type.
 --   Needs the bool sort
 mkEquivFunc :: Sort -> Sort -> String -> ProofM FuncDecl
 mkEquivFunc bool typ name = do
@@ -46,6 +47,43 @@ mkEquivFunc bool typ name = do
   builtinEq <- mkEq x y
   eqType <- mkApp equivType [x, y]
   assert =<< mkForallConst [] [qx, qy] =<< mkEq builtinEq eqType
+
+  return equivType
+
+-- | Build an equivalence checking function for a given Z3 type.
+-- 
+mkEquivFunc2 :: Sort -- ^ Z3's Boolean sort
+             -> Sort -- ^ Sort for which the function is being generated
+             -> String -- ^ Name of the type
+             -> [(String, [(String, Maybe Sort)])] -- ^ Fields
+             -> ProofM FuncDecl
+mkEquivFunc2 bool sort name ctors = do
+  equivType <- mkFreshFuncDecl ("equiv-" ++ name) [sort, sort] bool
+
+  x  <- mkFreshConst "x" sort
+  y  <- mkFreshConst "y" sort
+  qx <- toApp x
+  qy <- toApp y
+  eqType <- mkApp equivType [x, y]
+
+  recognizers <- getDatatypeSortRecognizers sort
+  accessors <- getDatatypeSortConstructorAccessors sort
+
+  let fieldEquiv f1 f2 =
+        mkEq f1 f2 -- FIXME: should be a call to the equiv function for the field
+
+  let ctorEquiv (_, fields) recognizer accs = do
+        rx <- mkApp recognizer [x]
+        ry <- mkApp recognizer [y]
+        accx <- mapM (\a -> mkApp a [x]) accs
+        accy <- mapM (\a -> mkApp a [y]) accs
+        fieldsEq <- zipWithM fieldEquiv accx accy
+        mkAnd $ [rx, ry] ++ fieldsEq
+
+  ctorPredicates <- sequence $ zipWith3 ctorEquiv ctors recognizers accessors
+  equivBody <- mkOr ctorPredicates
+    
+  assert =<< mkForallConst [] [qx, qy] =<< mkEq eqType equivBody
 
   return equivType
 
@@ -81,16 +119,23 @@ mkConstr name fields = do
   accessors  <- T.sequence $ map (uncurry mkAccessor) fields
   mkConstructor constName recognizer accessors
 
-mkZ3Constructors :: Sort
-                 -> String
+-- | For a given algebraic type, construct a sort for in Z3-land
+-- along with associated data constructors and an equivalence function
+mkZ3Constructors :: Sort -- ^ Z3's Boolean sort
+                 -> String -- ^ Name of the type
                  -> [(String, [(String, Maybe Sort)])]
+                 -- ^ Data constructors with fields
                  -> ProofM (Sort, [Z3Constructor])
+                 -- ^ The generated Z3 sort and information about its data constructors
 mkZ3Constructors bool name fields = do
   sort <- mkSort name fields
-  equivFunc <- mkEquivFunc bool sort name
+  --  equivFunc <- mkEquivFunc bool sort name
+  equivFunc <- mkEquivFunc2 bool sort name fields
   let z3Type = Z3Type{..}
   constructors <- getDatatypeSortConstructors sort
-  return $ (sort, zipWith3 (,,) constructors (map fst fields) (repeat z3Type))
+  let consInfo = zip3 constructors (map fst fields) (repeat z3Type)
+  saveSortConstructors sort consInfo
+  return (sort, consInfo)
 
 mkMutualZ3Constructors :: Sort
                        -> [String]
@@ -98,7 +143,7 @@ mkMutualZ3Constructors :: Sort
                        -> ProofM [(Sort, [Z3Constructor])]
 mkMutualZ3Constructors bool names fieldsSet = do
   sorts <- mkMutualSorts names fieldsSet
-  equivFuncs <- T.sequence $ zipWith (\s n -> mkEquivFunc bool s n) sorts names
+  equivFuncs <- T.sequence $ zipWith (mkEquivFunc bool) sorts names
   constructorsSet <- T.sequence $ map getDatatypeSortConstructors sorts
   let z3Types = zipWith (\s eq -> Z3Type s eq) sorts equivFuncs
       merge srt cs fs z3t = (srt, zipWith3 (,,) cs (map fst fs) (repeat z3t))

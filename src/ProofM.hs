@@ -95,19 +95,25 @@ instance Show Prop where
 -- | A mapping from local names in one function, etc. to local names in another
 type NameMap = M.Map A.Name A.Name
 
+-- | A mapping from Z3 sorts to lists of Z3Constructor information
+type SortMap = M.Map Sort [Z3Constructor]
+
 
 data ProofState = ProofState
   { currentPID :: !PID         -- ^ ID for the next proposition
   , matching :: !NameMap       -- ^ For name isomorphisms
   , inverse :: !NameMap        -- ^ Inverse of matching
   , visiting :: !(S.Set A.Name)  -- ^ For DFS algorithms
+  , sortConstructors :: !SortMap -- ^ For each Z3 sort, constructor information
   }
 
+-- | Initial proof state: PID is 1; empty maps and sets
 initialState :: ProofState
 initialState = ProofState { currentPID = PID 1
                           , matching = M.empty
                           , inverse = M.empty
                           , visiting = S.empty
+                          , sortConstructors = M.empty
                           }
 
 ----------------------------------------------------------------------
@@ -182,8 +188,25 @@ getNextPID = do
   ProofM $ lift $ put $ s {currentPID = nextPID pid }
   return pid
 
+-- | Save information about a Z3 sort
+saveSortConstructors :: Sort -- ^ Sort to be saved
+                     -> [Z3Constructor] -- ^ Constructors for the sort
+                     -> ProofM ()
+saveSortConstructors sort constructors = do
+  s <- ProofM $ lift $ get
+  let cm = sortConstructors s
+  ProofM $ lift $ put $ s { sortConstructors = M.insert sort constructors cm }
 
+-- | Get constructor information for a Z3 sort saved earlier
+-- by @saveSortConstructors@
+getSortConstructors :: Sort -> ProofM [Z3Constructor]
+getSortConstructors sort = do
+  ProofState{..} <- ProofM $ lift get
+  case M.lookup sort sortConstructors of
+    Just c -> return c
+    Nothing -> proofFail $ "unable to locate information for sort " ++ show sort
 
+  
 
 -- | Log a string message
 logString :: String -> ProofM ()
@@ -197,4 +220,5 @@ logSMTLIB s = ProofM $ lift $ lift $ lift $ tell [LogSMTLIB s]
 logInference :: [PID] -> Prop -> String -> ProofM ()
 logInference infPremises infConclusion infComment =
   ProofM $ lift $ lift $ lift $ tell [LogInference{..}]
+
 
