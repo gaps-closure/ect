@@ -32,7 +32,8 @@ import Data.ByteString.Short (ShortByteString)
 --import Data.ByteString (ByteString)
 import Data.Word (Word32)
 import Data.List (zipWith4)
-import Control.Monad (zipWithM)
+--import Control.Monad (zipWithM)
+
 
 -- | Build an equivalence checking function for a given Z3 type.
 --   Needs the bool sort
@@ -49,6 +50,7 @@ mkEquivFunc bool typ name = do
   assert =<< mkForallConst [] [qx, qy] =<< mkEq builtinEq eqType
 
   return equivType
+
 
 -- | Build an equivalence checking function for a given Z3 type.
 -- 
@@ -69,15 +71,20 @@ mkEquivFunc2 bool sort name ctors = do
   recognizers <- getDatatypeSortRecognizers sort
   accessors <- getDatatypeSortConstructorAccessors sort
 
-  let fieldEquiv f1 f2 =
-        mkEq f1 f2 -- FIXME: should be a call to the equiv function for the field
+  let fieldEquiv f1 f2 (_, Just srt) = do
+        equivFunction <- getEquivFunction srt
+        case equivFunction of
+          Just f -> mkApp f [f1, f2]
+          Nothing -> mkEq f1 f2 -- Use primitive equality if no special one is defined
+      fieldEquiv f1 f2 (_, Nothing) = do
+        mkApp equivType [f1, f2] -- Recursive call
 
   let ctorEquiv (_, fields) recognizer accs = do
         rx <- mkApp recognizer [x]
         ry <- mkApp recognizer [y]
         accx <- mapM (\a -> mkApp a [x]) accs
         accy <- mapM (\a -> mkApp a [y]) accs
-        fieldsEq <- zipWithM fieldEquiv accx accy
+        fieldsEq <- sequence $ zipWith3 fieldEquiv accx accy fields
         mkAnd $ [rx, ry] ++ fieldsEq
 
   ctorPredicates <- sequence $ zipWith3 ctorEquiv ctors recognizers accessors
@@ -129,13 +136,11 @@ mkZ3Constructors :: Sort -- ^ Z3's Boolean sort
                  -- ^ The generated Z3 sort and information about its data constructors
 mkZ3Constructors bool name fields = do
   sort <- mkSort name fields
-  --  equivFunc <- mkEquivFunc bool sort name
   equivFunc <- mkEquivFunc2 bool sort name fields
   let z3Type = Z3Type{..}
   constructors <- getDatatypeSortConstructors sort
-  let consInfo = zip3 constructors (map fst fields) (repeat z3Type)
-  saveSortConstructors sort consInfo
-  return (sort, consInfo)
+  saveEquivFunction sort equivFunc
+  return (sort, zip3 constructors (map fst fields) (repeat z3Type))
 
 mkMutualZ3Constructors :: Sort
                        -> [String]
