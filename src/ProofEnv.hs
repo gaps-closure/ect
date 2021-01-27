@@ -10,6 +10,10 @@ Only one of these objects is ever created. However, Template Haskell insists
 that the initialization of that object be done elsewhere ("InitialEnv") since
 the code for initializing it depends on what's generated here.
 
+This code relies on "Z3TypeGenerator.hs", which must be in a distinct file
+since Template Haskell functions can't operate on code within the file that
+defines them.
+
 -}
 
 module ProofEnv where

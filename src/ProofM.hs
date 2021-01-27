@@ -1,6 +1,15 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
+{-|
+
+The Proof Monad.  This combines a Writer for logging, a Reader that
+records all the types, etc. for Z3, a State for capturing dynamic information
+needed within a proof, and returns it all as a "Maybe" to indicate when
+a proof has failed.
+
+-}
+
 module ProofM where
 
 import Control.Monad ( liftM )
@@ -31,8 +40,8 @@ import ProofEnv
 
 type ProofLog = [LogEntry]
 
-data LogEntry = LogString String
-              | LogSMTLIB String
+data LogEntry = LogString String -- ^ A arbitrary log string
+              | LogSMTLIB String -- ^ A string representing SMTLIB source
               | LogInference { infPremises :: [PID]
                              , infConclusion :: Prop
                              , infComment :: String
@@ -116,14 +125,15 @@ initialState = ProofState { currentPID = PID 1
                           , equivFunctions = M.empty
                           }
 
-----------------------------------------------------------------------
---
--- The Proof Monad:
---
--- Combines Z3, a reader for the environment, a writer for the log,
--- a state for state such as the next proposition number, and
--- a Maybe to handle unsuccessful proofs.
+{-|
 
+The Proof Monad:
+
+Combines Z3, a reader for the environment, a writer for the log,
+a state for state such as the next proposition number, and
+a Maybe to handle unsuccessful proofs.
+
+-}
 
 newtype ProofM a = ProofM {
   runProofM :: MaybeT
