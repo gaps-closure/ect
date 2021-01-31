@@ -28,7 +28,7 @@ import qualified Data.Map.Strict as M
 
 
 import Control.Monad ( unless, when )
-import Control.Monad.IO.Class ( liftIO )
+--import Control.Monad.IO.Class ( liftIO )
 
 import LLVM.Context (withContext)
 

@@ -15,14 +15,14 @@ import Data.ByteString.UTF8 (toString)
 import Data.ByteString.Short (ShortByteString, fromShort)
 import qualified Data.ByteString.Char8 as C
 import Data.Word ( Word32, Word64 )
-import qualified Data.Map.Strict as M
-import qualified Data.Set as S
+--import qualified Data.Map.Strict as M
+--import qualified Data.Set as S
 import Data.List (intercalate)
 
-import Control.Monad ( unless, zipWithM_ )
-import Control.Monad.IO.Class ( liftIO )
-import Control.Monad.Trans.State.Strict ( get, gets, put )
-import Control.Monad.Trans.Class ( lift )
+import Control.Monad ( unless ) --, zipWithM_ )
+-- import Control.Monad.IO.Class ( liftIO )
+-- import Control.Monad.Trans.State.Strict ( get, gets, put )
+-- import Control.Monad.Trans.Class ( lift )
 
 
 --import qualified LLVM.Module as M
@@ -846,6 +846,8 @@ proveEquivPrimitive getEnvType toSort name x y = do
   assert =<< mkEq z3v2 =<< toSort y
   
   z3equiv <- mkApp equivFunc [z3v1, z3v2]
+
+  logString $ show x ++ " == " ++ show y ++ " : " ++ name
   
   return Equiv{..}
 
@@ -857,7 +859,7 @@ proveEquivGeneral
 proveEquivGeneral getCons fields comment = do
   let v1fields = map z3v1 fields
       v2fields = map z3v2 fields
-      premises = map z3equiv fields
+      -- premises = map z3equiv fields
       premiseIDs = map equivID fields
 
   (consf, cname, Z3Type{..}) <- fromEnv getCons
@@ -871,7 +873,13 @@ proveEquivGeneral getCons fields comment = do
   assert =<< mkEq z3v1 =<< mkApp consf v1fields -- Build v1 from fields
   assert =<< mkEq z3v2 =<< mkApp consf v2fields -- Build v2 from fields
 
-  return Equiv{..}
+  let equiv = Equiv{..}
+  
+  logString $
+    "Verifying " ++ cname ++ " " ++ intercalate " " (map show premiseIDs)
+  logInference premiseIDs (PropEquiv equiv) comment
+
+  return equiv
 
 assertEquiv
   :: (ProofEnv -> Z3Type)
@@ -895,22 +903,24 @@ instance ProveEquiv A.Global where
                          , proveField A.visibility
                          , proveField A.dllStorageClass
                          , proveField A.callingConvention
-                           -- , proveField A.returnAttributes -- This breaks it
-                         , assertEquiv t_List_ParameterAttribute
+                         
+                         --, proveField A.returnAttributes -- This breaks it
+                         , assertEquiv t_List_ParameterAttribute -- for returnAttributes
+                         
                            -- , proveField A.returnType -- This breaks it
-                         , assertEquiv t_Type
-                         , assertEquiv t_Name
-                         , assertEquiv t_Tup2_List_Parameter_Bool
+                         , assertEquiv t_Type -- for returnType
+                         
+                         , assertEquiv t_Name -- FIXME
+
                          -- , proveField A.parameters -- This breaks it
-                         , assertEquiv t_List_Either_GroupID_FunctionAttribute
+                         , assertEquiv t_Tup2_List_Parameter_Bool -- for parameters
+                         , assertEquiv t_List_Either_GroupID_FunctionAttribute -- for functionAttributes
                          , proveField A.section                         
                          , proveField A.comdat
                          , proveField A.alignment
                          , proveField A.garbageCollectorName
                          , proveField A.prefix
                          , assertEquiv t_List_BasicBlock -- basicBlocks
-                         
-                         --, assertEquiv t_Maybe_Constant -- personalityFunction
                          , proveField A.personalityFunction
                          , assertEquiv t_Bool -- metadata
                          ]
