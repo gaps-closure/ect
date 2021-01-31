@@ -157,7 +157,8 @@ initializeRun :: ProofM ProofEnv -> ProofM a -> ProofM (Maybe a, ProofLog)
 initializeRun initialization actions = do
   env' <- initialization
   state <- ProofM $ lift get
-  ProofM $ lift $ lift $ lift $ tell $ [LogString "initialization complete"]
+--  logSMTLIB =<< solverToString
+--  logString "initialization complete"
   ProofM $ lift $ lift $
             runWriterT $ lift $
             withReaderT (\_ -> env') $

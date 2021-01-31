@@ -187,13 +187,21 @@ main = do
   (_, _, proofLog) <-
     runProofEnvironment initialState initialEnv $ do
       r <- proveEquiv leftEntry rightEntry
-
-      s <- solverToString
-      liftIO $ putStrLn s
+      assert =<< mkNot (z3equiv r)
+      -- assert (z3equiv r)
+      logSMTLIB =<< solverToString
+      
+      z3Result <- check
+      case z3Result of
+        Unsat -> logString "Unsatisfiable"
+        _ -> logString $ show z3Result
+      
       return r
 
   -- print rule
   mapM_ print proofLog
+
+
 
 {-
   (rule', _, proofLog') <- runProofEnvironment initialState initialEnv $ do

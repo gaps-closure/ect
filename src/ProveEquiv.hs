@@ -49,6 +49,25 @@ class ProveEquiv a where
   -- Haskell, then generating a proof in Z3
   proveEquiv :: a -> a -> ProofM Equiv
 
+
+
+
+-- | Return the object that may be named
+unName :: A.Named a -> a
+unName (A.Do x) = x
+unName (_ A.:= x) = x
+
+showName :: A.Name -> String
+showName (A.UnName x) = show x
+showName (A.Name s) = toString $ fromShort s
+
+showNamed :: (a -> String) -> A.Named a -> String
+showNamed s (nm A.:= x) = "%" ++ showName nm ++ " = " ++ s x
+showNamed s (A.Do x) = s x
+
+
+
+{-
 -- | Run Z3 to check the current assertions and return an equivance it was
 --   successful
 proveZ3Equiv :: [PID] -> Equiv -> String -> ProofM Equiv
@@ -228,20 +247,6 @@ proveEquivPrimitive getEnvSort toSort name x y = do
 
 ------------------------------------
 -- CFG isomorphism proof machinery
-
--- | Return the object that may be named
-unName :: A.Named a -> a
-unName (A.Do x) = x
-unName (_ A.:= x) = x
-
-showName :: A.Name -> String
-showName (A.UnName x) = show x
-showName (A.Name s) = toString $ fromShort s
-
-showNamed :: (a -> String) -> A.Named a -> String
-showNamed s (nm A.:= x) = "%" ++ showName nm ++ " = " ++ s x
-showNamed s (A.Do x) = s x
-
 
 -- | A map from basic block names to actual blocks
 type BBMap = M.Map A.Name A.BasicBlock
@@ -753,3 +758,91 @@ instance ProveEquiv A.Global where
 --
 -- Something like "all the instructions are equivalent and all the
 -- terminators lead to equivalent basic blocks"
+
+
+-}
+
+instance ProveEquiv A.Linkage where
+  proveEquiv a b
+    | a == b    = proveEquivGeneral c [] (show a ++ " linkage equivalent")
+    | otherwise = proofFail "Linkage"
+    where c = case a of
+                A.Private     -> c_L_Private
+                A.Internal    -> c_L_Internal
+                A.LinkOnce    -> c_L_LinkOnce
+                A.Weak        -> c_L_Weak
+                A.Common      -> c_L_Common
+                A.Appending   -> c_L_Appending
+                A.ExternWeak  -> c_L_ExternWeak
+                A.LinkOnceODR -> c_L_LinkOnceODR
+                A.WeakODR     -> c_L_WeakODR
+                A.External    -> c_L_External
+                A.AvailableExternally -> c_L_AvailableExternally
+
+proveEquivGeneral
+  :: (ProofEnv -> Z3Constructor) -- ^ Function for getting constructor info from the proof environment
+  -> [Equiv]                     -- ^ Proven-equivalent fields
+  -> String                      -- ^ Comment for inference
+  -> ProofM Equiv
+proveEquivGeneral getCons fields comment = do
+  let v1fields = map z3v1 fields
+      v2fields = map z3v2 fields
+      premises = map z3equiv fields
+      premiseIDs = map equivID fields
+
+  (consf, cname, Z3Type{..}) <- fromEnv getCons
+
+
+  -- Assemble the fields for the Equiv
+  equivID <- getNextPID
+  z3v1 <- mkPropConst equivID "x" sort
+  z3v2 <- mkPropConst equivID "y" sort
+  z3equiv <- mkApp equivFunc [z3v1, z3v2]
+
+  assert =<< mkEq z3v1 =<< mkApp consf v1fields -- Build v1 from fields
+  assert =<< mkEq z3v2 =<< mkApp consf v2fields -- Build v2 from fields
+
+  return Equiv{..}
+
+assertEquiv
+  :: (ProofEnv -> Z3Type)
+  -> ProofM Equiv
+assertEquiv getType = do
+  Z3Type{..} <- fromEnv getType
+  
+  equivID <- getNextPID
+  z3v1 <- mkPropConst equivID "x" sort
+  z3v2 <- mkPropConst equivID "y" sort
+  z3equiv <- mkApp equivFunc [z3v1, z3v2]
+
+  assert z3equiv
+
+  return Equiv{..}
+  
+
+instance ProveEquiv A.Global where
+  proveEquiv f1@A.Function{} f2@A.Function{} = do
+    fields <- T.sequence [ proveField A.linkage
+                         , assertEquiv t_Visibility
+                         , assertEquiv t_Maybe_StorageClass
+                         , assertEquiv t_CallingConvention
+                         , assertEquiv t_List_ParameterAttribute
+                         , assertEquiv t_Type
+                         , assertEquiv t_Name
+                         , assertEquiv t_Tup2_List_Parameter_Bool
+                         , assertEquiv t_List_Either_GroupID_FunctionAttribute
+                         , assertEquiv t_Maybe_ShortByteString -- section
+                         , assertEquiv t_Maybe_ShortByteString -- comdat
+                         , assertEquiv t_Word32
+                         , assertEquiv t_Maybe_ShortByteString -- garbageCollectorName
+                         , assertEquiv t_Maybe_Constant -- prefix
+                         , assertEquiv t_List_BasicBlock -- basicBlocks
+                         , assertEquiv t_Maybe_Constant -- personalityFunction
+                         , assertEquiv t_Bool -- metadata??
+                         ]
+    proveEquivGeneral c_G_Function fields $
+      "functions " ++ (showName $ A.name f1) ++ " and " ++
+      (showName $ A.name f2) ++ " equivalent"
+    where proveField record = proveEquiv (record f1) (record f2)
+
+  proveEquiv _ _ = proofFail "Function"

@@ -23,7 +23,7 @@ https://hackage.haskell.org/package/template-haskell-2.16.0.0/docs/Language-Hask
 
 module Z3TypeGenerator where
 
-import Data.Char (isUpper)
+import Data.Char (isUpper, isAlphaNum)
 import Language.Haskell.TH
 
 import Data.List (intercalate)
@@ -35,13 +35,19 @@ import Data.Graph ( stronglyConnComp, SCC(CyclicSCC, AcyclicSCC) )
 
 
 
--- | Prefix inserted before the name of each Z3 sort (type)
-sortPrefix :: String
-sortPrefix = "s_"
+-- | Prefix inserted before the name of each Z3 sort/type
+typePrefix :: String
+typePrefix = "t_"
 
 -- | Prefix inserted before the name of each Z3 constructor function
 constructorPrefix :: String
 constructorPrefix = "c_"
+
+-- | Fix illegal characters in a Haskell string for Z3
+sanitize :: String -> String
+sanitize (c : cs) | isAlphaNum c = c : sanitize cs
+sanitize (_ : cs) = '_' : sanitize cs
+sanitize [] = []
 
 {-|
 Create a @do@ block that initializes all the fields of the
@@ -166,17 +172,20 @@ extendEnv env formals actuals = env' ++ env
 monoConstructors :: NameEnv -> Name -> [Con] -> StringTypeInfo
 monoConstructors env tCon dCons = (tConName, dConsInfo)
   where
-    typePrefix = filter isUpper tConName ++ "_"
+    namePrefix = filter isUpper tConName ++ "_"
     typeSuffix = concatMap (\(_,n) -> "_" ++ n) env -- type variable bindings
     tConName = nameBase tCon ++ typeSuffix
     dConsInfo = map dConInfo dCons
 
-    dConInfo (NormalC n bts) = (typePrefix ++ nameBase n ++ typeSuffix,
-                                map (\(_,t) -> ("f", typeName env t)) bts)
-    dConInfo (RecC n vbts) = (typePrefix ++ nameBase n ++ typeSuffix,
-                       map (\(f,_,t) -> (nameBase f, typeName env t)) vbts)
+    dConInfo (NormalC n bts) =
+      ( namePrefix ++ nameBase n ++ typeSuffix
+      , zipWith (\(_,t) nn -> ((sanitize $ "f_" ++ nameBase n ++ "_" ++ show nn)
+                             , typeName env t)) bts [(1::Int)..])
+    dConInfo (RecC n vbts) = (namePrefix ++ nameBase n ++ typeSuffix,
+                       map (\(f,_,t) -> ((sanitize $ nameBase n ++ "_" ++ nameBase f)
+                                        ,typeName env t)) vbts)
     dConInfo (InfixC (_,t1) _ (_,t2)) =
-      (typePrefix ++ "infix" ++ typeSuffix,    -- FIXME: name is like ":-"
+      (namePrefix ++ "infix" ++ typeSuffix,    -- FIXME: name is like ":-"
         [("l", typeName env t1)
         ,("r", typeName env t2)])
     dConInfo dc = error $ "unsupported constructors " ++ show dc
@@ -234,7 +243,7 @@ turns into something like
 (s_Maybe_Model, [c_MM_Nothing_Model, c_MM_Just_Model]) <-
    ((mkZ3Constructors s_Bool_a3iXD) "Maybe_Model")
       [("MM_Nothing_Model", [])
-      ,("MM_Just_Model", [("f", Just s_Model)])]
+      ,("MM_Just_Model", [("f", Just (sort t_Model))])]
 @
 
 Passes the results of 'monoType' to 'z3ConstructorsStmt'
@@ -253,7 +262,7 @@ z3Constructors boolSort ty = do
 varsFor :: StringTypeInfo -> Pat
 varsFor (tConName, dConsNames) = TupP [sortP, dConsPs]
   where
-    sortP = VarP $ mkName $ sortPrefix ++ tConName
+    sortP = VarP $ mkName $ typePrefix ++ tConName
     dConsPs = ListP $
          map (\(n, _) -> VarP $ mkName $ constructorPrefix ++ n) dConsNames
 
@@ -277,7 +286,7 @@ generates code like
                        [[("Nil_Type", []),
                         ("Cons_Type", [("head", Left 1), ("tail", Left 0)])],
                       [("T_VoidType", []),
-                       ("T_IntegerType", [("typeBits", Right s_Word32)]),
+                       ("T_IntegerType", [("typeBits", Right (sort t_Word32))]),
                        ("T_PointerType",
                              [("pointerReferent", Left 1),
                              ("pointerAddrSpace", Right s_AddrSpace)]),
@@ -301,7 +310,7 @@ z3MutualConstructors boolSort tys = do
       toField (fn, ft) = TupE [LitE (StringL fn), typE]
         where
           typE = case lookup ft ourSorts of
-            Nothing -> rightE $ VarE $ mkName (sortPrefix ++ ft)
+            Nothing -> rightE $ AppE (VarE $ mkName "sort") $ VarE $ mkName (typePrefix ++ ft)
             Just n -> leftE $ LitE $ IntegerL n
           rightE = AppE $ ConE $ mkName "Right"
           leftE = AppE $ ConE $ mkName "Left"
@@ -337,7 +346,7 @@ z3ConstructorsStmt boolSortE (tConName, dConsNames) =
 
       toField (fn,ft) = TupE [LitE (StringL fn), typE]
         where typE = if ft == tConName then nothingE -- Handle self-recursive
-                     else justE $ VarE $ mkName $ sortPrefix ++ ft
+                     else justE $ AppE (VarE $ mkName "sort") (VarE $ mkName $ typePrefix ++ ft)
 
       dConPairsE = ListE $ map toDCPair dConsNames
 
@@ -347,7 +356,7 @@ z3ConstructorsStmt boolSortE (tConName, dConsNames) =
   data ProofEnv
       = ProofEnv {s_Bool :: !Sort,   -- One for each primitive sort
                   s_Int :: !Sort,
-                  s_UnnamedAddr :: !Sort,  -- 
+                  s_UnnamedAddr :: !Z3Type,  -- 
                   c_UA_LocalAddr :: !Z3Constructor,
                   c_UA_GlobalAddr :: !Z3Constructor,
                   }
@@ -355,16 +364,16 @@ z3ConstructorsStmt boolSortE (tConName, dConsNames) =
 
 -}
 declareProofEnvType :: String -- ^ The name of the new type (usually "ProofEnv")
-                    -> [String] -- ^ List of primitive sorts: these are turned directly into fields of type @Sort@
-                    -> [Q Type] -- ^ Each type in this list will expand into a 'Z3.Sort' field and 'ProofEnv.Z3Constructor' fields for each of its constructors
+                    -> [String] -- ^ List of primitive sorts: these are turned directly into fields of type @Z3Type@
+                    -> [Q Type] -- ^ Each type in this list will expand into a 'ProofEnv.Z3Type' field and 'ProofEnv.Z3Constructor' fields for each of its constructors
                     -> Q [Dec] -- ^ The generated declaration
 declareProofEnvType proofEnvType primitives types = do
   let sBang = Bang NoSourceUnpackedness SourceStrict
-      sortField n = (mkName $ sortPrefix ++ n, sBang, ConT $ mkName "Sort")
+      typeField n = (mkName $ typePrefix ++ n, sBang, ConT $ mkName "Z3Type")
       ctorField n = (mkName $ constructorPrefix ++ n, sBang
                     , ConT $ mkName "Z3Constructor")
-      primitiveFields = map sortField primitives
-      infoToFields (tCon, dCons) = sortField tCon : map (ctorField . fst) dCons
+      primitiveFields = map typeField primitives
+      infoToFields (tCon, dCons) = typeField tCon : map (ctorField . fst) dCons
       proofEnvTypeName = mkName proofEnvType
   typeEs <- sequence types
   fields <- concatMap infoToFields <$> mapM (monoType []) typeEs

@@ -42,6 +42,26 @@ import Data.Word (Word32)
 import Data.List (zipWith4)
 import Control.Monad (zipWithM)
 
+mkEquivPrimFunc :: Sort -- ^ Z3's Boolean sort
+                -> String -- ^ Name of the primitive type
+                -> Sort -- ^ Sort of the primitive type being compared
+                -> ProofM Z3Type
+mkEquivPrimFunc boolSort name sort = do
+  equivFunc <- mkFreshFuncDecl ("equiv-" ++ name) [sort, sort] boolSort
+  
+  x  <- mkFreshConst "x" sort
+  y  <- mkFreshConst "y" sort
+  qx <- toApp x
+  qy <- toApp y
+  eqType <- mkApp equivFunc [x, y]
+  eqBody <- mkEq x y
+  assert =<< mkForallConst [] [qx, qy] =<< mkEq eqType eqBody
+  
+  saveEquivFunction sort equivFunc
+
+  return Z3Type{..}
+                
+
 {- | Construct the declaration of an equivalence checking function
      and record it in the proof environment.
 
@@ -153,26 +173,29 @@ mkConstr name fields = do
   mkConstructor constName recognizer accessors
 
 -- | For a given algebraic type, construct a sort for in Z3-land
--- along with associated data constructors and an equivalence function
+-- along with associated data constructors and an equivalence function.
+-- Uses 'mkEquivFuncDecl' and 'mkEquivFuncDef'
 mkZ3Constructors :: Sort -- ^ Z3's Boolean sort
                  -> String -- ^ Name of the type
                  -> [(String, [(String, Maybe Sort)])]
                  -- ^ Data constructors with fields
-                 -> ProofM (Sort, [Z3Constructor])
+                 -> ProofM (Z3Type, [Z3Constructor])
                  -- ^ The generated Z3 sort and information about its data constructors
 mkZ3Constructors bool name fields = do
   sort <- mkSort name fields
   equivFunc <- mkEquivFuncDecl bool sort name
   mkEquivFuncDef sort fields equivFunc
-  --  equivFunc <- mkEquivFunc2 bool sort name fields
   let z3Type = Z3Type{..}
   constructors <- getDatatypeSortConstructors sort
-  return (sort, zip3 constructors (map fst fields) (repeat z3Type))
+  return (z3Type, zip3 constructors (map fst fields) (repeat z3Type))
 
+-- | For a group of potentially mutually recursive algebraic types,
+-- declare and define equivalence functions for each.  Uses
+-- 'mkEquivFuncDecl' and 'mkEquivFuncDef'
 mkMutualZ3Constructors :: Sort
                        -> [String]
                        -> [[(String, [(String, Either Int Sort)])]]
-                       -> ProofM [(Sort, [Z3Constructor])]
+                       -> ProofM [(Z3Type, [Z3Constructor])]
 mkMutualZ3Constructors bool names fieldsSet = do
   sorts <- mkMutualSorts names fieldsSet
   equivFuncs <- zipWithM (mkEquivFuncDecl bool) sorts names
@@ -183,27 +206,28 @@ mkMutualZ3Constructors bool names fieldsSet = do
   sequence_ $ zipWith3 mkEquivFuncDef sorts fieldsSet' equivFuncs
   constructorsSet <- T.sequence $ map getDatatypeSortConstructors sorts
   let z3Types = zipWith (\s eq -> Z3Type s eq) sorts equivFuncs
-      merge srt cs fs z3t = (srt, zipWith3 (,,) cs (map fst fs) (repeat z3t))
-  return $ zipWith4 merge sorts constructorsSet fieldsSet z3Types
+      merge cs fs z3t = (z3t, zip3 cs (map fst fs) (repeat z3t))
+  return $ zipWith3 merge constructorsSet fieldsSet z3Types
 
 -- | Initialize Z3 types, etc. that will be made available during
 --   execution of the proof monad
 initialEnv :: ProofM ProofEnv
 initialEnv = do
   s_Bool <- mkBoolSort
-  s_Int <- mkIntSort
-  s_Word16 <- mkBvSort 16
-  s_Word32 <- mkBvSort 32
-  let s_Word = s_Word32
-  s_Word64 <- mkBvSort 64
-  let s_Integer = s_Int
-  s_ShortByteString <- mkStringSort  
-  let s_ByteString = s_ShortByteString
-  let s_Float = s_Bool -- FIXME
-      s_Double = s_Bool -- FIXME
-      s_InstructionMetadata = s_Bool
-      s_List_Tup2_ShortByteString_MDRef_MDNode = s_Bool
-      s_Metadata = s_Bool
+  t_Bool <- mkEquivPrimFunc s_Bool "Bool" s_Bool
+  t_Int <- mkEquivPrimFunc s_Bool "Int" =<< mkIntSort
+  let t_Integer = t_Int
+  t_Word16 <- mkEquivPrimFunc s_Bool "Word16" =<< mkBvSort 16
+  t_Word32 <- mkEquivPrimFunc s_Bool "Word32" =<< mkBvSort 32
+  t_Word <- mkEquivPrimFunc s_Bool "Word" =<< mkBvSort 32
+  t_Word64 <- mkEquivPrimFunc s_Bool "Word64" =<< mkBvSort 64
+  t_ShortByteString <- mkEquivPrimFunc s_Bool "ShortByteString" =<< mkStringSort  
+  let t_ByteString = t_ShortByteString
+  let t_Float = t_Bool -- FIXME
+      t_Double = t_Bool -- FIXME
+      t_InstructionMetadata = t_Bool
+      t_List_Tup2_ShortByteString_MDRef_MDNode = t_Bool
+      t_Metadata = t_Bool -- FIXME
   $(initEnv "ProofEnv" $
     map (z3Constructors [| s_Bool |]) [ [t| A.Visibility |]
                                       , [t| A.FloatingPointType |]
