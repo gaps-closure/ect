@@ -227,5 +227,4 @@ logSMTLIB s = ProofM $ lift $ lift $ lift $ tell [LogSMTLIB s]
 logInference :: [PID] -> Prop -> String -> ProofM ()
 logInference infPremises infConclusion infComment =
   ProofM $ lift $ lift $ lift $ tell [LogInference{..}]
-
-
+    

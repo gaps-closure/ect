@@ -15,14 +15,14 @@ import Data.ByteString.UTF8 (toString)
 import Data.ByteString.Short (ShortByteString, fromShort)
 import qualified Data.ByteString.Char8 as C
 import Data.Word ( Word32, Word64 )
---import qualified Data.Map.Strict as M
---import qualified Data.Set as S
+import qualified Data.Map.Strict as M
+import qualified Data.Set as S
 import Data.List (intercalate)
 
-import Control.Monad ( unless ) --, zipWithM_ )
+import Control.Monad ( unless, zipWithM_ )
 -- import Control.Monad.IO.Class ( liftIO )
--- import Control.Monad.Trans.State.Strict ( get, gets, put )
--- import Control.Monad.Trans.Class ( lift )
+import Control.Monad.Trans.State.Strict ( get, gets, put )
+import Control.Monad.Trans.Class ( lift )
 
 
 --import qualified LLVM.Module as M
@@ -42,30 +42,27 @@ import Z3.Monad
 import ProofM
 import ProofEnv
 
+-- | Return the object that may be named
+unName :: A.Named a -> a
+unName (A.Do x) = x
+unName (_ A.:= x) = x
+
+-- | Turn a 'Name' into a reasonable string
+showName :: A.Name -> String
+showName (A.UnName x) = show x
+showName (A.Name s) = toString $ fromShort s
+
+-- | Print a named object with the given show-like function
+showNamed :: (a -> String) -> A.Named a -> String
+showNamed s (nm A.:= x) = "%" ++ showName nm ++ " = " ++ s x
+showNamed s (A.Do x) = s x
+
 -- | Typeclass for proving the equivalence of pairs of LLVM (Haskell)
 -- objects.
 class ProveEquiv a where
   -- | Prove the equivalence of two objects, first by checking in
   -- Haskell, then generating a proof in Z3
   proveEquiv :: a -> a -> ProofM Equiv
-
-
-
-
--- | Return the object that may be named
-unName :: A.Named a -> a
-unName (A.Do x) = x
-unName (_ A.:= x) = x
-
-showName :: A.Name -> String
-showName (A.UnName x) = show x
-showName (A.Name s) = toString $ fromShort s
-
-showNamed :: (a -> String) -> A.Named a -> String
-showNamed s (nm A.:= x) = "%" ++ showName nm ++ " = " ++ s x
-showNamed s (A.Do x) = s x
-
-
 
 {-
 -- | Run Z3 to check the current assertions and return an equivance it was
@@ -701,14 +698,6 @@ instance ProveEquiv (Maybe A.Constant) where
   proveEquiv = proveEquivMaybe
     c_MC_Just_Constant c_MC_Nothing_Constant "Maybe Constant"
 
--- FIXME: Handle basic blocks.  This is causing things to fail now
-instance ProveEquiv A.BasicBlock where
-  proveEquiv _ _ =
-    proveEquivGeneral c_BB_BasicBlock [] "basic block matched trivially"
-
---instance ProveEquiv [A.BasicBlock] where
---  proveEquiv = proveEquivCFG
-
 {-
 instance ProveEquiv (A.MDRef A.MDNode) where
   proveEquiv _ _ = proveEquiv True True -- FIXME: add s_MDRef_MDNode to env (currently bool)
@@ -881,8 +870,20 @@ proveEquivGeneral getCons fields comment = do
 
   return equiv
 
+{-|
+
+Assert an equivalence rather than asking Z3 to establish it.  Generates
+something like
+
+@
+(declare-fun p15y () List_BasicBlock)
+(declare-fun p15x () List_BasicBlock)
+(assert (equiv-List_BasicBlock!210 p15x p15y))
+@
+
+-}
 assertEquiv
-  :: (ProofEnv -> Z3Type)
+  :: (ProofEnv -> Z3Type) -- ^ The type of objects to set equivalent
   -> ProofM Equiv
 assertEquiv getType = do
   Z3Type{..} <- fromEnv getType
@@ -894,7 +895,7 @@ assertEquiv getType = do
 
   assert z3equiv
 
-  return Equiv{..}
+  return Equiv{..}  
   
 
 instance ProveEquiv A.Global where
@@ -920,7 +921,8 @@ instance ProveEquiv A.Global where
                          , proveField A.alignment
                          , proveField A.garbageCollectorName
                          , proveField A.prefix
-                         , assertEquiv t_List_BasicBlock -- basicBlocks
+                         -- , assertEquiv t_List_BasicBlock -- basicBlocks
+                         , proveEquivCFG (A.basicBlocks f1) (A.basicBlocks f2)
                          , proveField A.personalityFunction
                          , assertEquiv t_Bool -- metadata
                          ]
@@ -930,3 +932,134 @@ instance ProveEquiv A.Global where
     where proveField record = proveEquiv (record f1) (record f2)
 
   proveEquiv _ _ = proofFail "Function"
+
+
+------------------------------------
+-- CFG isomorphism proof machinery
+
+-- | A map from basic block names to actual blocks
+type BBMap = M.Map A.Name A.BasicBlock
+
+-- | Convert a list of basic blocks to a map keyed to their names
+makeBBMap :: [A.BasicBlock] -> BBMap
+makeBBMap bbs = M.fromList $ map tokv bbs
+  where tokv bb@(A.BasicBlock n _ _) = (n, bb)
+
+-- | Return the list of named successor blocks for a block
+bbSuccessors :: A.BasicBlock -> [A.Name]
+bbSuccessors (A.BasicBlock _ _ term) = case unName term of
+  A.Ret {..}        -> []
+  A.CondBr {..}     -> [ trueDest, falseDest ]
+  A.Br {..}         -> [ dest ]
+  A.Switch {..}     -> defaultDest : map snd dests -- FIXME: assumes equal consts
+  A.IndirectBr {..} -> possibleDests
+  t                 -> error $ "unsupported terminator " ++ show t
+
+proveEquivCFG :: [A.BasicBlock] -> [A.BasicBlock] -> ProofM Equiv
+proveEquivCFG cfg1@(A.BasicBlock n1 _ _:_) cfg2@(A.BasicBlock n2 _ _:_) = do
+
+  -- Try to establish an isomorphism among the basic blocks
+   resetMatching
+   visit n1 n2
+
+   matchedPairs <- M.assocs <$> getMatching
+   logString $ "basic block matching " ++
+     intercalate ", "
+        (map (\(a,b) -> showName a ++ "-" ++ showName b) matchedPairs)
+
+   -- A list of matched pairs of basic blocks
+   bbs <- mapM (\(l, r) -> (,) <$> (bblookup bbm1 l) <*> (bblookup bbm2 r)) matchedPairs
+
+   pairedEquivs <- mapM (uncurry proveEquiv) bbs
+
+   logSMTLIB =<< solverToString
+
+   -- FIXME: turn the matched basic blocks into an equivalence that
+   -- can be returned
+
+   proofFail "CFG"
+
+   -- Compare pairs of matched basic blocks
+{-   matchingNames <- M.assocs <$> getMatching
+   cfg1' <- mapM (\(n, _) -> bblookup bbm1 n) $ matchingNames
+   cfg2' <- mapM (\(_, n) -> bblookup bbm2 n) $ matchingNames
+   proveEquivList c_Cons_BasicBlock c_Nil_BasicBlock "BasicBlock" cfg1' cfg2'
+-}
+
+  where
+    bbm1 = makeBBMap cfg1
+    bbm2 = makeBBMap cfg2
+    bblookup m n = case M.lookup n m of
+      Just b -> return b
+      Nothing -> error $ "lookup of bb " ++ showName n ++ " failed"
+
+    visit nbb1 nbb2 = do
+      addMatch nbb1 nbb2
+      visited <- testVisiting nbb1
+      unless visited $ do
+        setVisiting nbb1
+        bb1 <- bblookup bbm1 nbb1
+        bb2 <- bblookup bbm2 nbb2
+        let successors1 = bbSuccessors bb1
+            successors2 = bbSuccessors bb2
+        unless (length successors1 == length successors2) $
+           proofFail $ "basic blocks " ++ show nbb1 ++ " and " ++
+               show nbb2 ++ " have a different number of successors"
+        zipWithM_ visit successors1 successors2
+
+proveEquivCFG _ _ = proofFail "[BasicBlock] not equivalent (different lengths)"
+
+instance ProveEquiv A.BasicBlock where
+  proveEquiv (A.BasicBlock n1 instr1 term1) (A.BasicBlock n2 instr2 term2) = do
+    -- FIXME: actually compare the instructions and
+    -- terminals (rewritten) that appear here
+    fields <- T.sequence [ assertEquiv t_Name
+                         , assertEquiv t_List_Named_Instruction
+                         , assertEquiv t_Named_Terminator
+                         ]
+    proveEquivGeneral c_BB_BasicBlock fields "BasicBlock"
+
+-- | Reset the @matching@, @inverse@, and @visiting@ sets/maps
+resetMatching :: ProofM ()
+resetMatching = do
+  ProofState{..} <- ProofM $ lift get
+  ProofM $ lift $ put $ ProofState { matching = M.empty
+                                   , inverse = M.empty
+                                   , visiting = S.empty
+                                   , .. }
+    
+-- | Check whether the given name is in the @visiting@ set
+testVisiting :: A.Name -> ProofM Bool
+testVisiting n = ProofM $ lift $ gets $ (S.member n) . visiting
+  --EitherState $ \e -> (Right $ S.member n (visiting e), e)
+
+-- | Add a given name to the @visiting@ set
+setVisiting :: A.Name -> ProofM ()
+setVisiting n = do
+  ProofState{..} <- ProofM $ lift get
+  ProofM $ lift $ put $ ProofState { visiting = S.insert n visiting, .. }
+
+-- | Return the @matching@ map
+getMatching :: ProofM NameMap
+getMatching = ProofM $ lift $ gets matching
+
+-- | Add a match to the @matching@ and @inverse@ maps; fail if it contradicts
+-- an existing one
+addMatch :: A.Name -> A.Name -> ProofM ()
+addMatch n1 n2 = do
+  ProofState{..} <- ProofM $ lift get
+  case M.lookup n1 matching of
+    Just n2' | n2' /= n2 -> proofFail $
+      "tried to match " ++ showName n1 ++ "-" ++
+      showName n2 ++ " but already have " ++ showName n1 ++ "-" ++ showName n2'
+    _ -> return ()
+  case M.lookup n2 inverse of
+    Just n1' | n1' /= n1 -> proofFail $
+      "tried to match " ++ showName n1 ++ "-" ++
+      showName n2 ++ " but already have " ++ showName n1' ++ "-" ++ showName n2
+    _ -> return ()
+  -- logString $ "addMatch " ++ showName n1 ++ " - " ++ showName n2
+  ProofM $ lift $ put $ ProofState { matching = M.insert n1 n2 matching
+                                   , inverse = M.insert n2 n1 inverse
+                                   , .. }
+

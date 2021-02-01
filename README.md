@@ -62,6 +62,8 @@ The program expects three filenames: the refactored .ll file and two partitioned
 
 ```
 stack run -- examples/example1/example1-refactored-9.ll examples/example1/example1-orange-9.ll examples/example1/example1-purple-9.ll
+stack run -- --entry-function ewma_main examples/example1/example1-refactored-9.ll examples/example1/example1-purple-9.ll examples/example1/example1-orange-9.ll
+stack run -- --entry-function ewma_main examples/example1/example1-refactored-9.ll examples/example1/example1-purple-9-newbb3.ll examples/example1/example1-orange-9.ll
 ```
 
 ## Running HLint
