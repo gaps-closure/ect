@@ -39,7 +39,7 @@ import qualified LLVM.AST.Float as A
 import Data.ByteString.Short (ShortByteString)
 --import Data.ByteString (ByteString)
 import Data.Word (Word32)
-import Data.List (zipWith4)
+--import Data.List (zipWith4)
 import Control.Monad (zipWithM)
 
 mkEquivPrimFunc :: Sort -- ^ Z3's Boolean sort
@@ -77,7 +77,8 @@ mkEquivFuncDecl :: Sort -- ^ Z3's Boolean sort
                 -> String -- ^ Name of the type
                 -> ProofM FuncDecl
 mkEquivFuncDecl bool sort name = do
-  equivDecl <- mkFreshFuncDecl ("equiv-" ++ name) [sort, sort] bool
+  equivSymbol <- mkStringSymbol $ "equiv-" ++ name
+  equivDecl <- mkRecFuncDecl equivSymbol [sort, sort] bool
   saveEquivFunction sort equivDecl
   return equivDecl
 
@@ -110,9 +111,9 @@ mkEquivFuncDef :: Sort -- ^ Sort being compared
 mkEquivFuncDef sort ctors equivFunc = do 
   x  <- mkFreshConst "x" sort
   y  <- mkFreshConst "y" sort
-  qx <- toApp x
-  qy <- toApp y
-  eqType <- mkApp equivFunc [x, y]
+--  qx <- toApp x
+--  qy <- toApp y
+--  eqType <- mkApp equivFunc [x, y]
 
   recognizers <- getDatatypeSortRecognizers sort
   accessors <- getDatatypeSortConstructorAccessors sort
@@ -135,8 +136,10 @@ mkEquivFuncDef sort ctors equivFunc = do
 
   ctorPredicates <- sequence $ zipWith3 ctorEquiv ctors recognizers accessors
   equivBody <- mkOr ctorPredicates
+
+  addRecDef equivFunc [x, y] equivBody
     
-  assert =<< mkForallConst [] [qx, qy] =<< mkEq eqType equivBody
+  -- assert =<< mkForallConst [] [qx, qy] =<< mkEq eqType equivBody
 
   return ()
 

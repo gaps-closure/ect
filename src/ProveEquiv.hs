@@ -591,6 +591,15 @@ instance ProveEquiv A.Type where -- FIXME: partial definition
 -- FIXME: this needs to be a lot more clever.  The equivalence passed back
 -- should be something like "the things these names refer to were also shown
 -- to be equivalent"
+--
+-- FIXME: This should check the equivalence mapping because it may be
+-- a name internal to a function (e.g., a basic block or an instruction)
+-- and we want to verify it's consistent.  Both check the equivalence
+-- map in the state and add Z3 assertions about the function
+--
+-- This should have "addMatch" capability:
+-- Add to the proof state matching maps and add something in Z3 asserting
+-- that these two names are equivalent under the forward/backward functions.
 instance ProveEquiv A.Name where
   proveEquiv (A.Name s1) (A.Name s2) = do
     e <- proveEquiv s1 s2
@@ -895,7 +904,22 @@ assertEquiv getType = do
 
   assert z3equiv
 
-  return Equiv{..}  
+  return Equiv{..}
+
+{-
+vacuousEquiv :: (ProofEnv -> Z3Type) -> ProofM Equiv
+vacuousEquiv getType = do
+  Z3Type{..} <- fromEnv getType
+  equivID <- getNextPID
+  z3v1 <- mkPropConst equivID "x" sort
+  z3v2 <- mkPropConst equivID "y" sort
+
+  t <- mkTrue  
+  z3equiv <- mkEq t t
+
+  return Equiv{..}
+
+-}
   
 
 instance ProveEquiv A.Global where
@@ -926,6 +950,7 @@ instance ProveEquiv A.Global where
                          , proveField A.personalityFunction
                          , assertEquiv t_Bool -- metadata
                          ]
+    -- logSMTLIB =<< solverToString              
     proveEquivGeneral c_G_Function fields $
       "functions " ++ (showName $ A.name f1) ++ " and " ++
       (showName $ A.name f2) ++ " equivalent"
@@ -962,6 +987,10 @@ proveEquivCFG cfg1@(A.BasicBlock n1 _ _:_) cfg2@(A.BasicBlock n2 _ _:_) = do
    resetMatching
    visit n1 n2
 
+   -- Dump the matching information (both forward and back) into Z3-land
+   -- and add assertions that say the back(forward n) = n for all n
+   -- (enumerate them explicitly)
+   
    matchedPairs <- M.assocs <$> getMatching
    logString $ "basic block matching " ++
      intercalate ", "
@@ -971,13 +1000,25 @@ proveEquivCFG cfg1@(A.BasicBlock n1 _ _:_) cfg2@(A.BasicBlock n2 _ _:_) = do
    bbs <- mapM (\(l, r) -> (,) <$> (bblookup bbm1 l) <*> (bblookup bbm2 r)) matchedPairs
 
    pairedEquivs <- mapM (uncurry proveEquiv) bbs
+   blocksEquiv <- mkAnd (map z3equiv pairedEquivs)
 
-   logSMTLIB =<< solverToString
+   Z3Type{..} <- fromEnv t_List_BasicBlock
+     
+   equivID <- getNextPID
+   z3v1 <- mkPropConst equivID "x" sort
+   z3v2 <- mkPropConst equivID "y" sort
+   bbEquiv <- mkApp equivFunc [z3v1, z3v2]
+
+   z3equiv <- mkEq bbEquiv blocksEquiv
+
+   assert z3equiv
+
+  --   logSMTLIB =<< solverToString
+   
+   return Equiv{..}
 
    -- FIXME: turn the matched basic blocks into an equivalence that
    -- can be returned
-
-   proofFail "CFG"
 
    -- Compare pairs of matched basic blocks
 {-   matchingNames <- M.assocs <$> getMatching
@@ -1013,6 +1054,9 @@ instance ProveEquiv A.BasicBlock where
   proveEquiv (A.BasicBlock n1 instr1 term1) (A.BasicBlock n2 instr2 term2) = do
     -- FIXME: actually compare the instructions and
     -- terminals (rewritten) that appear here
+    
+    -- both check the matching function in the proof state
+    -- and exhibit Z3 assertions that the names match up
     fields <- T.sequence [ assertEquiv t_Name
                          , assertEquiv t_List_Named_Instruction
                          , assertEquiv t_Named_Terminator
