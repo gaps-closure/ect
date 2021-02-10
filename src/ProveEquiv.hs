@@ -928,29 +928,20 @@ instance ProveEquiv A.Global where
                          , proveField A.visibility
                          , proveField A.dllStorageClass
                          , proveField A.callingConvention
-                         
-                         --, proveField A.returnAttributes -- This breaks it
-                         , assertEquiv t_List_ParameterAttribute -- for returnAttributes
-                         
-                           -- , proveField A.returnType -- This breaks it
-                         , assertEquiv t_Type -- for returnType
-                         
-                         , assertEquiv t_Name -- FIXME
-
-                         -- , proveField A.parameters -- This breaks it
-                         , assertEquiv t_Tup2_List_Parameter_Bool -- for parameters
-                         , assertEquiv t_List_Either_GroupID_FunctionAttribute -- for functionAttributes
+                         , proveField A.returnAttributes
+                         , proveField A.returnType                         
+                         , assertEquiv t_Name -- FIXME: ignore function name?
+                         , proveField A.parameters
+                         , proveField A.functionAttributes
                          , proveField A.section                         
                          , proveField A.comdat
                          , proveField A.alignment
                          , proveField A.garbageCollectorName
                          , proveField A.prefix
-                         -- , assertEquiv t_List_BasicBlock -- basicBlocks
                          , proveEquivCFG (A.basicBlocks f1) (A.basicBlocks f2)
                          , proveField A.personalityFunction
-                         , assertEquiv t_Bool -- metadata
+                         , assertEquiv t_Bool -- ignore metadata
                          ]
-    -- logSMTLIB =<< solverToString              
     proveEquivGeneral c_G_Function fields $
       "functions " ++ (showName $ A.name f1) ++ " and " ++
       (showName $ A.name f2) ++ " equivalent"
@@ -1061,7 +1052,8 @@ instance ProveEquiv A.BasicBlock where
                          , assertEquiv t_List_Named_Instruction
                          , assertEquiv t_Named_Terminator
                          ]
-    proveEquivGeneral c_BB_BasicBlock fields "BasicBlock"
+    proveEquivGeneral c_BB_BasicBlock fields $
+      "BasicBlock " ++ showName n1 ++ " " ++ showName n2
 
 -- | Reset the @matching@, @inverse@, and @visiting@ sets/maps
 resetMatching :: ProofM ()
