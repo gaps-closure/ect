@@ -8,6 +8,101 @@ of LLVM objects with the Z3 Theorem Prover
 
 -}
 
+{- All monomorphic ProveEquiv instances
+
+  -- primitive types: don't template, unique behavior --
+
+  Bool
+  Word32
+  Word64
+  Word
+  Integer -- TODO
+  ByteString -- TODO
+  ShortByteString
+
+  -- special cases: don't template, unique behavior --
+
+  Name
+  (NonEmpty Name) -- TODO
+  BasicBlock
+  Global
+  InstructionMetadata -- TODO: assertEquiv
+  Metadata -- TODO: assertEquiv
+
+  -- LLVM types: use template-haskell (example: see instance for Constant) --
+
+  IntegerPredicate
+  FloatingPointPredicate
+  Linkage
+  Visibility
+  StorageClass
+  CallingConvention
+  ParameterAttribute
+  AddrSpace
+  Type
+  Parameter
+  GroupID
+  FunctionAttribute
+  FastMathFlags
+  InlineAssembly
+  FloatingPointType
+  RMWOperation
+  MemoryOrdering
+  Dialect
+  SynchronizationScope
+  TailCallKind
+  LandingPadClause
+  SomeFloat
+  Operand
+  Constant
+  Instruction
+  Terminator
+
+  -- Maybe types: use template-haskell (example: see instance for Word32) --
+
+  (Maybe Word32)
+  (Maybe ShortByteString)
+  (Maybe StorageClass)
+  (Maybe Operand)
+  (Maybe TailCallKind)
+  (Maybe Atomicity)
+  (Maybe Name)
+  (Maybe Constant)
+
+  -- List types: use template-haskell (example: see instance for Word32) --
+
+  [Word32]
+  [Parameter]
+  [ParameterAttribute]
+  [Constant]
+  [Operand]
+  [LandingPadClause]
+  [Name]
+  [Type]
+  [Either GroupID FunctionAttribute]
+  [(Constant, Name)]
+  [(Operand, Name)]
+  [(Operand, [ParameterAttribute])]
+
+  -- Tuple types: use template-haskell (example: see instance for ([Parameter], Bool)) --
+
+  (Constant, Name)
+  (Operand, Name)
+  ([Parameter], Bool)
+  (Operand, [ParameterAttribute])
+  (SynchronizationScope, MemoryOrdering)
+
+  -- Either types: could template, not many LOC (see Either GroupID FunctionAttribute) --
+
+  (Either GroupID FunctionAttribute)
+  (Either InlineAssembly Operand)
+
+  -- Named types: could template, not many LOC (see Named Instruction) --
+
+  (Named Instruction)
+  (Named Terminator)
+-}
+
 module ProveEquiv where
 
 import qualified Data.Traversable as T
@@ -36,6 +131,8 @@ import qualified LLVM.AST.ParameterAttribute as A
 import qualified LLVM.AST.FunctionAttribute as FA
 import qualified LLVM.AST.AddrSpace as A
 import qualified LLVM.AST.Constant as A
+import qualified LLVM.AST.IntegerPredicate as A
+import qualified LLVM.AST.FloatingPointPredicate as FPA
 
 import Z3.Monad
 
@@ -259,7 +356,7 @@ bbSuccessors (A.BasicBlock _ _ term) = case unName term of
   A.Ret {..}        -> []
   A.CondBr {..}     -> [ trueDest, falseDest ]
   A.Br {..}         -> [ dest ]
-  A.Switch {..}     -> defaultDest : map snd dests -- FIXME: assumes equal consts
+  A.Switch {..}     -> defaultDest : map snd dests
   A.IndirectBr {..} -> possibleDests
   t                 -> error $ "unsupported terminator " ++ show t
 
@@ -417,6 +514,9 @@ instance ProveEquiv (Maybe Word32) where
   proveEquiv = proveEquivMaybe
     c_MW_Just_Word32 c_MW_Nothing_Word32 "Word32"
 
+instance ProveEquiv [Word32] where
+  proveEquiv = proveEquivList c_Cons_Word32 c_Nil_Word32 "Word32"
+
 instance ProveEquiv Word64 where
   proveEquiv = proveEquivPrimitive t_Word64 (\x -> mkBitvector 64 (toInteger x)) "Word64"
 
@@ -432,6 +532,44 @@ instance ProveEquiv (Maybe ShortByteString) where
 
 ------------------------------------
 -- LLVM types making up a Function
+
+instance ProveEquiv A.IntegerPredicate where
+  proveEquiv a b
+    | a == b    = proveEquivGeneral c [] (show a ++ " IntegerPredicate equivalent")
+    | otherwise = proofFail "IntegerPredicate"
+    where c = case a of
+                A.EQ  -> c_IP_EQ
+                A.NE  -> c_IP_NE
+                A.UGT -> c_IP_UGT
+                A.UGE -> c_IP_UGE
+                A.ULT -> c_IP_ULT
+                A.ULE -> c_IP_ULE
+                A.SGT -> c_IP_SGT
+                A.SGE -> c_IP_SGE
+                A.SLT -> c_IP_SLT
+                A.SLE -> c_IP_SLE
+
+instance ProveEquiv FPA.FloatingPointPredicate where
+  proveEquiv a b
+    | a == b    = proveEquivGeneral c [] (show a ++ " FloatingPointPredicate equivalent")
+    | otherwise = proofFail "FloatingPointPredicate"
+    where c = case a of
+                FPA.False -> c_FPP_False
+                FPA.OEQ   -> c_FPP_OEQ
+                FPA.OGT   -> c_FPP_OGT
+                FPA.OGE   -> c_FPP_OGE
+                FPA.OLT   -> c_FPP_OLT
+                FPA.OLE   -> c_FPP_OLE
+                FPA.ONE   -> c_FPP_ONE
+                FPA.ORD   -> c_FPP_ORD
+                FPA.UNO   -> c_FPP_UNO
+                FPA.UEQ   -> c_FPP_UEQ
+                FPA.UGT   -> c_FPP_UGT
+                FPA.UGE   -> c_FPP_UGE
+                FPA.ULT   -> c_FPP_ULT
+                FPA.ULE   -> c_FPP_ULE
+                FPA.UNE   -> c_FPP_UNE
+                FPA.True  -> c_FPP_True
 
 instance ProveEquiv A.Linkage where
   proveEquiv a b
@@ -469,7 +607,7 @@ instance ProveEquiv A.StorageClass where
 
 instance ProveEquiv (Maybe A.StorageClass) where
   proveEquiv = proveEquivMaybe
-    c_MSC_Just_StorageClass c_MSC_Nothing_StorageClass "Maybe StorageClass"
+    c_MSC_Just_StorageClass c_MSC_Nothing_StorageClass "StorageClass"
 
 instance ProveEquiv A.CallingConvention where
   proveEquiv (A.Numbered w1) (A.Numbered w2) = do
@@ -565,7 +703,7 @@ instance ProveEquiv A.ParameterAttribute where
 
 instance ProveEquiv [A.ParameterAttribute] where
   proveEquiv = proveEquivList
-    c_Cons_ParameterAttribute c_Nil_ParameterAttribute "List ParameterAttribute"
+    c_Cons_ParameterAttribute c_Nil_ParameterAttribute "ParameterAttribute"
 
 instance ProveEquiv A.AddrSpace where
   proveEquiv (A.AddrSpace a1) (A.AddrSpace a2) = do
@@ -588,26 +726,22 @@ instance ProveEquiv A.Type where -- FIXME: partial definition
 
   proveEquiv _ _ = proofFail "Type equivalence failed"
 
--- FIXME: this needs to be a lot more clever.  The equivalence passed back
--- should be something like "the things these names refer to were also shown
--- to be equivalent"
---
--- FIXME: This should check the equivalence mapping because it may be
--- a name internal to a function (e.g., a basic block or an instruction)
--- and we want to verify it's consistent.  Both check the equivalence
--- map in the state and add Z3 assertions about the function
---
--- This should have "addMatch" capability:
 -- Add to the proof state matching maps and add something in Z3 asserting
 -- that these two names are equivalent under the forward/backward functions.
 instance ProveEquiv A.Name where
-  proveEquiv (A.Name s1) (A.Name s2) = do
-    e <- proveEquiv s1 s2
+  proveEquiv n1@(A.Name _) n2@(A.Name _) = do
+    assertMatch c_N_Name n1 n2
+    e <- assertEquiv t_ShortByteString
     proveEquivGeneral c_N_Name [e] "Name equivalent"
-  proveEquiv (A.UnName w1) (A.UnName w2) = do
-    e <- proveEquiv w1 w2
+  proveEquiv n1@(A.UnName _) n2@(A.UnName _) = do
+    assertMatch c_N_UnName n1 n2
+    e <- assertEquiv t_Word
     proveEquivGeneral c_N_UnName [e] "UnName equivalent"
   proveEquiv _ _ = proofFail "Name != UnName"
+
+instance ProveEquiv (Maybe A.Name) where
+  proveEquiv = proveEquivMaybe
+    c_MN_Just_Name c_MN_Nothing_Name "Name"
 
 instance ProveEquiv A.Parameter where
   proveEquiv (A.Parameter t1 n1 pa1) (A.Parameter t2 n2 pa2) = do
@@ -618,7 +752,7 @@ instance ProveEquiv A.Parameter where
 
 instance ProveEquiv [A.Parameter] where
   proveEquiv = proveEquivList
-    c_Cons_Parameter c_Nil_Parameter "List Parameter"
+    c_Cons_Parameter c_Nil_Parameter "Parameter"
 
 instance ProveEquiv ([A.Parameter], Bool) where
   proveEquiv = proveEquivTuple
@@ -698,14 +832,93 @@ instance ProveEquiv [Either FA.GroupID FA.FunctionAttribute] where
   proveEquiv = proveEquivList
     c_Cons_Either_GroupID_FunctionAttribute
     c_Nil_Either_GroupID_FunctionAttribute
-    "List FunctionAttribute"
+    "FunctionAttribute"
 
+-- FIXME
 instance ProveEquiv A.Constant where
-  proveEquiv _ _ = proveEquiv True True -- FIXME: add s_Constant to env (currently bool)
+  proveEquiv _ _ = assertEquiv t_Constant
+  -- proveEquiv a b = case (a, b) of
+  --   ((A.Int a1 a2), (A.Int b1 b2)) -> pg c_C_Int =<< p [(a1, b1), (a2, b2)]
+  --   ((A.Float a1), (A.Float b1)) -> pg c_C_Float =<< p [(a1, b1)]
+  --   ((A.Null a1), (A.Null b1)) -> pg c_C_Null =<< p [(a1, b1)]
+  --   ((A.AggregateZero a1), (A.AggregateZero b1)) -> pg c_C_AggregateZero =<< p [(a1, b1)]
+  --   ((A.Struct a1 a2 a3), (A.Struct b1 b2 b3)) -> pg c_C_Struct =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.Array a1 a2), (A.Array b1 b2)) -> pg c_C_Array =<< p [(a1, b1), (a2, b2)]
+  --   ((A.Vector a1), (A.Vector b1)) -> pg c_C_Vector =<< p [(a1, b1)]
+  --   ((A.Undef a1), (A.Undef b1)) -> pg c_C_Undef =<< p [(a1, b1)]
+  --   ((A.BlockAddress a1 a2), (A.BlockAddress b1 b2)) -> pg c_C_BlockAddress =<< p [(a1, b1), (a2, b2)]
+  --   ((A.GlobalReference a1 a2), (A.GlobalReference b1 b2)) -> pg c_C_GlobalReference =<< p [(a1, b1), (a2, b2)]
+  --   ((A.TokenNone), (A.TokenNone)) -> pg c_C_TokenNone []
+  --   ((A.Add a1 a2 a3 a4), (A.Add b1 b2 b3 b4)) -> pg c_C_Add =<< p [(a1, b1), (a2, b2), (a3, b3), (a4, b4)]
+  --   ((A.FAdd a1 a2), (A.FAdd b1 b2)) -> pg c_C_FAdd =<< p [(a1, b1), (a2, b2)]
+  --   ((A.Sub a1 a2 a3 a4), (A.Sub b1 b2 b3 b4)) -> pg c_C_Sub =<< p [(a1, b1), (a2, b2), (a3, b3), (a4, b4)]
+  --   ((A.FSub a1 a2), (A.FSub b1 b2)) -> pg c_C_FSub =<< p [(a1, b1), (a2, b2)]
+  --   ((A.Mul a1 a2 a3 a4), (A.Mul b1 b2 b3 b4)) -> pg c_C_Mul =<< p [(a1, b1), (a2, b2), (a3, b3), (a4, b4)]
+  --   ((A.FMul a1 a2), (A.FMul b1 b2)) -> pg c_C_FMul =<< p [(a1, b1), (a2, b2)]
+  --   ((A.UDiv a1 a2 a3), (A.UDiv b1 b2 b3)) -> pg c_C_UDiv =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.SDiv a1 a2 a3), (A.SDiv b1 b2 b3)) -> pg c_C_SDiv =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.FDiv a1 a2), (A.FDiv b1 b2)) -> pg c_C_FDiv =<< p [(a1, b1), (a2, b2)]
+  --   ((A.URem a1 a2), (A.URem b1 b2)) -> pg c_C_URem =<< p [(a1, b1), (a2, b2)]
+  --   ((A.SRem a1 a2), (A.SRem b1 b2)) -> pg c_C_SRem =<< p [(a1, b1), (a2, b2)]
+  --   ((A.FRem a1 a2), (A.FRem b1 b2)) -> pg c_C_FRem =<< p [(a1, b1), (a2, b2)]
+  --   ((A.Shl a1 a2 a3 a4), (A.Shl b1 b2 b3 b4)) -> pg c_C_Shl =<< p [(a1, b1), (a2, b2), (a3, b3), (a4, b4)]
+  --   ((A.LShr a1 a2 a3), (A.LShr b1 b2 b3)) -> pg c_C_LShr =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.AShr a1 a2 a3), (A.AShr b1 b2 b3)) -> pg c_C_AShr =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.And a1 a2), (A.And b1 b2)) -> pg c_C_And =<< p [(a1, b1), (a2, b2)]
+  --   ((A.Or a1 a2), (A.Or b1 b2)) -> pg c_C_Xor =<< p [(a1, b1), (a2, b2)]
+  --   ((A.Xor a1 a2), (A.Xor b1 b2)) -> pg c_C_Xor =<< p [(a1, b1), (a2, b2)]
+  --   ((A.GetElementPtr a1 a2 a3), (A.GetElementPtr b1 b2 b3)) -> pg c_C_GetElementPtr =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.Trunc a1 a2), (A.Trunc b1 b2)) -> pg c_C_Trunc =<< p [(a1, b1), (a2, b2)]
+  --   ((A.ZExt a1 a2), (A.ZExt b1 b2)) -> pg c_C_ZExt =<< p [(a1, b1), (a2, b2)]
+  --   ((A.SExt a1 a2), (A.SExt b1 b2)) -> pg c_C_SExt =<< p [(a1, b1), (a2, b2)]
+  --   ((A.FPToUI a1 a2), (A.FPToUI b1 b2)) -> pg c_C_FPToUI =<< p [(a1, b1), (a2, b2)]
+  --   ((A.FPToSI a1 a2), (A.FPToSI b1 b2)) -> pg c_C_FPToSI =<< p [(a1, b1), (a2, b2)]
+  --   ((A.UIToFP a1 a2), (A.UIToFP b1 b2)) -> pg c_C_UIToFP =<< p [(a1, b1), (a2, b2)]
+  --   ((A.SIToFP a1 a2), (A.SIToFP b1 b2)) -> pg c_C_SIToFP =<< p [(a1, b1), (a2, b2)]
+  --   ((A.FPTrunc a1 a2), (A.FPTrunc b1 b2)) -> pg c_C_FPTrunc =<< p [(a1, b1), (a2, b2)]
+  --   ((A.FPExt a1 a2), (A.FPExt b1 b2)) -> pg c_C_FPExt =<< p [(a1, b1), (a2, b2)]
+  --   ((A.PtrToInt a1 a2), (A.PtrToInt b1 b2)) -> pg c_C_PtrToInt =<< p [(a1, b1), (a2, b2)]
+  --   ((A.IntToPtr a1 a2), (A.IntToPtr b1 b2)) -> pg c_C_IntToPtr =<< p [(a1, b1), (a2, b2)]
+  --   ((A.BitCast a1 a2), (A.BitCast b1 b2)) -> pg c_C_BitCast =<< p [(a1, b1), (a2, b2)]
+  --   ((A.AddrSpaceCast a1 a2), (A.AddrSpaceCast b1 b2)) -> pg c_C_AddrSpaceCast =<< p [(a1, b1), (a2, b2)]
+  --   ((A.ICmp a1 a2 a3), (A.ICmp b1 b2 b3)) -> pg c_C_ICmp =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.FCmp a1 a2 a3), (A.FCmp b1 b2 b3)) -> pg c_C_FCmp =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.Select a1 a2 a3), (A.Select b1 b2 b3)) -> pg c_C_Select =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.ExtractElement a1 a2), (A.ExtractElement b1 b2)) -> pg c_C_ExtractElement =<< p [(a1, b1), (a2, b2)]
+  --   ((A.InsertElement a1 a2 a3), (A.InsertElement b1 b2 b3)) -> pg c_C_InsertElement =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.ShuffleVector a1 a2 a3), (A.ShuffleVector b1 b2 b3)) -> pg c_C_ShuffleVector =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.ExtractValue a1 a2), (A.ExtractValue b1 b2)) -> pg c_C_ExtractValue =<< p [(a1, b1), (a2, b2)]
+  --   ((A.InsertValue a1 a2 a3), (A.InsertValue b1 b2 b3)) -> pg c_C_InsertValue =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   (_, _) -> proofFail "Constant"
+  --   where
+  --     p = mapM (uncurry proveEquiv)
+  --     pg c f = proveEquivGeneral c f $ (head . words . show) a ++ " Constant equivalent"
 
 instance ProveEquiv (Maybe A.Constant) where
   proveEquiv = proveEquivMaybe
-    c_MC_Just_Constant c_MC_Nothing_Constant "Maybe Constant"
+    c_MC_Just_Constant c_MC_Nothing_Constant "Constant"
+
+instance ProveEquiv [A.Constant] where
+  proveEquiv = proveEquivList c_Cons_Constant c_Nil_Constant "Constant"
+
+-- FIXME
+instance ProveEquiv A.Instruction where
+  proveEquiv _ _ = assertEquiv t_Instruction
+
+instance ProveEquiv (A.Named A.Instruction) where
+  proveEquiv = proveEquivNamed
+    c_NI_infix_Instruction c_NI_Do_Instruction "Instruction"
+
+instance ProveEquiv [(A.Named A.Instruction)] where
+  proveEquiv = proveEquivList c_Cons_Named_Instruction c_Nil_Named_Instruction "Named Instruction"
+
+-- FIXME
+instance ProveEquiv A.Terminator where
+  proveEquiv _ _ = assertEquiv t_Terminator
+
+instance ProveEquiv (A.Named A.Terminator) where
+  proveEquiv = proveEquivNamed
+    c_NT_infix_Terminator c_NT_Do_Terminator "Terminator"
 
 {-
 instance ProveEquiv (A.MDRef A.MDNode) where
@@ -756,12 +969,6 @@ instance ProveEquiv A.Global where
 
 -}
 
--- FIXME: we need a slightly different approach to the equivalence
--- of basic blocks
---
--- Something like "all the instructions are equivalent and all the
--- terminators lead to equivalent basic blocks"
-
 proveEquivMaybe :: (ProveEquiv a)
                 => (ProofEnv -> Z3Constructor)
                 -> (ProofEnv -> Z3Constructor)
@@ -775,6 +982,22 @@ proveEquivMaybe c_Just _ n (Just a) (Just b) = do
 proveEquivMaybe _ c_Nothing n Nothing Nothing =
   proveEquivGeneral c_Nothing [] $ "Nothing (" ++ n ++ ") equivalent"
 proveEquivMaybe _ _ n _ _ = proofFail $ "Maybe " ++ n ++ " not equivalent"
+
+proveEquivNamed :: (ProveEquiv a)
+                => (ProofEnv -> Z3Constructor)
+                -> (ProofEnv -> Z3Constructor)
+                -> String
+                -> (A.Named a)
+                -> (A.Named a)
+                -> ProofM Equiv
+proveEquivNamed _ c_Do n (A.Do a) (A.Do b) = do
+  e <- proveEquiv a b
+  proveEquivGeneral c_Do [e] $ "Nameless " ++ n ++ " equivalent"
+proveEquivNamed c_Named _ n (n1 A.:= a) (n2 A.:= b) = do
+  e1 <- proveEquiv n1 n2
+  e2 <- proveEquiv a b
+  proveEquivGeneral c_Named [e1, e2] $ "Named (" ++ n ++ ") equivalent"
+proveEquivNamed _ _ n _ _ = proofFail $ "Named " ++ n ++ " not equivalent"
 
 proveEquivEither :: (ProveEquiv a, ProveEquiv b)
                  => (ProofEnv -> Z3Constructor)
@@ -817,11 +1040,6 @@ proveEquivTuple c_Tup n (a1, a2) (b1, b2) = do
   snd_eq <- proveEquiv a2 b2
   proveEquivGeneral c_Tup [fst_eq, snd_eq] $ "Tuple " ++ n ++ " equivalent"
 
-
-
-
-
-
 proveEquivPrimitive
   :: (ProveEquiv a, Eq a, Show a)
   => (ProofEnv -> Z3Type) -- ^ Function to get the Z3 sort from the proof environment
@@ -842,11 +1060,11 @@ proveEquivPrimitive getEnvType toSort name x y = do
 
   assert =<< mkEq z3v1 =<< toSort x
   assert =<< mkEq z3v2 =<< toSort y
-  
+
   z3equiv <- mkApp equivFunc [z3v1, z3v2]
 
   logString $ show x ++ " == " ++ show y ++ " : " ++ name
-  
+
   return Equiv{..}
 
 proveEquivGeneral
@@ -872,7 +1090,7 @@ proveEquivGeneral getCons fields comment = do
   assert =<< mkEq z3v2 =<< mkApp consf v2fields -- Build v2 from fields
 
   let equiv = Equiv{..}
-  
+
   logString $
     "Verifying " ++ cname ++ " " ++ intercalate " " (map show premiseIDs)
   logInference premiseIDs (PropEquiv equiv) comment
@@ -896,7 +1114,7 @@ assertEquiv
   -> ProofM Equiv
 assertEquiv getType = do
   Z3Type{..} <- fromEnv getType
-  
+
   equivID <- getNextPID
   z3v1 <- mkPropConst equivID "x" sort
   z3v2 <- mkPropConst equivID "y" sort
@@ -914,13 +1132,13 @@ vacuousEquiv getType = do
   z3v1 <- mkPropConst equivID "x" sort
   z3v2 <- mkPropConst equivID "y" sort
 
-  t <- mkTrue  
+  t <- mkTrue
   z3equiv <- mkEq t t
 
   return Equiv{..}
 
 -}
-  
+
 
 instance ProveEquiv A.Global where
   proveEquiv f1@A.Function{} f2@A.Function{} = do
@@ -929,11 +1147,11 @@ instance ProveEquiv A.Global where
                          , proveField A.dllStorageClass
                          , proveField A.callingConvention
                          , proveField A.returnAttributes
-                         , proveField A.returnType                         
+                         , proveField A.returnType
                          , assertEquiv t_Name -- FIXME: ignore function name?
                          , proveField A.parameters
                          , proveField A.functionAttributes
-                         , proveField A.section                         
+                         , proveField A.section
                          , proveField A.comdat
                          , proveField A.alignment
                          , proveField A.garbageCollectorName
@@ -981,7 +1199,7 @@ proveEquivCFG cfg1@(A.BasicBlock n1 _ _:_) cfg2@(A.BasicBlock n2 _ _:_) = do
    -- Dump the matching information (both forward and back) into Z3-land
    -- and add assertions that say the back(forward n) = n for all n
    -- (enumerate them explicitly)
-   
+
    matchedPairs <- M.assocs <$> getMatching
    logString $ "basic block matching " ++
      intercalate ", "
@@ -994,7 +1212,7 @@ proveEquivCFG cfg1@(A.BasicBlock n1 _ _:_) cfg2@(A.BasicBlock n2 _ _:_) = do
    blocksEquiv <- mkAnd (map z3equiv pairedEquivs)
 
    Z3Type{..} <- fromEnv t_List_BasicBlock
-     
+
    equivID <- getNextPID
    z3v1 <- mkPropConst equivID "x" sort
    z3v2 <- mkPropConst equivID "y" sort
@@ -1005,7 +1223,7 @@ proveEquivCFG cfg1@(A.BasicBlock n1 _ _:_) cfg2@(A.BasicBlock n2 _ _:_) = do
    assert z3equiv
 
   --   logSMTLIB =<< solverToString
-   
+
    return Equiv{..}
 
    -- FIXME: turn the matched basic blocks into an equivalence that
@@ -1043,14 +1261,12 @@ proveEquivCFG _ _ = proofFail "[BasicBlock] not equivalent (different lengths)"
 
 instance ProveEquiv A.BasicBlock where
   proveEquiv (A.BasicBlock n1 instr1 term1) (A.BasicBlock n2 instr2 term2) = do
-    -- FIXME: actually compare the instructions and
-    -- terminals (rewritten) that appear here
-    
+
     -- both check the matching function in the proof state
     -- and exhibit Z3 assertions that the names match up
-    fields <- T.sequence [ assertEquiv t_Name
-                         , assertEquiv t_List_Named_Instruction
-                         , assertEquiv t_Named_Terminator
+    fields <- T.sequence [ proveEquiv n1 n2
+                         , proveEquiv instr1 instr2
+                         , proveEquiv term1 term2
                          ]
     proveEquivGeneral c_BB_BasicBlock fields $
       "BasicBlock " ++ showName n1 ++ " " ++ showName n2
@@ -1063,7 +1279,7 @@ resetMatching = do
                                    , inverse = M.empty
                                    , visiting = S.empty
                                    , .. }
-    
+
 -- | Check whether the given name is in the @visiting@ set
 testVisiting :: A.Name -> ProofM Bool
 testVisiting n = ProofM $ lift $ gets $ (S.member n) . visiting
@@ -1099,3 +1315,28 @@ addMatch n1 n2 = do
                                    , inverse = M.insert n2 n1 inverse
                                    , .. }
 
+assertMatch :: (ProofEnv -> Z3Constructor) -> A.Name -> A.Name -> ProofM ()
+assertMatch nameCons n1 n2 = do
+  addMatch n1 n2
+  (mkName, _, Z3Type{..}) <- fromEnv nameCons
+  ProofState{..} <- ProofM $ lift get
+  case z3_match of
+    Nothing -> do
+      fwd_sym <- mkStringSymbol "fwd-match"
+      inv_sym <- mkStringSymbol "inv-match"
+      fwd <- mkFuncDecl fwd_sym [sort] sort
+      inv <- mkFuncDecl inv_sym [sort] sort
+      ProofM $ lift $ put $ ProofState { z3_match = Just (fwd, inv), .. }
+      updateMatchFuncs mkName fwd inv
+    Just (fwd, inv) -> updateMatchFuncs mkName fwd inv
+  where
+    updateMatchFuncs mkName fwd inv = do
+      z3n1 <- mkApp mkName =<< field n1
+      z3n2 <- mkApp mkName =<< field n2
+      fn1 <- mkApp fwd [z3n1]
+      fn2 <- mkApp inv [z3n2]
+      assert =<< mkEq fn1 z3n2
+      assert =<< mkEq fn2 z3n1
+    field n = case n of
+      (A.Name s)   -> T.sequence $ [mkString $ C.unpack $ fromShort s]
+      (A.UnName w) -> T.sequence $ [mkBitvector 32 $ toInteger w]

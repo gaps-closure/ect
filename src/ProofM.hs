@@ -109,11 +109,12 @@ type EquivFunctionMap = M.Map Sort FuncDecl
 
 
 data ProofState = ProofState
-  { currentPID :: !PID         -- ^ ID for the next proposition
-  , matching :: !NameMap       -- ^ For name isomorphisms
-  , inverse :: !NameMap        -- ^ Inverse of matching
-  , visiting :: !(S.Set A.Name)  -- ^ For DFS algorithms
-  , equivFunctions :: !EquivFunctionMap -- ^ For each Z3 sort, the equivalence function
+  { currentPID :: !PID                        -- ^ ID for the next proposition
+  , matching :: !NameMap                      -- ^ For name isomorphisms
+  , inverse :: !NameMap                       -- ^ Inverse of matching
+  , z3_match :: !(Maybe (FuncDecl, FuncDecl)) -- ^ forward and inverse z3 match function
+  , visiting :: !(S.Set A.Name)               -- ^ For DFS algorithms
+  , equivFunctions :: !EquivFunctionMap       -- ^ For each Z3 sort, the equivalence function
   }
 
 -- | Initial proof state: PID is 1; empty maps and sets
@@ -121,6 +122,7 @@ initialState :: ProofState
 initialState = ProofState { currentPID = PID 1
                           , matching = M.empty
                           , inverse = M.empty
+                          , z3_match = Nothing
                           , visiting = S.empty
                           , equivFunctions = M.empty
                           }
@@ -227,4 +229,3 @@ logSMTLIB s = ProofM $ lift $ lift $ lift $ tell [LogSMTLIB s]
 logInference :: [PID] -> Prop -> String -> ProofM ()
 logInference infPremises infConclusion infComment =
   ProofM $ lift $ lift $ lift $ tell [LogInference{..}]
-    

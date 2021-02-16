@@ -150,5 +150,5 @@ declareProofEnvType "ProofEnv"
    , [t| A.Model |]
    , [t| A.FloatingPointType |]
    , [t| A.Type |]
-   , [t| A.Visibility |]  
+   , [t| A.Visibility |]
   ]
