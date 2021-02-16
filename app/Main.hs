@@ -28,7 +28,7 @@ import qualified Data.Map.Strict as M
 
 
 import Control.Monad ( unless, when )
---import Control.Monad.IO.Class ( liftIO )
+import Control.Monad.IO.Class ( liftIO )
 
 import LLVM.Context (withContext)
 
@@ -152,7 +152,7 @@ usageMessage = do prg <- getProgName
 
 main :: IO ()
 main = do
-
+  putStrLn "Encoding constraints..."
   args <- getArgs
   let (actions, filenames, errors) =
         getOpt RequireOrder optionDescriptions args
@@ -190,12 +190,12 @@ main = do
       assert =<< mkNot (z3equiv r)
       -- assert (z3equiv r)
       logSMTLIB =<< solverToString
-      
+      liftIO $ putStrLn "Solving..."
       z3Result <- check
       case z3Result of
         Unsat -> logString "Unsatisfiable"
         _ -> logString $ show z3Result
-      
+
       return r
 
   -- print rule
