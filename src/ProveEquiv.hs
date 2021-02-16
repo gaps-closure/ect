@@ -791,19 +791,33 @@ proveEquivEither _ c_Right n (Right a) (Right b) = do
   proveEquivGeneral c_Right [e] $ "Right (" ++ n ++ ") equivalent"
 proveEquivEither _ _ n _ _ = proofFail $ "Either " ++ n ++ " not equivalent"
 
+{-| Prove two generic lists are equivalent
+
+  Arguments match up with @proveEquiv@ to allow the following usage:
+
+@
+proveEquiv = proveEquivList
+    c_Cons_Tup2_ShortByteString_MDRef_MDNode
+    c_Nil_Tup2_ShortByteString_MDRef_MDNode
+    "List (ShortByteString, MDRef MDNode)"
+@
+-}
 proveEquivList :: (ProveEquiv a)
-               => (ProofEnv -> Z3Constructor)
-               -> (ProofEnv -> Z3Constructor)
-               -> String
+               => (ProofEnv -> Z3Constructor) -- ^ List Cons constructor
+               -> (ProofEnv -> Z3Constructor) -- ^ List Nil constructor
+               -> String -- ^ Text string describing list type for logging
                -> [a]
                -> [a]
                -> ProofM Equiv
 proveEquivList c_Cons c_Nil n (a:as) (b:bs) = do
   tail_equiv <- proveEquivList c_Cons c_Nil n as bs
   head_equiv <- proveEquiv a b
-  proveEquivGeneral c_Cons [head_equiv, tail_equiv] $ "Cons " ++ n ++ " equivalent"
+  proveEquivGeneral c_Cons [head_equiv, tail_equiv] $
+    "Cons " ++ n ++ " equivalent"
+    
 proveEquivList _ c_Nil n [] [] =
   proveEquivGeneral c_Nil [] $ "[] (" ++ n ++ ") equivalent"
+  
 proveEquivList _ _ n _ _ = proofFail $ "[" ++ n ++ "] not equivalent"
 
 proveEquivTuple :: (ProveEquiv a, ProveEquiv b)
@@ -816,10 +830,6 @@ proveEquivTuple c_Tup n (a1, a2) (b1, b2) = do
   fst_eq <- proveEquiv a1 b1
   snd_eq <- proveEquiv a2 b2
   proveEquivGeneral c_Tup [fst_eq, snd_eq] $ "Tuple " ++ n ++ " equivalent"
-
-
-
-
 
 
 proveEquivPrimitive
@@ -1049,12 +1059,37 @@ instance ProveEquiv A.BasicBlock where
     -- both check the matching function in the proof state
     -- and exhibit Z3 assertions that the names match up
     fields <- T.sequence [ assertEquiv t_Name
-                         , assertEquiv t_List_Named_Instruction
+                         -- , assertEquiv t_List_Named_Instruction -- instr1/2
+                         , proveEquiv instr1 instr2
                          , assertEquiv t_Named_Terminator
                          ]
     proveEquivGeneral c_BB_BasicBlock fields $
       "BasicBlock " ++ showName n1 ++ " " ++ showName n2
 
+instance ProveEquiv [A.Named A.Instruction] where
+  proveEquiv = proveEquivList c_Cons_Named_Instruction
+                              c_Nil_Named_Instruction
+                              "Named Instruction List"
+
+instance ProveEquiv (A.Named A.Instruction) where
+  proveEquiv (n1 A.:= i1) (n2 A.:= i2) = do
+    fields <- T.sequence [proveEquiv n1 n2, proveEquiv i1 i2]
+    proveEquivGeneral c_NI_infix_Instruction fields $
+       "Named instruction " ++ showName n1 ++ " " ++ showName n2
+
+  proveEquiv (A.Do i1) (A.Do i2) = do
+    field <- proveEquiv i1 i2
+    proveEquivGeneral c_NI_Do_Instruction [field] $ "Unnamed instruction "
+
+  proveEquiv _ _ = proofFail "named vs unnamed instruction"
+
+instance ProveEquiv A.Instruction where
+  proveEquiv i1 i2 = do
+    logString $ "Comparing " ++ show i1
+    logString $ "to " ++ show i2
+    assertEquiv t_Instruction -- FIXME
+
+    
 -- | Reset the @matching@, @inverse@, and @visiting@ sets/maps
 resetMatching :: ProofM ()
 resetMatching = do
