@@ -121,6 +121,7 @@ import Control.Monad.Trans.Class ( lift )
 
 
 --import qualified LLVM.Module as M
+import qualified LLVM.AST.Instruction as I
 import qualified LLVM.AST as A hiding ( metadata, callingConvention, alignment, returnAttributes, functionAttributes )
 import qualified LLVM.AST.Global as A
 import qualified LLVM.AST.Visibility as A
@@ -517,6 +518,9 @@ instance ProveEquiv (Maybe Word32) where
 instance ProveEquiv [Word32] where
   proveEquiv = proveEquivList c_Cons_Word32 c_Nil_Word32 "Word32"
 
+instance ProveEquiv Integer where
+  proveEquiv = proveEquivPrimitive t_Integer mkInteger "Integer"
+
 instance ProveEquiv Word64 where
   proveEquiv = proveEquivPrimitive t_Word64 (\x -> mkBitvector 64 (toInteger x)) "Word64"
 
@@ -710,6 +714,16 @@ instance ProveEquiv A.AddrSpace where
     e <- proveEquiv a1 a2
     proveEquivGeneral c_AS_AddrSpace [e] "AddrSpace equivalent"
 
+instance ProveEquiv A.FloatingPointType where
+  proveEquiv ft1 ft2 | ft1 == ft2 = proveEquivGeneral c [] (show ft1)
+                     | otherwise = proofFail $ show ft1 ++ " /= " ++ show ft2
+    where c = case ft1 of A.HalfFP      -> c_FPT_HalfFP
+                          A.FloatFP     -> c_FPT_FloatFP
+                          A.DoubleFP    -> c_FPT_DoubleFP
+                          A.FP128FP     -> c_FPT_FP128FP
+                          A.X86_FP80FP  -> c_FPT_X86_FP80FP
+                          A.PPC_FP128FP -> c_FPT_PPC_FP128FP
+
 instance ProveEquiv A.Type where -- FIXME: partial definition
   proveEquiv A.VoidType A.VoidType = do
     proveEquivGeneral c_T_VoidType [] "VoidType equivalent"
@@ -724,7 +738,12 @@ instance ProveEquiv A.Type where -- FIXME: partial definition
     sequiv <- proveEquiv s1 s2
     proveEquivGeneral c_T_PointerType [tequiv, sequiv] "PointerType equivalent"
 
-  proveEquiv _ _ = proofFail "Type equivalence failed"
+  proveEquiv (A.FloatingPointType t1) (A.FloatingPointType t2) = do
+    typ <- proveEquiv t1 t2
+    proveEquivGeneral c_T_FloatingPointType [typ] "FloatingPointType equivalent"
+
+  proveEquiv t1 t2 = proofFail $
+      "Type equivalence failed on " ++ show t1 ++ " and " ++ show t2
 
 -- Add to the proof state matching maps and add something in Z3 asserting
 -- that these two names are equivalent under the forward/backward functions.
@@ -755,7 +774,7 @@ instance ProveEquiv [A.Parameter] where
     c_Cons_Parameter c_Nil_Parameter "Parameter"
 
 instance ProveEquiv ([A.Parameter], Bool) where
-  proveEquiv = proveEquivTuple
+  proveEquiv = proveEquivTuple2
     c_Tup2_List_Parameter_Bool "([A.Parameter], Bool)"
 
 instance ProveEquiv FA.GroupID where
@@ -901,16 +920,15 @@ instance ProveEquiv (Maybe A.Constant) where
 instance ProveEquiv [A.Constant] where
   proveEquiv = proveEquivList c_Cons_Constant c_Nil_Constant "Constant"
 
--- FIXME
-instance ProveEquiv A.Instruction where
-  proveEquiv _ _ = assertEquiv t_Instruction
-
-instance ProveEquiv (A.Named A.Instruction) where
-  proveEquiv = proveEquivNamed
-    c_NI_infix_Instruction c_NI_Do_Instruction "Instruction"
-
-instance ProveEquiv [(A.Named A.Instruction)] where
-  proveEquiv = proveEquivList c_Cons_Named_Instruction c_Nil_Named_Instruction "Named Instruction"
+-- instance ProveEquiv A.Instruction where
+--   proveEquiv _ _ = assertEquiv t_Instruction
+--
+-- instance ProveEquiv (A.Named A.Instruction) where
+--   proveEquiv = proveEquivNamed
+--     c_NI_infix_Instruction c_NI_Do_Instruction "Instruction"
+--
+-- instance ProveEquiv [(A.Named A.Instruction)] where
+--   proveEquiv = proveEquivList c_Cons_Named_Instruction c_Nil_Named_Instruction "Named Instruction"
 
 -- FIXME
 instance ProveEquiv A.Terminator where
@@ -927,7 +945,7 @@ instance ProveEquiv (A.MDRef A.MDNode) where
 
 {-
 instance ProveEquiv (ShortByteString, A.MDRef A.MDNode) where
-  proveEquiv = proveEquivTuple
+  proveEquiv = proveEquivTuple2
     c_Tup2_ShortByteString_MDRef_MDNode "(ShortByteString, MDRef MDNode)"
 
 instance ProveEquiv [(ShortByteString, A.MDRef A.MDNode)] where
@@ -970,9 +988,9 @@ instance ProveEquiv A.Global where
 -}
 
 proveEquivMaybe :: (ProveEquiv a)
-                => (ProofEnv -> Z3Constructor)
-                -> (ProofEnv -> Z3Constructor)
-                -> String
+                => (ProofEnv -> Z3Constructor) -- ^ Just constructor
+                -> (ProofEnv -> Z3Constructor) -- ^ Nothing constructor
+                -> String -- ^ Log message
                 -> Maybe a
                 -> Maybe a
                 -> ProofM Equiv
@@ -1014,28 +1032,42 @@ proveEquivEither _ c_Right n (Right a) (Right b) = do
   proveEquivGeneral c_Right [e] $ "Right (" ++ n ++ ") equivalent"
 proveEquivEither _ _ n _ _ = proofFail $ "Either " ++ n ++ " not equivalent"
 
+{-| Prove two generic lists are equivalent
+
+  Arguments match up with @proveEquiv@ to allow the following usage:
+
+@
+proveEquiv = proveEquivList
+    c_Cons_Tup2_ShortByteString_MDRef_MDNode
+    c_Nil_Tup2_ShortByteString_MDRef_MDNode
+    "List (ShortByteString, MDRef MDNode)"
+@
+-}
 proveEquivList :: (ProveEquiv a)
-               => (ProofEnv -> Z3Constructor)
-               -> (ProofEnv -> Z3Constructor)
-               -> String
+               => (ProofEnv -> Z3Constructor) -- ^ List Cons constructor
+               -> (ProofEnv -> Z3Constructor) -- ^ List Nil constructor
+               -> String -- ^ Text string describing list type for logging
                -> [a]
                -> [a]
                -> ProofM Equiv
 proveEquivList c_Cons c_Nil n (a:as) (b:bs) = do
   tail_equiv <- proveEquivList c_Cons c_Nil n as bs
   head_equiv <- proveEquiv a b
-  proveEquivGeneral c_Cons [head_equiv, tail_equiv] $ "Cons " ++ n ++ " equivalent"
+  proveEquivGeneral c_Cons [head_equiv, tail_equiv] $
+    "Cons " ++ n ++ " equivalent"
+
 proveEquivList _ c_Nil n [] [] =
   proveEquivGeneral c_Nil [] $ "[] (" ++ n ++ ") equivalent"
+
 proveEquivList _ _ n _ _ = proofFail $ "[" ++ n ++ "] not equivalent"
 
-proveEquivTuple :: (ProveEquiv a, ProveEquiv b)
-                => (ProofEnv -> Z3Constructor)
-                -> String
-                -> (a, b)
-                -> (a, b)
-                -> ProofM Equiv
-proveEquivTuple c_Tup n (a1, a2) (b1, b2) = do
+proveEquivTuple2 :: (ProveEquiv a, ProveEquiv b)
+                 => (ProofEnv -> Z3Constructor)
+                 -> String
+                 -> (a, b)
+                 -> (a, b)
+                 -> ProofM Equiv
+proveEquivTuple2 c_Tup n (a1, a2) (b1, b2) = do
   fst_eq <- proveEquiv a1 b1
   snd_eq <- proveEquiv a2 b2
   proveEquivGeneral c_Tup [fst_eq, snd_eq] $ "Tuple " ++ n ++ " equivalent"
@@ -1270,6 +1302,103 @@ instance ProveEquiv A.BasicBlock where
                          ]
     proveEquivGeneral c_BB_BasicBlock fields $
       "BasicBlock " ++ showName n1 ++ " " ++ showName n2
+
+instance ProveEquiv [A.Named I.Instruction] where
+  proveEquiv = proveEquivList c_Cons_Named_Instruction
+                              c_Nil_Named_Instruction
+                              "Named Instruction List"
+
+instance ProveEquiv (A.Named I.Instruction) where
+  proveEquiv (n1 A.:= i1) (n2 A.:= i2) = do
+    fields <- T.sequence [proveEquiv n1 n2, proveEquiv i1 i2]
+    proveEquivGeneral c_NI_infix_Instruction fields $
+       "Named instruction " ++ showName n1 ++ " " ++ showName n2
+
+  proveEquiv (A.Do i1) (A.Do i2) = do
+    field <- proveEquiv i1 i2
+    proveEquivGeneral c_NI_Do_Instruction [field] $ "Unnamed instruction "
+
+  proveEquiv _ _ = proofFail "named vs unnamed instruction"
+
+instance ProveEquiv I.Instruction where
+
+  proveEquiv i1@I.Alloca{} i2@I.Alloca{} = do
+    fields <- T.sequence [ proveField I.allocatedType
+                         , proveField I.numElements
+                         , proveField I.alignment
+                         , assertEquiv t_Bool -- ignore metatdata
+                         ]
+    proveEquivGeneral c_I_Alloca fields $ show i1 ++ " == " ++ show i2
+    where proveField record = proveEquiv (record i1) (record i2)
+
+  proveEquiv i1@I.Store{} i2@I.Store{} = do
+    fields <- T.sequence [ proveField I.volatile
+                         , proveField I.address
+                         , proveField I.value
+                         , proveField I.maybeAtomicity
+                         , proveField I.alignment
+                         , assertEquiv t_Bool -- ignore metadata
+                         ]
+    proveEquivGeneral c_I_Store fields $ show i1 ++ " == " ++ show i2
+    where proveField record = proveEquiv (record i1) (record i2)
+
+  proveEquiv i1@(I.BitCast o1 t1 _) i2@(I.BitCast o2 t2 _) = do
+    operands <- proveEquiv o1 o2
+    types <- proveEquiv t1 t2
+    meta <- assertEquiv t_Bool -- ignore metadata
+    proveEquivGeneral c_I_BitCast [operands, types, meta] $
+      show i1 ++ " == " ++ show i2
+
+  proveEquiv i1 i2 = do
+    logString $ "FIXME: Unsupported instructions; treated as equivalent"
+    logString $ "FIXME: Comparing " ++ show i1
+    logString $ "FIXME: to " ++ show i2
+    assertEquiv t_Instruction -- FIXME
+
+instance ProveEquiv A.Operand where
+  proveEquiv (A.ConstantOperand c1) (A.ConstantOperand c2) = do
+    field <- proveEquiv c1 c2
+    proveEquivGeneral c_O_ConstantOperand [field] $
+      "ConstantOperands " ++ show c1 ++ " == " ++ show c2
+
+  proveEquiv l1@(A.LocalReference t1 n1) l2@(A.LocalReference t2 n2) = do
+    types <- proveEquiv t1 t2
+    names <- proveEquiv n1 n2
+    proveEquivGeneral c_O_LocalReference [types, names] $
+      "LocalReferences " ++ show l1 ++ " == " ++ show l2
+
+  proveEquiv o1 o2 = do
+    logString $ "FIXME: ignoring operands " ++ show o1 ++ " and " ++ show o2
+    assertEquiv t_Operand -- FIXME
+
+instance ProveEquiv (Maybe A.Operand) where
+  proveEquiv = proveEquivMaybe c_MO_Just_Operand c_MO_Nothing_Operand
+     "Maybe Operand"
+
+instance ProveEquiv (Maybe A.Atomicity) where
+  proveEquiv = proveEquivMaybe c_MA_Just_Atomicity c_MA_Nothing_Atomicity
+    "Maybe Atomicity"
+
+instance ProveEquiv A.Atomicity where
+  proveEquiv = proveEquivTuple2 c_Tup2_SynchronizationScope_MemoryOrdering
+    "Atomicity"
+
+instance ProveEquiv A.SynchronizationScope where
+  proveEquiv ss1 ss2
+      | ss1 == ss2 = proveEquivGeneral c [] (show ss1)
+      | otherwise = proofFail $ show ss1 ++ " /= " ++ show ss2
+      where c = case ss1 of A.SingleThread -> c_SS_SingleThread
+                            A.System       -> c_SS_System
+
+instance ProveEquiv A.MemoryOrdering where
+  proveEquiv mo1 mo2 | mo1 == mo2 = proveEquivGeneral c [] (show mo1)
+                     | otherwise = proofFail $ show mo1 ++ " /= " ++ show mo2
+    where c = case mo1 of A.Unordered              -> c_MO_Unordered
+                          A.Monotonic              -> c_MO_Monotonic
+                          A.Acquire                -> c_MO_Acquire
+                          A.Release                -> c_MO_Release
+                          A.AcquireRelease         -> c_MO_AcquireRelease
+                          A.SequentiallyConsistent -> c_MO_SequentiallyConsistent
 
 -- | Reset the @matching@, @inverse@, and @visiting@ sets/maps
 resetMatching :: ProofM ()

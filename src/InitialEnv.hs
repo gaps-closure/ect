@@ -218,8 +218,9 @@ initialEnv :: ProofM ProofEnv
 initialEnv = do
   s_Bool <- mkBoolSort
   t_Bool <- mkEquivPrimFunc s_Bool "Bool" s_Bool
-  t_Int <- mkEquivPrimFunc s_Bool "Int" =<< mkIntSort
-  let t_Integer = t_Int
+  s_Int <- mkIntSort
+  t_Int <- mkEquivPrimFunc s_Bool "Int" s_Int
+  t_Integer <- mkEquivPrimFunc s_Bool "Integer" s_Int
   t_Word16 <- mkEquivPrimFunc s_Bool "Word16" =<< mkBvSort 16
   t_Word32 <- mkEquivPrimFunc s_Bool "Word32" =<< mkBvSort 32
   t_Word <- mkEquivPrimFunc s_Bool "Word" =<< mkBvSort 32
