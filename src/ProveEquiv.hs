@@ -1306,19 +1306,20 @@ instance ProveEquiv A.BasicBlock where
 instance ProveEquiv [A.Named I.Instruction] where
   proveEquiv = proveEquivList c_Cons_Named_Instruction
                               c_Nil_Named_Instruction
-                              "Named Instruction List"
+                              "Named Instruction"
 
 instance ProveEquiv (A.Named I.Instruction) where
-  proveEquiv (n1 A.:= i1) (n2 A.:= i2) = do
-    fields <- T.sequence [proveEquiv n1 n2, proveEquiv i1 i2]
-    proveEquivGeneral c_NI_infix_Instruction fields $
-       "Named instruction " ++ showName n1 ++ " " ++ showName n2
-
-  proveEquiv (A.Do i1) (A.Do i2) = do
-    field <- proveEquiv i1 i2
-    proveEquivGeneral c_NI_Do_Instruction [field] $ "Unnamed instruction "
-
-  proveEquiv _ _ = proofFail "named vs unnamed instruction"
+  proveEquiv = proveEquivNamed c_NI_infix_Instruction c_NI_Do_Instruction "Instruction"
+  -- proveEquiv (n1 A.:= i1) (n2 A.:= i2) = do
+  --   fields <- T.sequence [proveEquiv n1 n2, proveEquiv i1 i2]
+  --   proveEquivGeneral c_NI_infix_Instruction fields $
+  --      "Named instruction " ++ showName n1 ++ " " ++ showName n2
+  --
+  -- proveEquiv (A.Do i1) (A.Do i2) = do
+  --   field <- proveEquiv i1 i2
+  --   proveEquivGeneral c_NI_Do_Instruction [field] $ "Unnamed instruction "
+  --
+  -- proveEquiv _ _ = proofFail "named vs unnamed instruction"
 
 instance ProveEquiv I.Instruction where
 
