@@ -106,7 +106,7 @@ of LLVM objects with the Z3 Theorem Prover
 
 module ProveEquiv where
 
-import qualified Data.Traversable as T
+-- import Data.Traversable (sequence)
 import Data.ByteString.UTF8 (toString)
 import Data.ByteString.Short (ShortByteString, fromShort)
 import qualified Data.ByteString.Char8 as C
@@ -864,83 +864,6 @@ proveEquivAlgebraic :: (ProofEnv -> Z3Constructor) -- ^ Function for getting con
                     -> ProofM Equiv
 proveEquivAlgebraic ctor note equivs = proveEquivGeneral ctor equivs note
 
---  [d| proveEquiv _ _ = proofFail "foo" |]
-
-{-
--- FIXME
-instance ProveEquiv A.Constant where
-
-  
-  proveEquiv (A.Int a1 a2) (A.Int b1 b2) =
-    T.sequence [proveEquiv a1 b1, proveEquiv a2 b2] >>=
-    proveEquivAlgebraic c_C_Int "Constant Int"
-
---  proveEquiv (A.Float a1) (A.Float b1) =
---    T.sequence [ proveEquiv a1 b1] >>= proveEquivAlgebraic c_C_Float "Constant Float"
-
-  proveEquiv (A.Null a1) (A.Null b1) =
-    T.sequence [proveEquiv a1 b1] >>=
-    proveEquivAlgebraic c_C_Null "Constant Null"
-
-  proveEquiv _ _ = assertEquiv t_Constant
-  -- proveEquiv a b = case (a, b) of
-  --   ((A.Int a1 a2), (A.Int b1 b2)) -> pg c_C_Int =<< p [(a1, b1), (a2, b2)]
-  --   ((A.Float a1), (A.Float b1)) -> pg c_C_Float =<< p [(a1, b1)]
-  --   ((A.Null a1), (A.Null b1)) -> pg c_C_Null =<< p [(a1, b1)]
-  --   ((A.AggregateZero a1), (A.AggregateZero b1)) -> pg c_C_AggregateZero =<< p [(a1, b1)]
-  --   ((A.Struct a1 a2 a3), (A.Struct b1 b2 b3)) -> pg c_C_Struct =<< p [(a1, b1), (a2, b2), (a3, b3)]
-  --   ((A.Array a1 a2), (A.Array b1 b2)) -> pg c_C_Array =<< p [(a1, b1), (a2, b2)]
-  --   ((A.Vector a1), (A.Vector b1)) -> pg c_C_Vector =<< p [(a1, b1)]
-  --   ((A.Undef a1), (A.Undef b1)) -> pg c_C_Undef =<< p [(a1, b1)]
-  --   ((A.BlockAddress a1 a2), (A.BlockAddress b1 b2)) -> pg c_C_BlockAddress =<< p [(a1, b1), (a2, b2)]
-  --   ((A.GlobalReference a1 a2), (A.GlobalReference b1 b2)) -> pg c_C_GlobalReference =<< p [(a1, b1), (a2, b2)]
-  --   ((A.TokenNone), (A.TokenNone)) -> pg c_C_TokenNone []
-  --   ((A.Add a1 a2 a3 a4), (A.Add b1 b2 b3 b4)) -> pg c_C_Add =<< p [(a1, b1), (a2, b2), (a3, b3), (a4, b4)]
-  --   ((A.FAdd a1 a2), (A.FAdd b1 b2)) -> pg c_C_FAdd =<< p [(a1, b1), (a2, b2)]
-  --   ((A.Sub a1 a2 a3 a4), (A.Sub b1 b2 b3 b4)) -> pg c_C_Sub =<< p [(a1, b1), (a2, b2), (a3, b3), (a4, b4)]
-  --   ((A.FSub a1 a2), (A.FSub b1 b2)) -> pg c_C_FSub =<< p [(a1, b1), (a2, b2)]
-  --   ((A.Mul a1 a2 a3 a4), (A.Mul b1 b2 b3 b4)) -> pg c_C_Mul =<< p [(a1, b1), (a2, b2), (a3, b3), (a4, b4)]
-  --   ((A.FMul a1 a2), (A.FMul b1 b2)) -> pg c_C_FMul =<< p [(a1, b1), (a2, b2)]
-  --   ((A.UDiv a1 a2 a3), (A.UDiv b1 b2 b3)) -> pg c_C_UDiv =<< p [(a1, b1), (a2, b2), (a3, b3)]
-  --   ((A.SDiv a1 a2 a3), (A.SDiv b1 b2 b3)) -> pg c_C_SDiv =<< p [(a1, b1), (a2, b2), (a3, b3)]
-  --   ((A.FDiv a1 a2), (A.FDiv b1 b2)) -> pg c_C_FDiv =<< p [(a1, b1), (a2, b2)]
-  --   ((A.URem a1 a2), (A.URem b1 b2)) -> pg c_C_URem =<< p [(a1, b1), (a2, b2)]
-  --   ((A.SRem a1 a2), (A.SRem b1 b2)) -> pg c_C_SRem =<< p [(a1, b1), (a2, b2)]
-  --   ((A.FRem a1 a2), (A.FRem b1 b2)) -> pg c_C_FRem =<< p [(a1, b1), (a2, b2)]
-  --   ((A.Shl a1 a2 a3 a4), (A.Shl b1 b2 b3 b4)) -> pg c_C_Shl =<< p [(a1, b1), (a2, b2), (a3, b3), (a4, b4)]
-  --   ((A.LShr a1 a2 a3), (A.LShr b1 b2 b3)) -> pg c_C_LShr =<< p [(a1, b1), (a2, b2), (a3, b3)]
-  --   ((A.AShr a1 a2 a3), (A.AShr b1 b2 b3)) -> pg c_C_AShr =<< p [(a1, b1), (a2, b2), (a3, b3)]
-  --   ((A.And a1 a2), (A.And b1 b2)) -> pg c_C_And =<< p [(a1, b1), (a2, b2)]
-  --   ((A.Or a1 a2), (A.Or b1 b2)) -> pg c_C_Xor =<< p [(a1, b1), (a2, b2)]
-  --   ((A.Xor a1 a2), (A.Xor b1 b2)) -> pg c_C_Xor =<< p [(a1, b1), (a2, b2)]
-  --   ((A.GetElementPtr a1 a2 a3), (A.GetElementPtr b1 b2 b3)) -> pg c_C_GetElementPtr =<< p [(a1, b1), (a2, b2), (a3, b3)]
-  --   ((A.Trunc a1 a2), (A.Trunc b1 b2)) -> pg c_C_Trunc =<< p [(a1, b1), (a2, b2)]
-  --   ((A.ZExt a1 a2), (A.ZExt b1 b2)) -> pg c_C_ZExt =<< p [(a1, b1), (a2, b2)]
-  --   ((A.SExt a1 a2), (A.SExt b1 b2)) -> pg c_C_SExt =<< p [(a1, b1), (a2, b2)]
-  --   ((A.FPToUI a1 a2), (A.FPToUI b1 b2)) -> pg c_C_FPToUI =<< p [(a1, b1), (a2, b2)]
-  --   ((A.FPToSI a1 a2), (A.FPToSI b1 b2)) -> pg c_C_FPToSI =<< p [(a1, b1), (a2, b2)]
-  --   ((A.UIToFP a1 a2), (A.UIToFP b1 b2)) -> pg c_C_UIToFP =<< p [(a1, b1), (a2, b2)]
-  --   ((A.SIToFP a1 a2), (A.SIToFP b1 b2)) -> pg c_C_SIToFP =<< p [(a1, b1), (a2, b2)]
-  --   ((A.FPTrunc a1 a2), (A.FPTrunc b1 b2)) -> pg c_C_FPTrunc =<< p [(a1, b1), (a2, b2)]
-  --   ((A.FPExt a1 a2), (A.FPExt b1 b2)) -> pg c_C_FPExt =<< p [(a1, b1), (a2, b2)]
-  --   ((A.PtrToInt a1 a2), (A.PtrToInt b1 b2)) -> pg c_C_PtrToInt =<< p [(a1, b1), (a2, b2)]
-  --   ((A.IntToPtr a1 a2), (A.IntToPtr b1 b2)) -> pg c_C_IntToPtr =<< p [(a1, b1), (a2, b2)]
-  --   ((A.BitCast a1 a2), (A.BitCast b1 b2)) -> pg c_C_BitCast =<< p [(a1, b1), (a2, b2)]
-  --   ((A.AddrSpaceCast a1 a2), (A.AddrSpaceCast b1 b2)) -> pg c_C_AddrSpaceCast =<< p [(a1, b1), (a2, b2)]
-  --   ((A.ICmp a1 a2 a3), (A.ICmp b1 b2 b3)) -> pg c_C_ICmp =<< p [(a1, b1), (a2, b2), (a3, b3)]
-  --   ((A.FCmp a1 a2 a3), (A.FCmp b1 b2 b3)) -> pg c_C_FCmp =<< p [(a1, b1), (a2, b2), (a3, b3)]
-  --   ((A.Select a1 a2 a3), (A.Select b1 b2 b3)) -> pg c_C_Select =<< p [(a1, b1), (a2, b2), (a3, b3)]
-  --   ((A.ExtractElement a1 a2), (A.ExtractElement b1 b2)) -> pg c_C_ExtractElement =<< p [(a1, b1), (a2, b2)]
-  --   ((A.InsertElement a1 a2 a3), (A.InsertElement b1 b2 b3)) -> pg c_C_InsertElement =<< p [(a1, b1), (a2, b2), (a3, b3)]
-  --   ((A.ShuffleVector a1 a2 a3), (A.ShuffleVector b1 b2 b3)) -> pg c_C_ShuffleVector =<< p [(a1, b1), (a2, b2), (a3, b3)]
-  --   ((A.ExtractValue a1 a2), (A.ExtractValue b1 b2)) -> pg c_C_ExtractValue =<< p [(a1, b1), (a2, b2)]
-  --   ((A.InsertValue a1 a2 a3), (A.InsertValue b1 b2 b3)) -> pg c_C_InsertValue =<< p [(a1, b1), (a2, b2), (a3, b3)]
-  --   (_, _) -> proofFail "Constant"
-  --   where
-  --     p = mapM (uncurry proveEquiv)
-  --     pg c f = proveEquivGeneral c f $ (head . words . show) a ++ " Constant equivalent"
-
--}
 
 instance ProveEquiv (Maybe A.Constant) where
   proveEquiv = proveEquivMaybe
@@ -987,7 +910,7 @@ instance ProveEquiv [(ShortByteString, A.MDRef A.MDNode)] where
 {-
 instance ProveEquiv A.Global where
   proveEquiv f1@A.Function{} f2@A.Function{} = do
-    fields <- T.sequence
+    fields <- sequence
       [ proveField A.linkage
       , proveField A.visibility
       , proveField A.dllStorageClass
@@ -1203,24 +1126,24 @@ vacuousEquiv getType = do
 
 instance ProveEquiv A.Global where
   proveEquiv f1@A.Function{} f2@A.Function{} = do
-    fields <- T.sequence [ proveField A.linkage
-                         , proveField A.visibility
-                         , proveField A.dllStorageClass
-                         , proveField A.callingConvention
-                         , proveField A.returnAttributes
-                         , proveField A.returnType
-                         , assertEquiv t_Name -- FIXME: ignore function name?
-                         , proveField A.parameters
-                         , proveField A.functionAttributes
-                         , proveField A.section
-                         , proveField A.comdat
-                         , proveField A.alignment
-                         , proveField A.garbageCollectorName
-                         , proveField A.prefix
-                         , proveEquivCFG (A.basicBlocks f1) (A.basicBlocks f2)
-                         , proveField A.personalityFunction
-                         , assertEquiv t_Bool -- ignore metadata
-                         ]
+    fields <- sequence [ proveField A.linkage
+                       , proveField A.visibility
+                       , proveField A.dllStorageClass
+                       , proveField A.callingConvention
+                       , proveField A.returnAttributes
+                       , proveField A.returnType
+                       , assertEquiv t_Name -- FIXME: ignore function name?
+                       , proveField A.parameters
+                       , proveField A.functionAttributes
+                       , proveField A.section
+                       , proveField A.comdat
+                       , proveField A.alignment
+                       , proveField A.garbageCollectorName
+                       , proveField A.prefix
+                       , proveEquivCFG (A.basicBlocks f1) (A.basicBlocks f2)
+                       , proveField A.personalityFunction
+                       , assertEquiv t_Bool -- ignore metadata
+                       ]
     proveEquivGeneral c_G_Function fields $
       "functions " ++ (showName $ A.name f1) ++ " and " ++
       (showName $ A.name f2) ++ " equivalent"
@@ -1325,10 +1248,10 @@ instance ProveEquiv A.BasicBlock where
 
     -- both check the matching function in the proof state
     -- and exhibit Z3 assertions that the names match up
-    fields <- T.sequence [ proveEquiv n1 n2
-                         , proveEquiv instr1 instr2
-                         , proveEquiv term1 term2
-                         ]
+    fields <- sequence [ proveEquiv n1 n2
+                       , proveEquiv instr1 instr2
+                       , proveEquiv term1 term2
+                       ]
     proveEquivGeneral c_BB_BasicBlock fields $
       "BasicBlock " ++ showName n1 ++ " " ++ showName n2
 
@@ -1353,22 +1276,22 @@ instance ProveEquiv (A.Named I.Instruction) where
 instance ProveEquiv I.Instruction where
 
   proveEquiv i1@I.Alloca{} i2@I.Alloca{} = do
-    fields <- T.sequence [ proveField I.allocatedType
-                         , proveField I.numElements
-                         , proveField I.alignment
-                         , assertEquiv t_Bool -- ignore metatdata
-                         ]
+    fields <- sequence [ proveField I.allocatedType
+                       , proveField I.numElements
+                       , proveField I.alignment
+                       , assertEquiv t_Bool -- ignore metatdata
+                       ]
     proveEquivGeneral c_I_Alloca fields $ show i1 ++ " == " ++ show i2
     where proveField record = proveEquiv (record i1) (record i2)
 
   proveEquiv i1@I.Store{} i2@I.Store{} = do
-    fields <- T.sequence [ proveField I.volatile
-                         , proveField I.address
-                         , proveField I.value
-                         , proveField I.maybeAtomicity
-                         , proveField I.alignment
-                         , assertEquiv t_Bool -- ignore metadata
-                         ]
+    fields <- sequence [ proveField I.volatile
+                       , proveField I.address
+                       , proveField I.value
+                       , proveField I.maybeAtomicity
+                       , proveField I.alignment
+                       , assertEquiv t_Bool -- ignore metadata
+                       ]
     proveEquivGeneral c_I_Store fields $ show i1 ++ " == " ++ show i2
     where proveField record = proveEquiv (record i1) (record i2)
 
@@ -1497,10 +1420,89 @@ assertMatch nameCons n1 n2 = do
       assert =<< mkEq fn1 z3n2
       assert =<< mkEq fn2 z3n1
     field n = case n of
-      (A.Name s)   -> T.sequence $ [mkString $ C.unpack $ fromShort s]
-      (A.UnName w) -> T.sequence $ [mkBitvector 32 $ toInteger w]
+      (A.Name s)   -> sequence $ [mkString $ C.unpack $ fromShort s]
+      (A.UnName w) -> sequence $ [mkBitvector 32 $ toInteger w]
 
 
 
 
 $(genProveEquiv [t| A.Constant |] )
+
+
+
+
+{-
+-- FIXME
+instance ProveEquiv A.Constant where
+
+  
+  proveEquiv (A.Int a1 a2) (A.Int b1 b2) =
+    T.sequence [proveEquiv a1 b1, proveEquiv a2 b2] >>=
+    proveEquivAlgebraic c_C_Int "Constant Int"
+
+--  proveEquiv (A.Float a1) (A.Float b1) =
+--    T.sequence [ proveEquiv a1 b1] >>= proveEquivAlgebraic c_C_Float "Constant Float"
+
+  proveEquiv (A.Null a1) (A.Null b1) =
+    T.sequence [proveEquiv a1 b1] >>=
+    proveEquivAlgebraic c_C_Null "Constant Null"
+
+  proveEquiv _ _ = assertEquiv t_Constant
+  -- proveEquiv a b = case (a, b) of
+  --   ((A.Int a1 a2), (A.Int b1 b2)) -> pg c_C_Int =<< p [(a1, b1), (a2, b2)]
+  --   ((A.Float a1), (A.Float b1)) -> pg c_C_Float =<< p [(a1, b1)]
+  --   ((A.Null a1), (A.Null b1)) -> pg c_C_Null =<< p [(a1, b1)]
+  --   ((A.AggregateZero a1), (A.AggregateZero b1)) -> pg c_C_AggregateZero =<< p [(a1, b1)]
+  --   ((A.Struct a1 a2 a3), (A.Struct b1 b2 b3)) -> pg c_C_Struct =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.Array a1 a2), (A.Array b1 b2)) -> pg c_C_Array =<< p [(a1, b1), (a2, b2)]
+  --   ((A.Vector a1), (A.Vector b1)) -> pg c_C_Vector =<< p [(a1, b1)]
+  --   ((A.Undef a1), (A.Undef b1)) -> pg c_C_Undef =<< p [(a1, b1)]
+  --   ((A.BlockAddress a1 a2), (A.BlockAddress b1 b2)) -> pg c_C_BlockAddress =<< p [(a1, b1), (a2, b2)]
+  --   ((A.GlobalReference a1 a2), (A.GlobalReference b1 b2)) -> pg c_C_GlobalReference =<< p [(a1, b1), (a2, b2)]
+  --   ((A.TokenNone), (A.TokenNone)) -> pg c_C_TokenNone []
+  --   ((A.Add a1 a2 a3 a4), (A.Add b1 b2 b3 b4)) -> pg c_C_Add =<< p [(a1, b1), (a2, b2), (a3, b3), (a4, b4)]
+  --   ((A.FAdd a1 a2), (A.FAdd b1 b2)) -> pg c_C_FAdd =<< p [(a1, b1), (a2, b2)]
+  --   ((A.Sub a1 a2 a3 a4), (A.Sub b1 b2 b3 b4)) -> pg c_C_Sub =<< p [(a1, b1), (a2, b2), (a3, b3), (a4, b4)]
+  --   ((A.FSub a1 a2), (A.FSub b1 b2)) -> pg c_C_FSub =<< p [(a1, b1), (a2, b2)]
+  --   ((A.Mul a1 a2 a3 a4), (A.Mul b1 b2 b3 b4)) -> pg c_C_Mul =<< p [(a1, b1), (a2, b2), (a3, b3), (a4, b4)]
+  --   ((A.FMul a1 a2), (A.FMul b1 b2)) -> pg c_C_FMul =<< p [(a1, b1), (a2, b2)]
+  --   ((A.UDiv a1 a2 a3), (A.UDiv b1 b2 b3)) -> pg c_C_UDiv =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.SDiv a1 a2 a3), (A.SDiv b1 b2 b3)) -> pg c_C_SDiv =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.FDiv a1 a2), (A.FDiv b1 b2)) -> pg c_C_FDiv =<< p [(a1, b1), (a2, b2)]
+  --   ((A.URem a1 a2), (A.URem b1 b2)) -> pg c_C_URem =<< p [(a1, b1), (a2, b2)]
+  --   ((A.SRem a1 a2), (A.SRem b1 b2)) -> pg c_C_SRem =<< p [(a1, b1), (a2, b2)]
+  --   ((A.FRem a1 a2), (A.FRem b1 b2)) -> pg c_C_FRem =<< p [(a1, b1), (a2, b2)]
+  --   ((A.Shl a1 a2 a3 a4), (A.Shl b1 b2 b3 b4)) -> pg c_C_Shl =<< p [(a1, b1), (a2, b2), (a3, b3), (a4, b4)]
+  --   ((A.LShr a1 a2 a3), (A.LShr b1 b2 b3)) -> pg c_C_LShr =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.AShr a1 a2 a3), (A.AShr b1 b2 b3)) -> pg c_C_AShr =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.And a1 a2), (A.And b1 b2)) -> pg c_C_And =<< p [(a1, b1), (a2, b2)]
+  --   ((A.Or a1 a2), (A.Or b1 b2)) -> pg c_C_Xor =<< p [(a1, b1), (a2, b2)]
+  --   ((A.Xor a1 a2), (A.Xor b1 b2)) -> pg c_C_Xor =<< p [(a1, b1), (a2, b2)]
+  --   ((A.GetElementPtr a1 a2 a3), (A.GetElementPtr b1 b2 b3)) -> pg c_C_GetElementPtr =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.Trunc a1 a2), (A.Trunc b1 b2)) -> pg c_C_Trunc =<< p [(a1, b1), (a2, b2)]
+  --   ((A.ZExt a1 a2), (A.ZExt b1 b2)) -> pg c_C_ZExt =<< p [(a1, b1), (a2, b2)]
+  --   ((A.SExt a1 a2), (A.SExt b1 b2)) -> pg c_C_SExt =<< p [(a1, b1), (a2, b2)]
+  --   ((A.FPToUI a1 a2), (A.FPToUI b1 b2)) -> pg c_C_FPToUI =<< p [(a1, b1), (a2, b2)]
+  --   ((A.FPToSI a1 a2), (A.FPToSI b1 b2)) -> pg c_C_FPToSI =<< p [(a1, b1), (a2, b2)]
+  --   ((A.UIToFP a1 a2), (A.UIToFP b1 b2)) -> pg c_C_UIToFP =<< p [(a1, b1), (a2, b2)]
+  --   ((A.SIToFP a1 a2), (A.SIToFP b1 b2)) -> pg c_C_SIToFP =<< p [(a1, b1), (a2, b2)]
+  --   ((A.FPTrunc a1 a2), (A.FPTrunc b1 b2)) -> pg c_C_FPTrunc =<< p [(a1, b1), (a2, b2)]
+  --   ((A.FPExt a1 a2), (A.FPExt b1 b2)) -> pg c_C_FPExt =<< p [(a1, b1), (a2, b2)]
+  --   ((A.PtrToInt a1 a2), (A.PtrToInt b1 b2)) -> pg c_C_PtrToInt =<< p [(a1, b1), (a2, b2)]
+  --   ((A.IntToPtr a1 a2), (A.IntToPtr b1 b2)) -> pg c_C_IntToPtr =<< p [(a1, b1), (a2, b2)]
+  --   ((A.BitCast a1 a2), (A.BitCast b1 b2)) -> pg c_C_BitCast =<< p [(a1, b1), (a2, b2)]
+  --   ((A.AddrSpaceCast a1 a2), (A.AddrSpaceCast b1 b2)) -> pg c_C_AddrSpaceCast =<< p [(a1, b1), (a2, b2)]
+  --   ((A.ICmp a1 a2 a3), (A.ICmp b1 b2 b3)) -> pg c_C_ICmp =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.FCmp a1 a2 a3), (A.FCmp b1 b2 b3)) -> pg c_C_FCmp =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.Select a1 a2 a3), (A.Select b1 b2 b3)) -> pg c_C_Select =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.ExtractElement a1 a2), (A.ExtractElement b1 b2)) -> pg c_C_ExtractElement =<< p [(a1, b1), (a2, b2)]
+  --   ((A.InsertElement a1 a2 a3), (A.InsertElement b1 b2 b3)) -> pg c_C_InsertElement =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.ShuffleVector a1 a2 a3), (A.ShuffleVector b1 b2 b3)) -> pg c_C_ShuffleVector =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   ((A.ExtractValue a1 a2), (A.ExtractValue b1 b2)) -> pg c_C_ExtractValue =<< p [(a1, b1), (a2, b2)]
+  --   ((A.InsertValue a1 a2 a3), (A.InsertValue b1 b2 b3)) -> pg c_C_InsertValue =<< p [(a1, b1), (a2, b2), (a3, b3)]
+  --   (_, _) -> proofFail "Constant"
+  --   where
+  --     p = mapM (uncurry proveEquiv)
+  --     pg c f = proveEquivGeneral c f $ (head . words . show) a ++ " Constant equivalent"
+
+-}

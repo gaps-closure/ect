@@ -527,16 +527,31 @@ genProveEquiv :: Q Type -- ^ The type for which to generated the proveEquiv inst
               -> Q [Dec]
 genProveEquiv typ' = do
   typ <- typ'
-  Just proveEquivName <- lookupValueName "proveEquiv"
+  Just proveEquivN <- lookupValueName "proveEquiv"
   Just proveEquivClass <- lookupTypeName "ProveEquiv"
-  let clauses = [Clause [ConP (mkName "A.Int") [VarP (mkName "a1")
-                                               ,VarP (mkName "b1")]
-                        ,ConP (mkName "A.Int") [VarP (mkName "a2")
-                                               ,VarP (mkName "b2")]
-                        ]
-                        (NormalB (AppE (VarE (mkName "proofFail"))
-                                       (LitE (StringL "failed"))))
-                        []
+  Just bindN <- lookupValueName ">>="
+  Just z3dconN <- lookupValueName "c_C_Int"
+  Just sequenceN <- lookupValueName "sequence"
+  Just proveEquivAlgN <- lookupValueName "proveEquivAlgebraic"
+  let bindE = VarE bindN
+      sequenceE = VarE sequenceN
+      proveEquivAlgE = VarE proveEquivAlgN
+      proveEquivE = VarE proveEquivN
+
+  let genClause dconName z3dcon ctorArgs comment =
+        Clause [ConP dconName (map (VarP . fst) ctorArgs)
+               ,ConP dconName (map (VarP . snd) ctorArgs)]
+               (NormalB (UInfixE (AppE sequenceE equivs) bindE
+                         (AppE (AppE proveEquivAlgE z3dcon)
+                           (LitE $ StringL comment))))
+               []
+        where
+          equivs = ListE $ map (\(a, b) -> (AppE (AppE proveEquivE (VarE a)) (VarE b))) ctorArgs
+               
+  
+  let clauses = [genClause (mkName "A.Int") (VarE z3dconN)
+                 [(mkName "a1", mkName "b1"), (mkName "a2", mkName "b2")]
+                 "Int"
                 ]
-  let decs = [FunD proveEquivName clauses]
+  let decs = [FunD proveEquivN clauses]
   return $ [InstanceD Nothing [] (AppT (ConT proveEquivClass) typ) $ decs]
