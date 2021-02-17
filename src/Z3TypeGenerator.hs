@@ -152,8 +152,8 @@ typeName _ t = error $ "unsupported type " ++ show t
 type StringTypeInfo = (String, StringConstructors)
 
 -- | A list of data-constructor names paired with
--- lists of (field-name, field-type-name) pairs
-type StringConstructors = [(String, [(String, String)])]
+-- lists of (data-constructor-name, field-name-string, field-type-name) pairs
+type StringConstructors = [(Name, String, [(String, String)])]
 
 -- | Add bound variables to a type environment.
 -- The length of formals and actuals should match, but this is not checked
@@ -178,14 +178,14 @@ monoConstructors env tCon dCons = (tConName, dConsInfo)
     dConsInfo = map dConInfo dCons
 
     dConInfo (NormalC n bts) =
-      ( namePrefix ++ nameBase n ++ typeSuffix
+      ( n, namePrefix ++ nameBase n ++ typeSuffix
       , zipWith (\(_,t) nn -> ((sanitize $ "f_" ++ nameBase n ++ "_" ++ show nn)
                              , typeName env t)) bts [(1::Int)..])
-    dConInfo (RecC n vbts) = (namePrefix ++ nameBase n ++ typeSuffix,
+    dConInfo (RecC n vbts) = (n, namePrefix ++ nameBase n ++ typeSuffix,
                        map (\(f,_,t) -> ((sanitize $ nameBase n ++ "_" ++ nameBase f)
                                         ,typeName env t)) vbts)
-    dConInfo (InfixC (_,t1) _ (_,t2)) =
-      (namePrefix ++ "infix" ++ typeSuffix,    -- FIXME: name is like ":-"
+    dConInfo (InfixC (_,t1) n (_,t2)) =
+      (n, namePrefix ++ "infix" ++ typeSuffix,    -- FIXME: name is like ":-"
         [("l", typeName env t1)
         ,("r", typeName env t2)])
     dConInfo dc = error $ "unsupported constructors " ++ show dc
@@ -217,12 +217,12 @@ monoType env ty = collect [] ty
         i -> error $ "monoType: expecting a TyConI; got " ++ show i
     collect [arg] ListT = return (tCon, dConsInfo)
       where tCon = "List_" ++ arg
-            dConsInfo = [("Nil_" ++ arg, [])
-                        ,("Cons_" ++ arg, [("head", arg)
+            dConsInfo = [(mkName "Nil", "Nil_" ++ arg, []) -- FIXME?
+                        ,(mkName "Cons", "Cons_" ++ arg, [("head", arg)
                                           ,("tail", tCon)])]
     collect args (TupleT n) = return (tCon, dConsInfo)
       where tCon = "Tup" ++ show n ++ concatMap ("_"++) args
-            dConsInfo = [(tCon, fields)]
+            dConsInfo = [(mkName ("Tup" ++ show n), tCon, fields)]
             fields = zipWith field args ([1..] :: [Int])
             field t fn = ("field" ++ show fn, t)
         
@@ -264,7 +264,7 @@ varsFor (tConName, dConsNames) = TupP [sortP, dConsPs]
   where
     sortP = VarP $ mkName $ typePrefix ++ tConName
     dConsPs = ListP $
-         map (\(n, _) -> VarP $ mkName $ constructorPrefix ++ n) dConsNames
+         map (\(_,n, _) -> VarP $ mkName $ constructorPrefix ++ n) dConsNames
 
 {-| Like "z3Constructors" but handle mutually recursive types using
     "mkMutualZ3Constuctors".
@@ -304,7 +304,7 @@ z3MutualConstructors boolSort tys = do
       tConNames = ListE $ map (LitE . StringL . fst) tinfos
       dConPairss = ListE $ map (ListE . map toDCons . snd) tinfos
 
-      toDCons (dc, fields) = TupE [ LitE (StringL dc)
+      toDCons (_, dc, fields) = TupE [ LitE (StringL dc)
                                   , ListE (map toField fields) ]
 
       toField (fn, ft) = TupE [LitE (StringL fn), typE]
@@ -339,7 +339,7 @@ z3ConstructorsStmt boolSortE (tConName, dConsNames) =
 
       vars = varsFor (tConName, dConsNames)
 
-      toDCPair (dc, fields) = TupE [LitE (StringL dc)
+      toDCPair (_, dc, fields) = TupE [LitE (StringL dc)
                                    ,ListE (map toField fields)]
       justE = AppE (ConE $ mkName "Just")
       nothingE = ConE $ mkName "Nothing"
@@ -373,7 +373,8 @@ genProofEnvDecl proofEnvType primitives types = do
       ctorField n = (mkName $ constructorPrefix ++ n, sBang
                     , ConT $ mkName "Z3Constructor")
       primitiveFields = map typeField primitives
-      infoToFields (tCon, dCons) = typeField tCon : map (ctorField . fst) dCons
+      infoToFields (tCon, dCons) =
+        typeField tCon : map (\(_,f,_) -> ctorField f) dCons
       proofEnvTypeName = mkName proofEnvType
   typeEs <- sequence types
   fields <- concatMap infoToFields <$> mapM (monoType []) typeEs
@@ -527,10 +528,11 @@ genProveEquiv :: Q Type -- ^ The type for which to generated the proveEquiv inst
               -> Q [Dec]
 genProveEquiv typ' = do
   typ <- typ'
+  (_, stringConstructors) <- monoType [] typ
   Just proveEquivN <- lookupValueName "proveEquiv"
   Just proveEquivClass <- lookupTypeName "ProveEquiv"
   Just bindN <- lookupValueName ">>="
-  Just z3dconN <- lookupValueName "c_C_Int"
+--  Just z3dconN <- lookupValueName "c_C_Int"
   Just sequenceN <- lookupValueName "sequence"
   Just proveEquivAlgN <- lookupValueName "proveEquivAlgebraic"
   let bindE = VarE bindN
@@ -542,16 +544,28 @@ genProveEquiv typ' = do
         Clause [ConP dconName (map (VarP . fst) ctorArgs)
                ,ConP dconName (map (VarP . snd) ctorArgs)]
                (NormalB (UInfixE (AppE sequenceE equivs) bindE
-                         (AppE (AppE proveEquivAlgE z3dcon)
-                           (LitE $ StringL comment))))
+                         (foldl1 AppE [proveEquivAlgE
+                                      ,z3dcon
+                                      ,LitE (StringL comment)])))
                []
         where
-          equivs = ListE $ map (\(a, b) -> (AppE (AppE proveEquivE (VarE a)) (VarE b))) ctorArgs
+          equivs = ListE $ map (\(a, b) -> foldl1 AppE [proveEquivE
+                                                       ,VarE a
+                                                       ,VarE b]) ctorArgs
+      toClause (dconName, z3dcon, fields) =
+        genClause dconName (VarE (mkName (constructorPrefix ++ z3dcon))) fields' z3dcon
+        where
+          fields' = zipWith (\_ n -> (mkName ("a" ++ show n)
+                                     ,mkName ("b" ++ show n))) fields [(1::Int)..]
                
   
-  let clauses = [genClause (mkName "A.Int") (VarE z3dconN)
-                 [(mkName "a1", mkName "b1"), (mkName "a2", mkName "b2")]
-                 "Int"
-                ]
+  let clauses = map toClause stringConstructors
+
+  {- [genClause (mkName "A.Int"
+                           ,VarE z3dconN
+                           ,[(mkName "a1", mkName "b1"),
+                             (mkName "a2", mkName "b2")]
+                           ,"Int")
+                ] -}
   let decs = [FunD proveEquivN clauses]
   return $ [InstanceD Nothing [] (AppT (ConT proveEquivClass) typ) $ decs]

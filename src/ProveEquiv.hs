@@ -110,7 +110,7 @@ module ProveEquiv where
 import Data.ByteString.UTF8 (toString)
 import Data.ByteString.Short (ShortByteString, fromShort)
 import qualified Data.ByteString.Char8 as C
-import Data.Word ( Word32, Word64 )
+import Data.Word ( Word16, Word32, Word64 )
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import Data.List (intercalate)
@@ -135,6 +135,8 @@ import qualified LLVM.AST.AddrSpace as A
 import qualified LLVM.AST.Constant as A
 import qualified LLVM.AST.IntegerPredicate as A
 import qualified LLVM.AST.FloatingPointPredicate as FPA
+--import qualified LLVM.AST.ThreadLocalStorage as A
+import qualified LLVM.AST.Float as A
 
 import Z3TypeGenerator 
   
@@ -510,6 +512,11 @@ proveEquivTuple c_Tup n (a1, a2) (b1, b2) = do
 instance ProveEquiv Bool where
   proveEquiv = proveEquivPrimitive t_Bool mkBool "Bool"
 
+instance ProveEquiv Word16 where
+  proveEquiv = proveEquivPrimitive t_Word16
+                                   (\x -> mkBitvector 16 (toInteger x))
+                                   "Word16"
+
 instance ProveEquiv Word32 where
   proveEquiv = proveEquivPrimitive t_Word32
                                    (\x -> mkBitvector 32 (toInteger x))
@@ -538,9 +545,17 @@ instance ProveEquiv (Maybe ShortByteString) where
   proveEquiv = proveEquivMaybe
     c_MSBS_Just_ShortByteString c_MSBS_Nothing_ShortByteString "ShortByteString"
 
+instance ProveEquiv Float where
+  proveEquiv _ _ = proofFail "FIXME: Float unsupported"
+
+instance ProveEquiv Double where
+  proveEquiv _ _ = proofFail "FIXME: Double unsupported"
+
+  
 ------------------------------------
 -- LLVM types making up a Function
 
+{-
 instance ProveEquiv A.IntegerPredicate where
   proveEquiv a b
     | a == b    = proveEquivGeneral c [] (show a ++ " IntegerPredicate equivalent")
@@ -556,7 +571,9 @@ instance ProveEquiv A.IntegerPredicate where
                 A.SGE -> c_IP_SGE
                 A.SLT -> c_IP_SLT
                 A.SLE -> c_IP_SLE
+-}
 
+{-
 instance ProveEquiv FPA.FloatingPointPredicate where
   proveEquiv a b
     | a == b    = proveEquivGeneral c [] (show a ++ " FloatingPointPredicate equivalent")
@@ -578,7 +595,9 @@ instance ProveEquiv FPA.FloatingPointPredicate where
                 FPA.ULE   -> c_FPP_ULE
                 FPA.UNE   -> c_FPP_UNE
                 FPA.True  -> c_FPP_True
+-}
 
+{-
 instance ProveEquiv A.Linkage where
   proveEquiv a b
     | a == b    = proveEquivGeneral c [] (show a ++ " linkage equivalent")
@@ -613,10 +632,13 @@ instance ProveEquiv A.StorageClass where
                 A.Import -> c_SC_Import
                 A.Export -> c_SC_Export
 
+-}
+
 instance ProveEquiv (Maybe A.StorageClass) where
   proveEquiv = proveEquivMaybe
     c_MSC_Just_StorageClass c_MSC_Nothing_StorageClass "StorageClass"
 
+{-
 instance ProveEquiv A.CallingConvention where
   proveEquiv (A.Numbered w1) (A.Numbered w2) = do
     e <- proveEquiv w1 w2
@@ -667,6 +689,9 @@ instance ProveEquiv A.CallingConvention where
                 A.MSP430_Builtin -> c_CC_MSP430_Builtin
                 _ -> error "unreachable pattern match"
 
+-}
+
+{-
 instance ProveEquiv A.ParameterAttribute where
   proveEquiv (A.StringAttribute k1 v1) (A.StringAttribute k2 v2) = do
     ek <- proveEquiv k1 k2
@@ -709,6 +734,8 @@ instance ProveEquiv A.ParameterAttribute where
                 A.SwiftError -> c_PA_SwiftError
                 _ -> error "unreachable pattern match"
 
+-}
+
 instance ProveEquiv [A.ParameterAttribute] where
   proveEquiv = proveEquivList
     c_Cons_ParameterAttribute c_Nil_ParameterAttribute "ParameterAttribute"
@@ -718,6 +745,7 @@ instance ProveEquiv A.AddrSpace where
     e <- proveEquiv a1 a2
     proveEquivGeneral c_AS_AddrSpace [e] "AddrSpace equivalent"
 
+{-
 instance ProveEquiv A.FloatingPointType where
   proveEquiv ft1 ft2 | ft1 == ft2 = proveEquivGeneral c [] (show ft1)
                      | otherwise = proofFail $ show ft1 ++ " /= " ++ show ft2
@@ -727,7 +755,9 @@ instance ProveEquiv A.FloatingPointType where
                           A.FP128FP     -> c_FPT_FP128FP
                           A.X86_FP80FP  -> c_FPT_X86_FP80FP
                           A.PPC_FP128FP -> c_FPT_PPC_FP128FP
+-}
 
+{-
 instance ProveEquiv A.Type where -- FIXME: partial definition
   proveEquiv A.VoidType A.VoidType = do
     proveEquivGeneral c_T_VoidType [] "VoidType equivalent"
@@ -749,6 +779,8 @@ instance ProveEquiv A.Type where -- FIXME: partial definition
   proveEquiv t1 t2 = proofFail $
       "Type equivalence failed on " ++ show t1 ++ " and " ++ show t2
 
+-}
+
 -- Add to the proof state matching maps and add something in Z3 asserting
 -- that these two names are equivalent under the forward/backward functions.
 instance ProveEquiv A.Name where
@@ -766,16 +798,14 @@ instance ProveEquiv (Maybe A.Name) where
   proveEquiv = proveEquivMaybe
     c_MN_Just_Name c_MN_Nothing_Name "Name"
 
+{-
 instance ProveEquiv A.Parameter where
   proveEquiv (A.Parameter t1 n1 pa1) (A.Parameter t2 n2 pa2) = do
     t_eq <- proveEquiv t1 t2
     n_eq <- proveEquiv n1 n2
     pa_eq <- proveEquiv pa1 pa2
     proveEquivGeneral c_P_Parameter [t_eq, n_eq, pa_eq] "Parameter equivalent"
-
-instance ProveEquiv [A.Parameter] where
-  proveEquiv = proveEquivList
-    c_Cons_Parameter c_Nil_Parameter "Parameter"
+-}
 
 instance ProveEquiv ([A.Parameter], Bool) where
   proveEquiv = proveEquivTuple2
@@ -1343,6 +1373,7 @@ instance ProveEquiv A.SynchronizationScope where
       where c = case ss1 of A.SingleThread -> c_SS_SingleThread
                             A.System       -> c_SS_System
 
+{-
 instance ProveEquiv A.MemoryOrdering where
   proveEquiv mo1 mo2 | mo1 == mo2 = proveEquivGeneral c [] (show mo1)
                      | otherwise = proofFail $ show mo1 ++ " /= " ++ show mo2
@@ -1352,6 +1383,7 @@ instance ProveEquiv A.MemoryOrdering where
                           A.Release                -> c_MO_Release
                           A.AcquireRelease         -> c_MO_AcquireRelease
                           A.SequentiallyConsistent -> c_MO_SequentiallyConsistent
+-}
 
 -- | Reset the @matching@, @inverse@, and @visiting@ sets/maps
 resetMatching :: ProofM ()
@@ -1424,11 +1456,32 @@ assertMatch nameCons n1 n2 = do
       (A.UnName w) -> sequence $ [mkBitvector 32 $ toInteger w]
 
 
+$(genProveEquiv [t| A.IntegerPredicate |] )
 
+$(genProveEquiv [t| FPA.FloatingPointPredicate |] )
+$(genProveEquiv [t| A.FloatingPointType |] )
+$(genProveEquiv [t| A.Linkage |] )
+$(genProveEquiv [t| A.Visibility |] )
+$(genProveEquiv [t| A.StorageClass |] )
+$(genProveEquiv [t| A.CallingConvention |] )
+
+$(genProveEquiv [t| A.ParameterAttribute |] )
+
+$(genProveEquiv [t| A.SomeFloat |] )
 
 $(genProveEquiv [t| A.Constant |] )
 
+instance ProveEquiv [A.Type] where
+  proveEquiv = proveEquivList c_Cons_Type c_Nil_Type "Type List"
 
+$(genProveEquiv [t| A.Type |] )
+
+instance ProveEquiv [A.Parameter] where
+  proveEquiv = proveEquivList c_Cons_Parameter c_Nil_Parameter "Parameter List"
+
+$(genProveEquiv [t| A.Parameter |] )
+
+$(genProveEquiv [t| A.MemoryOrdering |] )
 
 
 {-
