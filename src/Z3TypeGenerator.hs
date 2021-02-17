@@ -74,12 +74,12 @@ because of some Template Haskell quirk.  Otherwise,
 @return ProofEnv{..}@ would be correct
 
 -}
-initEnv :: String   -- ^ Name of the ProofEnv type, typically "ProofEnv"
-        -> [Q Stmt] -- ^ do-block statements for filling in the various
+genInitEnv :: String   -- ^ Name of the ProofEnv type, typically "ProofEnv"
+           -> [Q Stmt] -- ^ do-block statements for filling in the various
                     -- various fields of the ProofEnv object, typically
                     -- 'z3Constructors' and 'z3MutualConstructors'
-        -> Q Exp    -- ^ do initialization-statements ; return ProofEnv {...}
-initEnv envType stmts = do
+           -> Q Exp    -- ^ do initialization-statements ; return ProofEnv {...}
+genInitEnv envType stmts = do
   stmts' <- sequence stmts
   Just envTypeName <- lookupTypeName envType
   Just envDconName <- lookupValueName envType
@@ -363,11 +363,11 @@ z3ConstructorsStmt boolSortE (tConName, dConsNames) =
 @
 
 -}
-declareProofEnvType :: String -- ^ The name of the new type (usually "ProofEnv")
+genProofEnvDecl :: String -- ^ The name of the new type (usually "ProofEnv")
                     -> [String] -- ^ List of primitive sorts: these are turned directly into fields of type @Z3Type@
                     -> [Q Type] -- ^ Each type in this list will expand into a 'ProofEnv.Z3Type' field and 'ProofEnv.Z3Constructor' fields for each of its constructors
                     -> Q [Dec] -- ^ The generated declaration
-declareProofEnvType proofEnvType primitives types = do
+genProofEnvDecl proofEnvType primitives types = do
   let sBang = Bang NoSourceUnpackedness SourceStrict
       typeField n = (mkName $ typePrefix ++ n, sBang, ConT $ mkName "Z3Type")
       ctorField n = (mkName $ constructorPrefix ++ n, sBang
@@ -517,3 +517,26 @@ requiredTypes leaves ty = do
       proofEnv = ListE $ map (LitE . StringL . haskellTypeName) $ S.toList typs'
       initialEnv = ListE $ map (LitE . StringL . show) (groupSCC sccs)
   return $ TupE [proofEnv, initialEnv]
+
+
+
+{-| Generate an instance of proveEquiv for a particular type
+
+-}
+genProveEquiv :: Q Type -- ^ The type for which to generated the proveEquiv instances
+              -> Q [Dec]
+genProveEquiv typ' = do
+  typ <- typ'
+  Just proveEquivName <- lookupValueName "proveEquiv"
+  Just proveEquivClass <- lookupTypeName "ProveEquiv"
+  let clauses = [Clause [ConP (mkName "A.Int") [VarP (mkName "a1")
+                                               ,VarP (mkName "b1")]
+                        ,ConP (mkName "A.Int") [VarP (mkName "a2")
+                                               ,VarP (mkName "b2")]
+                        ]
+                        (NormalB (AppE (VarE (mkName "proofFail"))
+                                       (LitE (StringL "failed"))))
+                        []
+                ]
+  let decs = [FunD proveEquivName clauses]
+  return $ [InstanceD Nothing [] (AppT (ConT proveEquivClass) typ) $ decs]

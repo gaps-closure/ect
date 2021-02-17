@@ -1,5 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 {-|
 
@@ -135,10 +136,13 @@ import qualified LLVM.AST.Constant as A
 import qualified LLVM.AST.IntegerPredicate as A
 import qualified LLVM.AST.FloatingPointPredicate as FPA
 
+import Z3TypeGenerator 
+  
 import Z3.Monad
 
 import ProofM
 import ProofEnv
+
 
 -- | Return the object that may be named
 unName :: A.Named a -> a
@@ -853,8 +857,31 @@ instance ProveEquiv [Either FA.GroupID FA.FunctionAttribute] where
     c_Nil_Either_GroupID_FunctionAttribute
     "FunctionAttribute"
 
+{-| proveEquivGeneral with arguments in a different order -}
+proveEquivAlgebraic :: (ProofEnv -> Z3Constructor) -- ^ Function for getting constructor info from the proof environment
+                    -> String                      -- ^ Comment for inference rule
+                    -> [Equiv]                     -- ^ Proven-equivalent fields, e.g., from proveEquiv
+                    -> ProofM Equiv
+proveEquivAlgebraic ctor note equivs = proveEquivGeneral ctor equivs note
+
+--  [d| proveEquiv _ _ = proofFail "foo" |]
+
+{-
 -- FIXME
 instance ProveEquiv A.Constant where
+
+  
+  proveEquiv (A.Int a1 a2) (A.Int b1 b2) =
+    T.sequence [proveEquiv a1 b1, proveEquiv a2 b2] >>=
+    proveEquivAlgebraic c_C_Int "Constant Int"
+
+--  proveEquiv (A.Float a1) (A.Float b1) =
+--    T.sequence [ proveEquiv a1 b1] >>= proveEquivAlgebraic c_C_Float "Constant Float"
+
+  proveEquiv (A.Null a1) (A.Null b1) =
+    T.sequence [proveEquiv a1 b1] >>=
+    proveEquivAlgebraic c_C_Null "Constant Null"
+
   proveEquiv _ _ = assertEquiv t_Constant
   -- proveEquiv a b = case (a, b) of
   --   ((A.Int a1 a2), (A.Int b1 b2)) -> pg c_C_Int =<< p [(a1, b1), (a2, b2)]
@@ -912,6 +939,8 @@ instance ProveEquiv A.Constant where
   --   where
   --     p = mapM (uncurry proveEquiv)
   --     pg c f = proveEquivGeneral c f $ (head . words . show) a ++ " Constant equivalent"
+
+-}
 
 instance ProveEquiv (Maybe A.Constant) where
   proveEquiv = proveEquivMaybe
@@ -1470,3 +1499,8 @@ assertMatch nameCons n1 n2 = do
     field n = case n of
       (A.Name s)   -> T.sequence $ [mkString $ C.unpack $ fromShort s]
       (A.UnName w) -> T.sequence $ [mkBitvector 32 $ toInteger w]
+
+
+
+
+$(genProveEquiv [t| A.Constant |] )

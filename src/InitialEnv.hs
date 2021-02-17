@@ -232,7 +232,7 @@ initialEnv = do
       t_InstructionMetadata = t_Bool
       t_List_Tup2_ShortByteString_MDRef_MDNode = t_Bool
       t_Metadata = t_Bool -- FIXME
-  $(initEnv "ProofEnv" $
+  $(genInitEnv "ProofEnv" $
     map (z3Constructors [| s_Bool |]) [ [t| A.Visibility |]
                                       , [t| A.FloatingPointType |]
                                       , [t| A.Model |]
