@@ -138,8 +138,8 @@ import qualified LLVM.AST.FloatingPointPredicate as FPA
 --import qualified LLVM.AST.ThreadLocalStorage as A
 import qualified LLVM.AST.Float as A
 
-import Z3TypeGenerator 
-  
+import Z3TypeGenerator
+
 import Z3.Monad
 
 import ProofM
@@ -551,7 +551,7 @@ instance ProveEquiv Float where
 instance ProveEquiv Double where
   proveEquiv _ _ = proofFail "FIXME: Double unsupported"
 
-  
+
 ------------------------------------
 -- LLVM types making up a Function
 
@@ -1156,6 +1156,7 @@ vacuousEquiv getType = do
 
 instance ProveEquiv A.Global where
   proveEquiv f1@A.Function{} f2@A.Function{} = do
+    resetMatching
     fields <- sequence [ proveField A.linkage
                        , proveField A.visibility
                        , proveField A.dllStorageClass
@@ -1385,13 +1386,24 @@ instance ProveEquiv A.MemoryOrdering where
                           A.SequentiallyConsistent -> c_MO_SequentiallyConsistent
 -}
 
+freshMatchFunctions :: ProofM (FuncDecl, FuncDecl)
+freshMatchFunctions = do
+  (_, _, Z3Type{..}) <- fromEnv c_N_Name
+  fwd_sym <- mkStringSymbol "fwd-match"
+  inv_sym <- mkStringSymbol "inv-match"
+  fwd <- mkFuncDecl fwd_sym [sort] sort
+  inv <- mkFuncDecl inv_sym [sort] sort
+  return (fwd, inv)
+
 -- | Reset the @matching@, @inverse@, and @visiting@ sets/maps
 resetMatching :: ProofM ()
 resetMatching = do
   ProofState{..} <- ProofM $ lift get
+  (new_fwd, new_inv) <- freshMatchFunctions
   ProofM $ lift $ put $ ProofState { matching = M.empty
                                    , inverse = M.empty
                                    , visiting = S.empty
+                                   , z3_match = Just (new_fwd, new_inv)
                                    , .. }
 
 -- | Check whether the given name is in the @visiting@ set
@@ -1435,22 +1447,15 @@ assertMatch nameCons n1 n2 = do
   (mkName, _, Z3Type{..}) <- fromEnv nameCons
   ProofState{..} <- ProofM $ lift get
   case z3_match of
-    Nothing -> do
-      fwd_sym <- mkStringSymbol "fwd-match"
-      inv_sym <- mkStringSymbol "inv-match"
-      fwd <- mkFuncDecl fwd_sym [sort] sort
-      inv <- mkFuncDecl inv_sym [sort] sort
-      ProofM $ lift $ put $ ProofState { z3_match = Just (fwd, inv), .. }
-      updateMatchFuncs mkName fwd inv
-    Just (fwd, inv) -> updateMatchFuncs mkName fwd inv
-  where
-    updateMatchFuncs mkName fwd inv = do
+    Just (fwd, inv) -> do
       z3n1 <- mkApp mkName =<< field n1
       z3n2 <- mkApp mkName =<< field n2
       fn1 <- mkApp fwd [z3n1]
       fn2 <- mkApp inv [z3n2]
       assert =<< mkEq fn1 z3n2
       assert =<< mkEq fn2 z3n1
+    _ -> error "assertMatch with no matching functions initialized"
+  where
     field n = case n of
       (A.Name s)   -> sequence $ [mkString $ C.unpack $ fromShort s]
       (A.UnName w) -> sequence $ [mkBitvector 32 $ toInteger w]
@@ -1488,7 +1493,7 @@ $(genProveEquiv [t| A.MemoryOrdering |] )
 -- FIXME
 instance ProveEquiv A.Constant where
 
-  
+
   proveEquiv (A.Int a1 a2) (A.Int b1 b2) =
     T.sequence [proveEquiv a1 b1, proveEquiv a2 b2] >>=
     proveEquivAlgebraic c_C_Int "Constant Int"
