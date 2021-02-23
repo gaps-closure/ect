@@ -108,7 +108,7 @@ module ProveEquiv where
 
 -- import Data.Traversable (sequence)
 import Data.ByteString.UTF8 (toString)
-import Data.ByteString.Short (ShortByteString, fromShort)
+import Data.ByteString.Short (ShortByteString, fromShort, toShort)
 import qualified Data.ByteString.Char8 as C
 import Data.Word ( Word16, Word32, Word64 )
 import qualified Data.Map.Strict as M
@@ -786,11 +786,11 @@ instance ProveEquiv A.Type where -- FIXME: partial definition
 instance ProveEquiv A.Name where
   proveEquiv n1@(A.Name _) n2@(A.Name _) = do
     assertMatch c_N_Name n1 n2
-    e <- assertEquiv t_ShortByteString
+    e <- assertEquivDefault $ toShort (C.pack "a")
     proveEquivGeneral c_N_Name [e] "Name equivalent"
   proveEquiv n1@(A.UnName _) n2@(A.UnName _) = do
     assertMatch c_N_UnName n1 n2
-    e <- assertEquiv t_Word
+    e <- assertEquivDefault $ (1 :: Word)
     proveEquivGeneral c_N_UnName [e] "UnName equivalent"
   proveEquiv _ _ = proofFail "Name != UnName"
 
@@ -914,7 +914,11 @@ instance ProveEquiv [A.Constant] where
 
 -- FIXME
 instance ProveEquiv A.Terminator where
-  proveEquiv _ _ = assertEquiv t_Terminator
+  proveEquiv t1@(I.Unreachable _) t2@(I.Unreachable _) = do
+    meta <- assertEquivDefault True
+    proveEquivGeneral c_T_Unreachable [meta] $ show t1 ++ " == " ++ show t2
+
+  proveEquiv _ _ = assertEquivDefault $ I.Unreachable []
 
 instance ProveEquiv (A.Named A.Terminator) where
   proveEquiv = proveEquivNamed
@@ -1138,6 +1142,14 @@ assertEquiv getType = do
 
   return Equiv{..}
 
+-- Runtime-friendly "ignore" option for ProveEquiv instances
+-- NOTE: avoid using on A.Name objects
+-- NOTE: when used for the fallthrough case of an incomplete ProveEquiv
+-- instance, assertEquivDefault must call proveEquiv on a constructor
+-- which IS implemented by the instance, to avoid infinite recursion
+assertEquivDefault :: (ProveEquiv a) => a -> ProofM Equiv
+assertEquivDefault x = proveEquiv x x
+
 {-
 vacuousEquiv :: (ProofEnv -> Z3Type) -> ProofM Equiv
 vacuousEquiv getType = do
@@ -1163,7 +1175,7 @@ instance ProveEquiv A.Global where
                        , proveField A.callingConvention
                        , proveField A.returnAttributes
                        , proveField A.returnType
-                       , assertEquiv t_Name -- FIXME: ignore function name?
+                       , assertEquiv t_Name
                        , proveField A.parameters
                        , proveField A.functionAttributes
                        , proveField A.section
@@ -1173,7 +1185,7 @@ instance ProveEquiv A.Global where
                        , proveField A.prefix
                        , proveEquivCFG (A.basicBlocks f1) (A.basicBlocks f2)
                        , proveField A.personalityFunction
-                       , assertEquiv t_Bool -- ignore metadata
+                       , assertEquivDefault True
                        ]
     proveEquivGeneral c_G_Function fields $
       "functions " ++ (showName $ A.name f1) ++ " and " ++
@@ -1310,7 +1322,7 @@ instance ProveEquiv I.Instruction where
     fields <- sequence [ proveField I.allocatedType
                        , proveField I.numElements
                        , proveField I.alignment
-                       , assertEquiv t_Bool -- ignore metatdata
+                       , assertEquivDefault True
                        ]
     proveEquivGeneral c_I_Alloca fields $ show i1 ++ " == " ++ show i2
     where proveField record = proveEquiv (record i1) (record i2)
@@ -1321,7 +1333,7 @@ instance ProveEquiv I.Instruction where
                        , proveField I.value
                        , proveField I.maybeAtomicity
                        , proveField I.alignment
-                       , assertEquiv t_Bool -- ignore metadata
+                       , assertEquivDefault True
                        ]
     proveEquivGeneral c_I_Store fields $ show i1 ++ " == " ++ show i2
     where proveField record = proveEquiv (record i1) (record i2)
@@ -1329,7 +1341,7 @@ instance ProveEquiv I.Instruction where
   proveEquiv i1@(I.BitCast o1 t1 _) i2@(I.BitCast o2 t2 _) = do
     operands <- proveEquiv o1 o2
     types <- proveEquiv t1 t2
-    meta <- assertEquiv t_Bool -- ignore metadata
+    meta <- assertEquivDefault True
     proveEquivGeneral c_I_BitCast [operands, types, meta] $
       show i1 ++ " == " ++ show i2
 
@@ -1337,7 +1349,7 @@ instance ProveEquiv I.Instruction where
     logString $ "FIXME: Unsupported instructions; treated as equivalent"
     logString $ "FIXME: Comparing " ++ show i1
     logString $ "FIXME: to " ++ show i2
-    assertEquiv t_Instruction -- FIXME
+    assertEquivDefault $ I.BitCast (A.ConstantOperand A.TokenNone) A.VoidType []
 
 instance ProveEquiv A.Operand where
   proveEquiv (A.ConstantOperand c1) (A.ConstantOperand c2) = do
@@ -1353,7 +1365,7 @@ instance ProveEquiv A.Operand where
 
   proveEquiv o1 o2 = do
     logString $ "FIXME: ignoring operands " ++ show o1 ++ " and " ++ show o2
-    assertEquiv t_Operand -- FIXME
+    assertEquivDefault $ A.ConstantOperand A.TokenNone
 
 instance ProveEquiv (Maybe A.Operand) where
   proveEquiv = proveEquivMaybe c_MO_Just_Operand c_MO_Nothing_Operand

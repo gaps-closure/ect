@@ -17,7 +17,7 @@ define dso_local double @calc_ewma(double, double) #0 !dbg !2 {
   %3 = alloca double, align 8
   %4 = alloca double, align 8
   %5 = alloca double, align 8
-  store double %0, double* %3, align 8
+  store double %0, double* %3, align 8 ; FIXME: change %3 to %4 to break
   call void @llvm.dbg.declare(metadata double* %3, metadata !19, metadata !DIExpression()), !dbg !20
   store double %1, double* %4, align 8
   call void @llvm.dbg.declare(metadata double* %4, metadata !21, metadata !DIExpression()), !dbg !22
