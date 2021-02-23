@@ -1208,7 +1208,7 @@ proveEquivCFG :: [A.BasicBlock] -> [A.BasicBlock] -> ProofM Equiv
 proveEquivCFG cfg1@(A.BasicBlock n1 _ _:_) cfg2@(A.BasicBlock n2 _ _:_) = do
 
   -- Try to establish an isomorphism among the basic blocks
-   resetMatching
+   -- resetMatching
    visit n1 n2
 
    -- Dump the matching information (both forward and back) into Z3-land
