@@ -115,11 +115,10 @@ import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import Data.List (intercalate)
 
-import Control.Monad ( unless, zipWithM_ )
+import Control.Monad ( unless, zipWithM )
 -- import Control.Monad.IO.Class ( liftIO )
 import Control.Monad.Trans.State.Strict ( get, gets, put )
 import Control.Monad.Trans.Class ( lift )
-
 
 --import qualified LLVM.Module as M
 import qualified LLVM.AST.Instruction as I
@@ -1221,13 +1220,12 @@ proveEquivCFG cfg1@(A.BasicBlock n1 _ _:_) cfg2@(A.BasicBlock n2 _ _:_) = do
 
   -- Try to establish an isomorphism among the basic blocks
    -- resetMatching
-   visit n1 n2
+   matchedPairs <- visit n1 n2
 
    -- Dump the matching information (both forward and back) into Z3-land
    -- and add assertions that say the back(forward n) = n for all n
    -- (enumerate them explicitly)
 
-   matchedPairs <- M.assocs <$> getMatching
    logString $ "basic block matching " ++
      intercalate ", "
         (map (\(a,b) -> showName a ++ "-" ++ showName b) matchedPairs)
@@ -1273,16 +1271,19 @@ proveEquivCFG cfg1@(A.BasicBlock n1 _ _:_) cfg2@(A.BasicBlock n2 _ _:_) = do
     visit nbb1 nbb2 = do
       addMatch nbb1 nbb2
       visited <- testVisiting nbb1
-      unless visited $ do
-        setVisiting nbb1
-        bb1 <- bblookup bbm1 nbb1
-        bb2 <- bblookup bbm2 nbb2
-        let successors1 = bbSuccessors bb1
-            successors2 = bbSuccessors bb2
-        unless (length successors1 == length successors2) $
-           proofFail $ "basic blocks " ++ show nbb1 ++ " and " ++
-               show nbb2 ++ " have a different number of successors"
-        zipWithM_ visit successors1 successors2
+      if visited
+        then return []
+        else do
+          setVisiting nbb1
+          bb1 <- bblookup bbm1 nbb1
+          bb2 <- bblookup bbm2 nbb2
+          let successors1 = bbSuccessors bb1
+              successors2 = bbSuccessors bb2
+          unless (length successors1 == length successors2) $
+             proofFail $ "basic blocks " ++ show nbb1 ++ " and " ++
+                 show nbb2 ++ " have a different number of successors"
+          matches <- zipWithM visit successors1 successors2
+          return $ (nbb1, nbb2):(concat matches)
 
 proveEquivCFG _ _ = proofFail "[BasicBlock] not equivalent (different lengths)"
 
