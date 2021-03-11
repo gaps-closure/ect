@@ -211,8 +211,7 @@ main = do
       return r
 
   -- print rule
-  print ""
-  -- mapM_ print proofLog
+  mapM_ print proofLog
 
 
 

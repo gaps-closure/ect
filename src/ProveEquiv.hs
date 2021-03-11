@@ -115,6 +115,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import Data.List (intercalate)
 import Data.Foldable as F
+import qualified GHC.Base as G
 
 import Control.Monad ( unless, zipWithM )
 import Control.Monad.IO.Class ( liftIO )
@@ -132,8 +133,10 @@ import qualified LLVM.AST.CallingConvention as A
 import qualified LLVM.AST.ParameterAttribute as A
 import qualified LLVM.AST.FunctionAttribute as FA
 import qualified LLVM.AST.AddrSpace as A
+import qualified LLVM.AST.InlineAssembly as A
 import qualified LLVM.AST.Constant as A
 import qualified LLVM.AST.IntegerPredicate as A
+import qualified LLVM.AST.RMWOperation as A
 import qualified LLVM.AST.FloatingPointPredicate as FPA
 --import qualified LLVM.AST.ThreadLocalStorage as A
 import qualified LLVM.AST.Float as A
@@ -538,6 +541,9 @@ instance ProveEquiv Word64 where
 instance ProveEquiv Word where
   proveEquiv = proveEquivPrimitive t_Word (\x -> mkBitvector 32 (toInteger x)) "Word"
 
+instance ProveEquiv C.ByteString where
+  proveEquiv = proveEquivPrimitive t_ByteString (\x -> mkString $ C.unpack x) "ByteString"
+
 instance ProveEquiv ShortByteString where
   proveEquiv = proveEquivPrimitive t_ShortByteString (\x -> mkString $ C.unpack $ fromShort x) "ShortByteString"
 
@@ -637,6 +643,10 @@ instance ProveEquiv A.StorageClass where
 instance ProveEquiv (Maybe A.StorageClass) where
   proveEquiv = proveEquivMaybe
     c_MSC_Just_StorageClass c_MSC_Nothing_StorageClass "StorageClass"
+
+instance ProveEquiv (Maybe A.TailCallKind) where
+  proveEquiv = proveEquivMaybe
+    c_MTCK_Just_TailCallKind c_MTCK_Nothing_TailCallKind "TailCallKind"
 
 {-
 instance ProveEquiv A.CallingConvention where
@@ -811,6 +821,48 @@ instance ProveEquiv ([A.Parameter], Bool) where
   proveEquiv = proveEquivTuple2
     c_Tup2_List_Parameter_Bool "([A.Parameter], Bool)"
 
+instance ProveEquiv (A.Constant, A.Name) where
+  proveEquiv = proveEquivTuple2
+    c_Tup2_Constant_Name "(Constant, Name)"
+
+instance ProveEquiv [(A.Constant, A.Name)] where
+  proveEquiv = proveEquivList
+    c_Cons_Tup2_Constant_Name c_Nil_Tup2_Constant_Name "(Constant, Name)"
+
+instance ProveEquiv (A.Operand, [A.ParameterAttribute]) where
+  proveEquiv = proveEquivTuple2
+    c_Tup2_Operand_List_ParameterAttribute "(Operand, [ParameterAttribute])"
+
+instance ProveEquiv [(A.Operand, [A.ParameterAttribute])] where
+  proveEquiv = proveEquivList
+    c_Cons_Tup2_Operand_List_ParameterAttribute
+    c_Nil_Tup2_Operand_List_ParameterAttribute
+    "(Operand, [ParameterAttribute])"
+
+instance ProveEquiv (A.Operand, A.Name) where
+  proveEquiv = proveEquivTuple2 c_Tup2_Operand_Name "(Operand, Name)"
+
+instance ProveEquiv [(A.Operand, A.Name)] where
+  proveEquiv = proveEquivList
+    c_Cons_Tup2_Operand_Name
+    c_Nil_Tup2_Operand_Name
+    "(Operand, Name)"
+
+instance ProveEquiv [A.Name] where
+  proveEquiv = proveEquivList c_Cons_Name c_Nil_Name "Name"
+
+instance ProveEquiv [A.Operand] where
+  proveEquiv = proveEquivList c_Cons_Operand c_Nil_Operand "Operand"
+
+instance ProveEquiv [A.LandingPadClause] where
+  proveEquiv = proveEquivList
+    c_Cons_LandingPadClause
+    c_Nil_LandingPadClause
+    "LandingPadClause"
+
+instance ProveEquiv (G.NonEmpty A.Name) where
+  proveEquiv _ _ = proofFail ""
+
 -- instance ProveEquiv FA.GroupID where
 --   proveEquiv (FA.GroupID i1) (FA.GroupID i2) = do
 --     e <- proveEquiv i1 i2
@@ -887,6 +939,12 @@ instance ProveEquiv [Either FA.GroupID FA.FunctionAttribute] where
     c_Nil_Either_GroupID_FunctionAttribute
     "FunctionAttribute"
 
+instance ProveEquiv (Either A.InlineAssembly A.Operand) where
+  proveEquiv = proveEquivEither
+    c_EIAO_Left_InlineAssembly_Operand
+    c_EIAO_Right_InlineAssembly_Operand
+    "InlineAssembly Operand"
+
 {-| proveEquivGeneral with arguments in a different order -}
 proveEquivAlgebraic :: (ProofEnv -> Z3Constructor) -- ^ Function for getting constructor info from the proof environment
                     -> String                      -- ^ Comment for inference rule
@@ -912,17 +970,20 @@ instance ProveEquiv [A.Constant] where
 -- instance ProveEquiv [(A.Named A.Instruction)] where
 --   proveEquiv = proveEquivList c_Cons_Named_Instruction c_Nil_Named_Instruction "Named Instruction"
 
--- FIXME
-instance ProveEquiv A.Terminator where
-  proveEquiv t1@(I.Unreachable _) t2@(I.Unreachable _) = do
-    meta <- assertEquivDefault True
-    proveEquivGeneral c_T_Unreachable [meta] $ show t1 ++ " == " ++ show t2
-
-  proveEquiv _ _ = assertEquivDefault $ I.Unreachable []
+-- -- FIXME
+-- instance ProveEquiv A.Terminator where
+--   proveEquiv t1@(I.Unreachable _) t2@(I.Unreachable _) = do
+--     meta <- assertEquivDefault True
+--     proveEquivGeneral c_T_Unreachable [meta] $ show t1 ++ " == " ++ show t2
+--
+--   proveEquiv _ _ = assertEquivDefault $ I.Unreachable []
 
 instance ProveEquiv (A.Named A.Terminator) where
   proveEquiv = proveEquivNamed
     c_NT_infix_Terminator c_NT_Do_Terminator "Terminator"
+
+instance ProveEquiv I.InstructionMetadata where
+  proveEquiv _ _ = proofFail ""
 
 {-
 instance ProveEquiv (A.MDRef A.MDNode) where
@@ -1319,56 +1380,56 @@ instance ProveEquiv (A.Named I.Instruction) where
   --
   -- proveEquiv _ _ = proofFail "named vs unnamed instruction"
 
-instance ProveEquiv I.Instruction where
+-- instance ProveEquiv I.Instruction where
+--
+--   proveEquiv i1@I.Alloca{} i2@I.Alloca{} = do
+--     fields <- sequence [ proveField I.allocatedType
+--                        , proveField I.numElements
+--                        , proveField I.alignment
+--                        , assertEquivDefault True
+--                        ]
+--     proveEquivGeneral c_I_Alloca fields $ show i1 ++ " == " ++ show i2
+--     where proveField record = proveEquiv (record i1) (record i2)
+--
+--   proveEquiv i1@I.Store{} i2@I.Store{} = do
+--     fields <- sequence [ proveField I.volatile
+--                        , proveField I.address
+--                        , proveField I.value
+--                        , proveField I.maybeAtomicity
+--                        , proveField I.alignment
+--                        , assertEquivDefault True
+--                        ]
+--     proveEquivGeneral c_I_Store fields $ show i1 ++ " == " ++ show i2
+--     where proveField record = proveEquiv (record i1) (record i2)
+--
+--   proveEquiv i1@(I.BitCast o1 t1 _) i2@(I.BitCast o2 t2 _) = do
+--     operands <- proveEquiv o1 o2
+--     types <- proveEquiv t1 t2
+--     meta <- assertEquivDefault True
+--     proveEquivGeneral c_I_BitCast [operands, types, meta] $
+--       show i1 ++ " == " ++ show i2
+--
+--   proveEquiv i1 i2 = do
+--     logString $ "FIXME: Unsupported instructions; treated as equivalent"
+--     logString $ "FIXME: Comparing " ++ show i1
+--     logString $ "FIXME: to " ++ show i2
+--     assertEquivDefault $ I.BitCast (A.ConstantOperand A.TokenNone) A.VoidType []
 
-  proveEquiv i1@I.Alloca{} i2@I.Alloca{} = do
-    fields <- sequence [ proveField I.allocatedType
-                       , proveField I.numElements
-                       , proveField I.alignment
-                       , assertEquivDefault True
-                       ]
-    proveEquivGeneral c_I_Alloca fields $ show i1 ++ " == " ++ show i2
-    where proveField record = proveEquiv (record i1) (record i2)
-
-  proveEquiv i1@I.Store{} i2@I.Store{} = do
-    fields <- sequence [ proveField I.volatile
-                       , proveField I.address
-                       , proveField I.value
-                       , proveField I.maybeAtomicity
-                       , proveField I.alignment
-                       , assertEquivDefault True
-                       ]
-    proveEquivGeneral c_I_Store fields $ show i1 ++ " == " ++ show i2
-    where proveField record = proveEquiv (record i1) (record i2)
-
-  proveEquiv i1@(I.BitCast o1 t1 _) i2@(I.BitCast o2 t2 _) = do
-    operands <- proveEquiv o1 o2
-    types <- proveEquiv t1 t2
-    meta <- assertEquivDefault True
-    proveEquivGeneral c_I_BitCast [operands, types, meta] $
-      show i1 ++ " == " ++ show i2
-
-  proveEquiv i1 i2 = do
-    logString $ "FIXME: Unsupported instructions; treated as equivalent"
-    logString $ "FIXME: Comparing " ++ show i1
-    logString $ "FIXME: to " ++ show i2
-    assertEquivDefault $ I.BitCast (A.ConstantOperand A.TokenNone) A.VoidType []
-
-instance ProveEquiv A.Operand where
-  proveEquiv (A.ConstantOperand c1) (A.ConstantOperand c2) = do
-    field <- proveEquiv c1 c2
-    proveEquivGeneral c_O_ConstantOperand [field] $
-      "ConstantOperands " ++ show c1 ++ " == " ++ show c2
-
-  proveEquiv l1@(A.LocalReference t1 n1) l2@(A.LocalReference t2 n2) = do
-    types <- proveEquiv t1 t2
-    names <- proveEquiv n1 n2
-    proveEquivGeneral c_O_LocalReference [types, names] $
-      "LocalReferences " ++ show l1 ++ " == " ++ show l2
-
-  proveEquiv o1 o2 = do
-    logString $ "FIXME: ignoring operands " ++ show o1 ++ " and " ++ show o2
-    assertEquivDefault $ A.ConstantOperand A.TokenNone
+-- instance ProveEquiv A.Operand where
+--   proveEquiv (A.ConstantOperand c1) (A.ConstantOperand c2) = do
+--     field <- proveEquiv c1 c2
+--     proveEquivGeneral c_O_ConstantOperand [field] $
+--       "ConstantOperands " ++ show c1 ++ " == " ++ show c2
+--
+--   proveEquiv l1@(A.LocalReference t1 n1) l2@(A.LocalReference t2 n2) = do
+--     types <- proveEquiv t1 t2
+--     names <- proveEquiv n1 n2
+--     proveEquivGeneral c_O_LocalReference [types, names] $
+--       "LocalReferences " ++ show l1 ++ " == " ++ show l2
+--
+--   proveEquiv o1 o2 = do
+--     logString $ "FIXME: ignoring operands " ++ show o1 ++ " and " ++ show o2
+--     assertEquivDefault $ A.ConstantOperand A.TokenNone
 
 instance ProveEquiv (Maybe A.Operand) where
   proveEquiv = proveEquivMaybe c_MO_Just_Operand c_MO_Nothing_Operand
@@ -1382,8 +1443,8 @@ instance ProveEquiv A.Atomicity where
   proveEquiv = proveEquivTuple2 c_Tup2_SynchronizationScope_MemoryOrdering
     "Atomicity"
 
--- instance ProveEquiv A.Metadata where
---   proveEquiv
+instance ProveEquiv A.Metadata where
+  proveEquiv _ _ = proofFail ""
 
 -- instance ProveEquiv A.SynchronizationScope where
 --   proveEquiv ss1 ss2
@@ -1518,13 +1579,21 @@ $(genProveEquiv [t| FA.FunctionAttribute |] )
 $(genProveEquiv [t| A.SynchronizationScope |] )
 $(genProveEquiv [t| A.FloatingPointType |] )
 $(genProveEquiv [t| A.Linkage |] )
--- $(genProveEquiv [t| A.Operand |] )
+$(genProveEquiv [t| A.InlineAssembly |] )
+$(genProveEquiv [t| A.Operand |] )
 $(genProveEquiv [t| A.Visibility |] )
 $(genProveEquiv [t| A.StorageClass |] )
 $(genProveEquiv [t| A.CallingConvention |] )
 $(genProveEquiv [t| A.ParameterAttribute |] )
 $(genProveEquiv [t| A.SomeFloat |] )
 $(genProveEquiv [t| A.Constant |] )
+$(genProveEquiv [t| A.Terminator |] )
+$(genProveEquiv [t| A.Dialect |] )
+$(genProveEquiv [t| A.TailCallKind |] )
+$(genProveEquiv [t| A.LandingPadClause |] )
+$(genProveEquiv [t| A.FastMathFlags |] )
+$(genProveEquiv [t| A.RMWOperation |] )
+$(genProveEquiv [t| I.Instruction |] )
 
 instance ProveEquiv [A.Type] where
   proveEquiv = proveEquivList c_Cons_Type c_Nil_Type "Type List"

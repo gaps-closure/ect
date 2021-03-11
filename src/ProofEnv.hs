@@ -86,6 +86,7 @@ genProofEnvDecl "ProofEnv"
   ,"Word16"
   ,"Word32"
   ,"Word64"
+  ,"ByteString"
   ,"ShortByteString"
   ]
   [  [t| Either A.GroupID A.FunctionAttribute |]
