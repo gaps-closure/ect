@@ -25,6 +25,7 @@ import Data.ByteString.UTF8 (fromString)
 import Data.ByteString.Short (toShort)
 import Data.List (intercalate)
 import qualified Data.Map.Strict as M
+import qualified Data.Set as S
 
 
 import Control.Monad ( unless, when )
@@ -190,10 +191,11 @@ main = do
                              putStrLn (dumpGlobal rightEntry)
                              exitSuccess
 
-  let stateWithNameRefs = initialState { leftGlobals = findGlobals leftLl
+  let congruence = S.fromList [S.fromList $ map A.name [leftEntry, rightEntry]]
+      stateWithNameRefs = initialState { leftGlobals = findGlobals leftLl
                                        , rightGlobals = findGlobals rightLl
+                                       , globalsCongruence = congruence
                                        }
-
   (_, _, proofLog) <-
     runProofEnvironment stateWithNameRefs initialEnv $ do
       r <- proveEquiv leftEntry rightEntry
@@ -209,7 +211,8 @@ main = do
       return r
 
   -- print rule
-  mapM_ print proofLog
+  print ""
+  -- mapM_ print proofLog
 
 
 

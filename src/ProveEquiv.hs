@@ -114,10 +114,11 @@ import Data.Word ( Word16, Word32, Word64 )
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import Data.List (intercalate)
+import Data.Foldable as F
 
 import Control.Monad ( unless, zipWithM )
--- import Control.Monad.IO.Class ( liftIO )
-import Control.Monad.Trans.State.Strict ( get, gets, put )
+import Control.Monad.IO.Class ( liftIO )
+import Control.Monad.Trans.State.Strict ( get, gets, put, modify )
 import Control.Monad.Trans.Class ( lift )
 
 --import qualified LLVM.Module as M
@@ -739,10 +740,10 @@ instance ProveEquiv [A.ParameterAttribute] where
   proveEquiv = proveEquivList
     c_Cons_ParameterAttribute c_Nil_ParameterAttribute "ParameterAttribute"
 
-instance ProveEquiv A.AddrSpace where
-  proveEquiv (A.AddrSpace a1) (A.AddrSpace a2) = do
-    e <- proveEquiv a1 a2
-    proveEquivGeneral c_AS_AddrSpace [e] "AddrSpace equivalent"
+-- instance ProveEquiv A.AddrSpace where
+--   proveEquiv (A.AddrSpace a1) (A.AddrSpace a2) = do
+--     e <- proveEquiv a1 a2
+--     proveEquivGeneral c_AS_AddrSpace [e] "AddrSpace equivalent"
 
 {-
 instance ProveEquiv A.FloatingPointType where
@@ -784,7 +785,7 @@ instance ProveEquiv A.Type where -- FIXME: partial definition
 -- that these two names are equivalent under the forward/backward functions.
 instance ProveEquiv A.Name where
   proveEquiv n1@(A.Name _) n2@(A.Name _) = do
-    assertMatch c_N_Name n1 n2
+    proveCongruence n1 n2
     e <- assertEquivDefault $ toShort (C.pack "a")
     proveEquivGeneral c_N_Name [e] "Name equivalent"
   proveEquiv n1@(A.UnName _) n2@(A.UnName _) = do
@@ -810,69 +811,69 @@ instance ProveEquiv ([A.Parameter], Bool) where
   proveEquiv = proveEquivTuple2
     c_Tup2_List_Parameter_Bool "([A.Parameter], Bool)"
 
-instance ProveEquiv FA.GroupID where
-  proveEquiv (FA.GroupID i1) (FA.GroupID i2) = do
-    e <- proveEquiv i1 i2
-    proveEquivGeneral c_GID_GroupID [e] $ "GroupID"
+-- instance ProveEquiv FA.GroupID where
+--   proveEquiv (FA.GroupID i1) (FA.GroupID i2) = do
+--     e <- proveEquiv i1 i2
+--     proveEquivGeneral c_GID_GroupID [e] $ "GroupID"
 
-instance ProveEquiv FA.FunctionAttribute where
-  proveEquiv (FA.StringAttribute k1 v1) (FA.StringAttribute k2 v2) = do
-    ek <- proveEquiv k1 k2
-    ev <- proveEquiv v1 v2
-    proveEquivGeneral c_FA_StringAttribute [ek, ev]
-      "StringAttribute function attribute equivalent"
-  proveEquiv (FA.StackAlignment a1) (FA.StackAlignment a2) = do
-    e <- proveEquiv a1 a2
-    proveEquivGeneral c_FA_StackAlignment [e]
-      "StackAlignment function attribute equivalent"
-  proveEquiv (FA.AllocSize a1 b1) (FA.AllocSize a2 b2) = do
-    ea <- proveEquiv a1 a2
-    eb <- proveEquiv b1 b2
-    proveEquivGeneral c_FA_AllocSize [ea, eb]
-      "AllocSize function attribute equivalent"
-  proveEquiv a b
-    | a == b    = proveEquivGeneral c []
-                        (show a ++ " function attribute equivalent")
-    | otherwise = proofFail "FunctionAttribute"
-    where c = case a of
-                FA.NoReturn            -> c_FA_NoReturn
-                FA.NoUnwind            -> c_FA_NoUnwind
-                FA.ReadNone            -> c_FA_ReadNone
-                FA.ReadOnly            -> c_FA_ReadOnly
-                FA.NoInline            -> c_FA_NoInline
-                FA.NoRecurse           -> c_FA_NoRecurse
-                FA.AlwaysInline        -> c_FA_AlwaysInline
-                FA.MinimizeSize        -> c_FA_MinimizeSize
-                FA.OptimizeForSize     -> c_FA_OptimizeForSize
-                FA.OptimizeNone        -> c_FA_OptimizeNone
-                FA.StackProtect        -> c_FA_StackProtect
-                FA.StackProtectReq     -> c_FA_StackProtectReq
-                FA.StackProtectStrong  -> c_FA_StackProtectStrong
-                FA.StrictFP            -> c_FA_StrictFP
-                FA.NoRedZone           -> c_FA_NoRedZone
-                FA.NoImplicitFloat     -> c_FA_NoImplicitFloat
-                FA.Naked               -> c_FA_Naked
-                FA.InlineHint          -> c_FA_InlineHint
-                FA.ReturnsTwice        -> c_FA_ReturnsTwice
-                FA.UWTable             -> c_FA_UWTable
-                FA.NonLazyBind         -> c_FA_NonLazyBind
-                FA.Builtin             -> c_FA_Builtin
-                FA.NoBuiltin           -> c_FA_NoBuiltin
-                FA.Cold                -> c_FA_Cold
-                FA.JumpTable           -> c_FA_JumpTable
-                FA.NoDuplicate         -> c_FA_NoDuplicate
-                FA.SanitizeAddress     -> c_FA_SanitizeAddress
-                FA.SanitizeHWAddress   -> c_FA_SanitizeHWAddress
-                FA.SanitizeThread      -> c_FA_SanitizeThread
-                FA.SanitizeMemory      -> c_FA_SanitizeMemory
-                FA.Speculatable        -> c_FA_Speculatable
-                FA.WriteOnly           -> c_FA_WriteOnly
-                FA.ArgMemOnly          -> c_FA_ArgMemOnly
-                FA.Convergent          -> c_FA_Convergent
-                FA.SafeStack           -> c_FA_SafeStack
-                FA.InaccessibleMemOnly -> c_FA_InaccessibleMemOnly
-                FA.InaccessibleMemOrArgMemOnly -> c_FA_InaccessibleMemOrArgMemOnly
-                _ -> error "unreachable pattern match"
+-- instance ProveEquiv FA.FunctionAttribute where
+--   proveEquiv (FA.StringAttribute k1 v1) (FA.StringAttribute k2 v2) = do
+--     ek <- proveEquiv k1 k2
+--     ev <- proveEquiv v1 v2
+--     proveEquivGeneral c_FA_StringAttribute [ek, ev]
+--       "StringAttribute function attribute equivalent"
+--   proveEquiv (FA.StackAlignment a1) (FA.StackAlignment a2) = do
+--     e <- proveEquiv a1 a2
+--     proveEquivGeneral c_FA_StackAlignment [e]
+--       "StackAlignment function attribute equivalent"
+--   proveEquiv (FA.AllocSize a1 b1) (FA.AllocSize a2 b2) = do
+--     ea <- proveEquiv a1 a2
+--     eb <- proveEquiv b1 b2
+--     proveEquivGeneral c_FA_AllocSize [ea, eb]
+--       "AllocSize function attribute equivalent"
+--   proveEquiv a b
+--     | a == b    = proveEquivGeneral c []
+--                         (show a ++ " function attribute equivalent")
+--     | otherwise = proofFail "FunctionAttribute"
+--     where c = case a of
+--                 FA.NoReturn            -> c_FA_NoReturn
+--                 FA.NoUnwind            -> c_FA_NoUnwind
+--                 FA.ReadNone            -> c_FA_ReadNone
+--                 FA.ReadOnly            -> c_FA_ReadOnly
+--                 FA.NoInline            -> c_FA_NoInline
+--                 FA.NoRecurse           -> c_FA_NoRecurse
+--                 FA.AlwaysInline        -> c_FA_AlwaysInline
+--                 FA.MinimizeSize        -> c_FA_MinimizeSize
+--                 FA.OptimizeForSize     -> c_FA_OptimizeForSize
+--                 FA.OptimizeNone        -> c_FA_OptimizeNone
+--                 FA.StackProtect        -> c_FA_StackProtect
+--                 FA.StackProtectReq     -> c_FA_StackProtectReq
+--                 FA.StackProtectStrong  -> c_FA_StackProtectStrong
+--                 FA.StrictFP            -> c_FA_StrictFP
+--                 FA.NoRedZone           -> c_FA_NoRedZone
+--                 FA.NoImplicitFloat     -> c_FA_NoImplicitFloat
+--                 FA.Naked               -> c_FA_Naked
+--                 FA.InlineHint          -> c_FA_InlineHint
+--                 FA.ReturnsTwice        -> c_FA_ReturnsTwice
+--                 FA.UWTable             -> c_FA_UWTable
+--                 FA.NonLazyBind         -> c_FA_NonLazyBind
+--                 FA.Builtin             -> c_FA_Builtin
+--                 FA.NoBuiltin           -> c_FA_NoBuiltin
+--                 FA.Cold                -> c_FA_Cold
+--                 FA.JumpTable           -> c_FA_JumpTable
+--                 FA.NoDuplicate         -> c_FA_NoDuplicate
+--                 FA.SanitizeAddress     -> c_FA_SanitizeAddress
+--                 FA.SanitizeHWAddress   -> c_FA_SanitizeHWAddress
+--                 FA.SanitizeThread      -> c_FA_SanitizeThread
+--                 FA.SanitizeMemory      -> c_FA_SanitizeMemory
+--                 FA.Speculatable        -> c_FA_Speculatable
+--                 FA.WriteOnly           -> c_FA_WriteOnly
+--                 FA.ArgMemOnly          -> c_FA_ArgMemOnly
+--                 FA.Convergent          -> c_FA_Convergent
+--                 FA.SafeStack           -> c_FA_SafeStack
+--                 FA.InaccessibleMemOnly -> c_FA_InaccessibleMemOnly
+--                 FA.InaccessibleMemOrArgMemOnly -> c_FA_InaccessibleMemOrArgMemOnly
+--                 _ -> error "unreachable pattern match"
 
 instance ProveEquiv (Either FA.GroupID FA.FunctionAttribute) where
   proveEquiv = proveEquivEither
@@ -1167,6 +1168,7 @@ vacuousEquiv getType = do
 
 instance ProveEquiv A.Global where
   proveEquiv f1@A.Function{} f2@A.Function{} = do
+    liftIO $ putStrLn $ "ProveEquiv " ++ showName (A.name f1) ++ " " ++ showName (A.name f2)
     resetMatching
     fields <- sequence [ proveField A.linkage
                        , proveField A.visibility
@@ -1380,12 +1382,15 @@ instance ProveEquiv A.Atomicity where
   proveEquiv = proveEquivTuple2 c_Tup2_SynchronizationScope_MemoryOrdering
     "Atomicity"
 
-instance ProveEquiv A.SynchronizationScope where
-  proveEquiv ss1 ss2
-      | ss1 == ss2 = proveEquivGeneral c [] (show ss1)
-      | otherwise = proofFail $ show ss1 ++ " /= " ++ show ss2
-      where c = case ss1 of A.SingleThread -> c_SS_SingleThread
-                            A.System       -> c_SS_System
+-- instance ProveEquiv A.Metadata where
+--   proveEquiv
+
+-- instance ProveEquiv A.SynchronizationScope where
+--   proveEquiv ss1 ss2
+--       | ss1 == ss2 = proveEquivGeneral c [] (show ss1)
+--       | otherwise = proofFail $ show ss1 ++ " /= " ++ show ss2
+--       where c = case ss1 of A.SingleThread -> c_SS_SingleThread
+--                             A.System       -> c_SS_System
 
 {-
 instance ProveEquiv A.MemoryOrdering where
@@ -1473,20 +1478,52 @@ assertMatch nameCons n1 n2 = do
       (A.Name s)   -> sequence $ [mkString $ C.unpack $ fromShort s]
       (A.UnName w) -> sequence $ [mkBitvector 32 $ toInteger w]
 
+addCongruence :: A.Name -> A.Name -> ProofM Bool
+addCongruence lName rName = do
+  lSet <- findMemberSet lName
+  rSet <- findMemberSet rName
+  case (lSet, rSet) of
+    (Just ls, Nothing) -> update $ (S.insert $ S.insert rName ls) . (S.delete ls)
+    (Nothing, Just rs) -> update $ (S.insert $ S.insert lName rs) . (S.delete rs)
+    (Nothing, Nothing) -> update $ (S.insert $ S.fromList [lName, rName])
+    (Just ls, Just rs)
+      | ls /= rs -> update $ (S.insert $ S.union ls rs) . (S.delete ls) . (S.delete rs)
+      | otherwise -> return True
+  where
+    update op = do
+      ProofM $ lift $ modify $ \p -> p { globalsCongruence = op $ globalsCongruence p }
+      return False
+    findMemberSet n = do
+      ProofState{..} <- ProofM $ lift get
+      return $ F.find (S.member n) globalsCongruence
+
+proveCongruence :: A.Name -> A.Name -> ProofM ()
+proveCongruence lName rName = do
+  exists <- addCongruence lName rName
+  if exists then return ()
+  else do
+    ProofState{..} <- ProofM $ lift get
+    case (M.lookup lName leftGlobals, M.lookup rName rightGlobals) of
+      (Just lGlobal, Just rGlobal) -> do
+        _ <- proveEquiv lGlobal rGlobal
+        return ()
+      _ -> error "global definition not found in NameReferenceMap"
+
 
 $(genProveEquiv [t| A.IntegerPredicate |] )
-
 $(genProveEquiv [t| FPA.FloatingPointPredicate |] )
+$(genProveEquiv [t| A.AddrSpace |] )
+$(genProveEquiv [t| FA.GroupID |] )
+$(genProveEquiv [t| FA.FunctionAttribute |] )
+$(genProveEquiv [t| A.SynchronizationScope |] )
 $(genProveEquiv [t| A.FloatingPointType |] )
 $(genProveEquiv [t| A.Linkage |] )
+-- $(genProveEquiv [t| A.Operand |] )
 $(genProveEquiv [t| A.Visibility |] )
 $(genProveEquiv [t| A.StorageClass |] )
 $(genProveEquiv [t| A.CallingConvention |] )
-
 $(genProveEquiv [t| A.ParameterAttribute |] )
-
 $(genProveEquiv [t| A.SomeFloat |] )
-
 $(genProveEquiv [t| A.Constant |] )
 
 instance ProveEquiv [A.Type] where

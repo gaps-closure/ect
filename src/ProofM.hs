@@ -106,6 +106,7 @@ type NameMap = M.Map A.Name A.Name
 
 -- | A mapping from names to the top level definitions they refer to
 type NameReferenceMap = M.Map A.Name A.Global
+type NameCongruence = S.Set (S.Set A.Name)
 
 -- | A mapping from Z3 sorts to equivalence functions
 type EquivFunctionMap = M.Map Sort FuncDecl
@@ -118,6 +119,7 @@ data ProofState = ProofState
   , z3_match :: !(Maybe (FuncDecl, FuncDecl)) -- ^ forward and inverse z3 match function
   , leftGlobals :: !NameReferenceMap          -- ^ top level definitions in left file
   , rightGlobals :: !NameReferenceMap         -- ^ top level definitions in right file
+  , globalsCongruence :: !NameCongruence      -- ^
   , visiting :: !(S.Set A.Name)               -- ^ For DFS algorithms
   , equivFunctions :: !EquivFunctionMap       -- ^ For each Z3 sort, the equivalence function
   }
@@ -130,6 +132,7 @@ initialState = ProofState { currentPID = PID 1
                           , z3_match = Nothing
                           , leftGlobals = M.empty
                           , rightGlobals = M.empty
+                          , globalsCongruence = S.empty
                           , visiting = S.empty
                           , equivFunctions = M.empty
                           }
