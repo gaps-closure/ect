@@ -53,6 +53,12 @@ findFunction A.Module{..} funcName = case mapMaybe ffh moduleDefinitions of
     ffh (A.GlobalDefinition g@(A.Function {name = n})) | n == funcName = Just g
     ffh _ = Nothing
 
+findGlobals :: A.Module -> NameReferenceMap
+findGlobals A.Module{..} = M.fromList $ concatMap nameGlobals moduleDefinitions
+  where
+    nameGlobals (A.GlobalDefinition g) = [(A.name g, g)]
+    nameGlobals _ = []
+
 -- | Convert a string into a name used by the LLVM AST
 llvmName :: String -> A.Name
 llvmName = A.Name . toShort . fromString
@@ -184,8 +190,12 @@ main = do
                              putStrLn (dumpGlobal rightEntry)
                              exitSuccess
 
+  let stateWithNameRefs = initialState { leftGlobals = findGlobals leftLl
+                                       , rightGlobals = findGlobals rightLl
+                                       }
+
   (_, _, proofLog) <-
-    runProofEnvironment initialState initialEnv $ do
+    runProofEnvironment stateWithNameRefs initialEnv $ do
       r <- proveEquiv leftEntry rightEntry
       assert =<< mkNot (z3equiv r)
       -- assert (z3equiv r)

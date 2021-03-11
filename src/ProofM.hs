@@ -104,6 +104,9 @@ instance Show Prop where
 -- | A mapping from local names in one function, etc. to local names in another
 type NameMap = M.Map A.Name A.Name
 
+-- | A mapping from names to the top level definitions they refer to
+type NameReferenceMap = M.Map A.Name A.Global
+
 -- | A mapping from Z3 sorts to equivalence functions
 type EquivFunctionMap = M.Map Sort FuncDecl
 
@@ -113,6 +116,8 @@ data ProofState = ProofState
   , matching :: !NameMap                      -- ^ For name isomorphisms
   , inverse :: !NameMap                       -- ^ Inverse of matching
   , z3_match :: !(Maybe (FuncDecl, FuncDecl)) -- ^ forward and inverse z3 match function
+  , leftGlobals :: !NameReferenceMap          -- ^ top level definitions in left file
+  , rightGlobals :: !NameReferenceMap         -- ^ top level definitions in right file
   , visiting :: !(S.Set A.Name)               -- ^ For DFS algorithms
   , equivFunctions :: !EquivFunctionMap       -- ^ For each Z3 sort, the equivalence function
   }
@@ -123,6 +128,8 @@ initialState = ProofState { currentPID = PID 1
                           , matching = M.empty
                           , inverse = M.empty
                           , z3_match = Nothing
+                          , leftGlobals = M.empty
+                          , rightGlobals = M.empty
                           , visiting = S.empty
                           , equivFunctions = M.empty
                           }
