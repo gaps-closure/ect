@@ -191,10 +191,10 @@ main = do
                              putStrLn (dumpGlobal rightEntry)
                              exitSuccess
 
-  let congruence = S.fromList [S.fromList $ map A.name [leftEntry, rightEntry]]
+  let gc = S.fromList [S.fromList $ map A.name [leftEntry, rightEntry]]
       stateWithNameRefs = initialState { leftGlobals = findGlobals leftLl
                                        , rightGlobals = findGlobals rightLl
-                                       , globalsCongruence = congruence
+                                       , congruence = gc
                                        }
   (_, _, proofLog) <-
     runProofEnvironment stateWithNameRefs initialEnv $ do

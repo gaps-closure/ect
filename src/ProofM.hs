@@ -119,7 +119,7 @@ data ProofState = ProofState
   , z3_match :: !(Maybe (FuncDecl, FuncDecl)) -- ^ forward and inverse z3 match function
   , leftGlobals :: !NameReferenceMap          -- ^ top level definitions in left file
   , rightGlobals :: !NameReferenceMap         -- ^ top level definitions in right file
-  , globalsCongruence :: !NameCongruence      -- ^
+  , congruence :: !NameCongruence             -- ^ disjoint-set of equiv names
   , visiting :: !(S.Set A.Name)               -- ^ For DFS algorithms
   , equivFunctions :: !EquivFunctionMap       -- ^ For each Z3 sort, the equivalence function
   }
@@ -132,7 +132,7 @@ initialState = ProofState { currentPID = PID 1
                           , z3_match = Nothing
                           , leftGlobals = M.empty
                           , rightGlobals = M.empty
-                          , globalsCongruence = S.empty
+                          , congruence = S.empty
                           , visiting = S.empty
                           , equivFunctions = M.empty
                           }
