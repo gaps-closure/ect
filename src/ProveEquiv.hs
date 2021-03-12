@@ -112,6 +112,16 @@ assertEquivDefault x = proveEquiv x x
 -- ProveEquiv instance for global definitions
 
 instance ProveEquiv A.Global where
+  proveEquiv v1@A.GlobalVariable{} v2@A.GlobalVariable{} = do
+    liftIO $ putStrLn $
+      "ProveEquiv " ++ showName (A.name v1) ++ " " ++ showName (A.name v2)
+    proofFail "GlobalVariable"
+
+  proveEquiv a1@A.GlobalAlias{} a2@A.GlobalAlias{} = do
+    liftIO $ putStrLn $
+      "ProveEquiv " ++ showName (A.name a1) ++ " " ++ showName (A.name a2)
+    proofFail "GlobalAlias"
+
   proveEquiv f1@A.Function{} f2@A.Function{} = do
     liftIO $ putStrLn $
       "ProveEquiv " ++ showName (A.name f1) ++ " " ++ showName (A.name f2)
@@ -143,8 +153,7 @@ instance ProveEquiv A.Global where
       (showName $ A.name f2) ++ " equivalent"
     where proveField record = proveEquiv (record f1) (record f2)
 
-  -- FIXME: support other two DCs for A.Global
-  proveEquiv _ _ = proofFail "Function"
+  proveEquiv _ _ = proofFail "Global"
 
 ----------------------------------------------------------
 -- Alpha renaming and definition-hunting proof machinery
