@@ -30,22 +30,24 @@ import qualified LLVM.AST as A hiding ( metadata
                                       , callingConvention
                                       , alignment
                                       , returnAttributes
-                                      , functionAttributes )
+                                      , functionAttributes
+                                      , type' )
 import qualified LLVM.AST.Global as A
 import qualified LLVM.AST.Visibility as A
+import qualified LLVM.AST.ThreadLocalStorage as A
 import qualified LLVM.AST.Linkage as A
 import qualified LLVM.AST.DLL as A
 import qualified LLVM.AST.CallingConvention as A
 import qualified LLVM.AST.ParameterAttribute as A
 import qualified LLVM.AST.AddrSpace as A
-import qualified LLVM.AST.InlineAssembly as A
-import qualified LLVM.AST.Constant as A
+import qualified LLVM.AST.InlineAssembly as A hiding ( type' )
+import qualified LLVM.AST.Constant as A hiding ( type' )
 import qualified LLVM.AST.IntegerPredicate as A
 import qualified LLVM.AST.RMWOperation as A
 import qualified LLVM.AST.Float as A
 import qualified LLVM.AST.FunctionAttribute as FA
 import qualified LLVM.AST.FloatingPointPredicate as FPA
-import qualified LLVM.AST.Instruction as I
+import qualified LLVM.AST.Instruction as I hiding ( type' )
 
 import Z3.Monad
 import Z3TypeGenerator
@@ -115,12 +117,43 @@ instance ProveEquiv A.Global where
   proveEquiv v1@A.GlobalVariable{} v2@A.GlobalVariable{} = do
     liftIO $ putStrLn $
       "ProveEquiv " ++ showName (A.name v1) ++ " " ++ showName (A.name v2)
-    proofFail "GlobalVariable"
+    fields <- sequence [ assertEquiv t_Name
+                       , proveField A.linkage
+                       , proveField A.visibility
+                       , proveField A.dllStorageClass
+                       , proveField A.threadLocalMode
+                       , proveField A.unnamedAddr
+                       , proveField A.isConstant
+                       , proveField A.type'
+                       , proveField A.addrSpace
+                       , proveField A.initializer
+                       , proveField A.section
+                       , proveField A.comdat
+                       , proveField A.alignment
+                       , assertEquivDefault True
+                       ]
+    proveEquivGeneral c_G_GlobalVariable fields $
+      "global variables " ++ (showName $ A.name v1) ++ " and " ++
+      (showName $ A.name v2) ++ " equivalent"
+    where proveField record = proveEquiv (record v1) (record v2)
 
   proveEquiv a1@A.GlobalAlias{} a2@A.GlobalAlias{} = do
     liftIO $ putStrLn $
       "ProveEquiv " ++ showName (A.name a1) ++ " " ++ showName (A.name a2)
-    proofFail "GlobalAlias"
+    fields <- sequence [ assertEquiv t_Name
+                       , proveField A.linkage
+                       , proveField A.visibility
+                       , proveField A.dllStorageClass
+                       , proveField A.threadLocalMode
+                       , proveField A.unnamedAddr
+                       , proveField A.type'
+                       , proveField A.addrSpace
+                       , proveField A.aliasee
+                       ]
+    proveEquivGeneral c_G_GlobalAlias fields $
+      "global aliases " ++ (showName $ A.name a1) ++ " and " ++
+      (showName $ A.name a2) ++ " equivalent"
+    where proveField record = proveEquiv (record a1) (record a2)
 
   proveEquiv f1@A.Function{} f2@A.Function{} = do
     liftIO $ putStrLn $
@@ -402,10 +435,14 @@ instance ProveEquiv ShortByteString where
     t_ShortByteString (\x -> mkString $ C.unpack $ fromShort x) "ShortByteStr"
 
 instance ProveEquiv Float where
-  proveEquiv _ _ = proofFail "FIXME: Float unsupported"
+  proveEquiv _ _ = assertEquiv t_Float
+    --proveEquivPrimitive
+    --t_Float mkRealNum "Float"
 
 instance ProveEquiv Double where
-  proveEquiv _ _ = proofFail "FIXME: Double unsupported"
+  proveEquiv _ _ = assertEquiv t_Double
+    --proveEquivPrimitive
+    --t_Double mkRealNum "Double"
 
 proveEquivPrimitive :: (ProveEquiv a, Eq a, Show a)
                     => (ProofEnv -> Z3Type) -- ^ Z3 sort accessor from env
@@ -483,6 +520,19 @@ instance ProveEquiv (Maybe A.Constant) where
     c_MC_Just_Constant
     c_MC_Nothing_Constant
     "Constant"
+
+instance ProveEquiv (Maybe A.Model) where
+  proveEquiv = proveEquivMaybe
+    c_MM_Just_Model
+    c_MM_Nothing_Model
+    "Model"
+
+instance ProveEquiv (Maybe A.UnnamedAddr) where
+  proveEquiv = proveEquivMaybe
+    c_MUA_Just_UnnamedAddr
+    c_MUA_Nothing_UnnamedAddr
+    "UnnamedAddr"
+
 
 proveEquivMaybe :: (ProveEquiv a)
                 => (ProofEnv -> Z3Constructor) -- ^ Just constructor
@@ -710,13 +760,13 @@ proveEquivList _ _ n _ _ = proofFail $ "[" ++ n ++ "] not equivalent"
 -- Uncategorized
 
 instance ProveEquiv I.InstructionMetadata where
-  proveEquiv _ _ = proofFail ""
+  proveEquiv _ _ = assertEquivDefault True
 
 instance ProveEquiv A.Metadata where
-  proveEquiv _ _ = proofFail ""
+  proveEquiv _ _ = assertEquivDefault True
 
 instance ProveEquiv (G.NonEmpty A.Name) where
-  proveEquiv _ _ = proofFail ""
+  proveEquiv _ _ = proofFail "Nonempty Name"
 
 ----------------------------------------------------------------------
 -- ProveEquiv instances generated by template haskell for LLVM types
@@ -744,6 +794,8 @@ $(genProveEquiv [t| A.Type |] )
 $(genProveEquiv [t| A.Parameter |] )
 $(genProveEquiv [t| A.MemoryOrdering |] )
 $(genProveEquiv [t| A.BasicBlock |] )
+$(genProveEquiv [t| A.Model |] )
+$(genProveEquiv [t| A.UnnamedAddr |] )
 $(genProveEquiv [t| FPA.FloatingPointPredicate |] )
 $(genProveEquiv [t| FA.GroupID |] )
 $(genProveEquiv [t| FA.FunctionAttribute |] )

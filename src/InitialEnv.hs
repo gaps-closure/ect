@@ -48,7 +48,7 @@ mkEquivPrimFunc :: Sort -- ^ Z3's Boolean sort
                 -> ProofM Z3Type
 mkEquivPrimFunc boolSort name sort = do
   equivFunc <- mkFreshFuncDecl ("equiv-" ++ name) [sort, sort] boolSort
-  
+
   x  <- mkFreshConst "x" sort
   y  <- mkFreshConst "y" sort
   qx <- toApp x
@@ -56,11 +56,11 @@ mkEquivPrimFunc boolSort name sort = do
   eqType <- mkApp equivFunc [x, y]
   eqBody <- mkEq x y
   assert =<< mkForallConst [] [qx, qy] =<< mkEq eqType eqBody
-  
+
   saveEquivFunction sort equivFunc
 
   return Z3Type{..}
-                
+
 
 {- | Construct the declaration of an equivalence checking function
      and record it in the proof environment.
@@ -108,7 +108,7 @@ mkEquivFuncDef :: Sort -- ^ Sort being compared
                -> [(String, [(String, Maybe Sort)])] -- ^ Fields
                -> FuncDecl -- ^ Declaration of the equivalance function
                -> ProofM ()
-mkEquivFuncDef sort ctors equivFunc = do 
+mkEquivFuncDef sort ctors equivFunc = do
   x  <- mkFreshConst "x" sort
   y  <- mkFreshConst "y" sort
 --  qx <- toApp x
@@ -138,7 +138,7 @@ mkEquivFuncDef sort ctors equivFunc = do
   equivBody <- mkOr ctorPredicates
 
   addRecDef equivFunc [x, y] equivBody
-    
+
   -- assert =<< mkForallConst [] [qx, qy] =<< mkEq eqType equivBody
 
   return ()
@@ -225,13 +225,15 @@ initialEnv = do
   t_Word32 <- mkEquivPrimFunc s_Bool "Word32" =<< mkBvSort 32
   t_Word <- mkEquivPrimFunc s_Bool "Word" =<< mkBvSort 32
   t_Word64 <- mkEquivPrimFunc s_Bool "Word64" =<< mkBvSort 64
-  t_ShortByteString <- mkEquivPrimFunc s_Bool "ShortByteString" =<< mkStringSort  
+  t_ShortByteString <- mkEquivPrimFunc s_Bool "ShortByteString" =<< mkStringSort
+  t_Float <- mkEquivPrimFunc s_Bool "Float" =<< mkRealSort
+  t_Double <- mkEquivPrimFunc s_Bool "Double" =<< mkRealSort
   let t_ByteString = t_ShortByteString
-  let t_Float = t_Bool -- FIXME
-      t_Double = t_Bool -- FIXME
-      t_InstructionMetadata = t_Bool
+
+  -- FIXME: metadata types
+  let t_InstructionMetadata = t_Bool
       t_List_Tup2_ShortByteString_MDRef_MDNode = t_Bool
-      t_Metadata = t_Bool -- FIXME
+      t_Metadata = t_Bool
   $(genInitEnv "ProofEnv" $
     map (z3Constructors [| s_Bool |]) [ [t| A.Visibility |]
                                       , [t| A.FloatingPointType |]
