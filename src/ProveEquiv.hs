@@ -444,14 +444,12 @@ instance ProveEquiv ShortByteString where
     t_ShortByteString (\x -> mkString $ C.unpack $ fromShort x) "ShortByteStr"
 
 instance ProveEquiv Float where
-  proveEquiv _ _ = assertEquiv t_Float
-    --proveEquivPrimitive
-    --t_Float mkRealNum "Float"
+  proveEquiv = proveEquivPrimitive
+    t_Float mkRealNum "Float"
 
 instance ProveEquiv Double where
-  proveEquiv _ _ = assertEquiv t_Double
-    --proveEquivPrimitive
-    --t_Double mkRealNum "Double"
+  proveEquiv = proveEquivPrimitive
+    t_Double mkRealNum "Double"
 
 proveEquivPrimitive :: (ProveEquiv a, Eq a, Show a)
                     => (ProofEnv -> Z3Type) -- ^ Z3 sort accessor from env
