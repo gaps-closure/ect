@@ -159,7 +159,7 @@ usageMessage = do prg <- getProgName
 
 main :: IO ()
 main = do
-  putStrLn "Encoding constraints..."
+  putStrLn ";;; Encoding constraints..."
   args <- getArgs
   let (actions, filenames, errors) =
         getOpt RequireOrder optionDescriptions args
@@ -198,11 +198,12 @@ main = do
                                        }
   (_, _, proofLog) <-
     runProofEnvironment stateWithNameRefs initialEnv $ do
+      pushMatching
       r <- proveEquiv leftEntry rightEntry
       assert =<< mkNot (z3equiv r)
       -- assert (z3equiv r)
       logSMTLIB =<< solverToString
-      liftIO $ putStrLn "Solving..."
+      liftIO $ putStrLn ";;; Solving..."
       z3Result <- check
       case z3Result of
         Unsat -> logString "Unsatisfiable"

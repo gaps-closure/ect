@@ -116,7 +116,7 @@ assertEquivDefault x = proveEquiv x x
 instance ProveEquiv A.Global where
   proveEquiv v1@A.GlobalVariable{} v2@A.GlobalVariable{} = do
     liftIO $ putStrLn $
-      "ProveEquiv " ++ showName (A.name v1) ++ " " ++ showName (A.name v2)
+      ";;; ProveEquiv " ++ showName (A.name v1) ++ " " ++ showName (A.name v2)
     fields <- sequence [ assertEquiv t_Name
                        , proveField A.linkage
                        , proveField A.visibility
@@ -139,7 +139,7 @@ instance ProveEquiv A.Global where
 
   proveEquiv a1@A.GlobalAlias{} a2@A.GlobalAlias{} = do
     liftIO $ putStrLn $
-      "ProveEquiv " ++ showName (A.name a1) ++ " " ++ showName (A.name a2)
+      ";;; ProveEquiv " ++ showName (A.name a1) ++ " " ++ showName (A.name a2)
     fields <- sequence [ assertEquiv t_Name
                        , proveField A.linkage
                        , proveField A.visibility
@@ -157,11 +157,7 @@ instance ProveEquiv A.Global where
 
   proveEquiv f1@A.Function{} f2@A.Function{} = do
     liftIO $ putStrLn $
-      "ProveEquiv " ++ showName (A.name f1) ++ " " ++ showName (A.name f2)
-
-    -- FIXME: this stops working now that we check multiple globals
-    -- recursively. Need to push and pop matchings
-    resetMatching
+      ";;; ProveEquiv " ++ showName (A.name f1) ++ " " ++ showName (A.name f2)
 
     fields <- sequence [ proveField A.linkage
                        , proveField A.visibility
@@ -217,69 +213,77 @@ showNamed :: (a -> String) -> A.Named a -> String
 showNamed s (nm A.:= x) = "%" ++ showName nm ++ " = " ++ s x
 showNamed s (A.Do x) = s x
 
--- | Return the @matching@ map
-getMatching :: ProofM NameMap
-getMatching = ProofM $ lift $ gets matching
+-- | Retrieve the current match state
+getMatching :: ProofM MatchState
+getMatching = do
+  stack <- ProofM $ lift $ gets matching
+  case stack of
+    (top:_) -> return top
+    _ -> error "Attempt to read empty matching stack"
 
-freshMatchFunctions :: ProofM (FuncDecl, FuncDecl)
-freshMatchFunctions = do
-  (_, _, Z3Type{..}) <- fromEnv c_N_Name
-  fwd_sym <- mkStringSymbol "fwd-match"
-  inv_sym <- mkStringSymbol "inv-match"
-  fwd <- mkFuncDecl fwd_sym [sort] sort
-  inv <- mkFuncDecl inv_sym [sort] sort
-  return (fwd, inv)
+-- | Update the current match state
+putMatching :: MatchState -> ProofM ()
+putMatching ms = do
+  ProofState{..} <- ProofM $ lift get
+  ProofM $ lift $ put $ ProofState { matching = ms:(tail matching), .. }
 
--- | Reset the @matching@, @inverse@, and @visiting@ sets/maps
-resetMatching :: ProofM ()
-resetMatching = do
+-- | Push a fresh state onto the matching stack, on entry to a new global
+pushMatching :: ProofM ()
+pushMatching = do
   ProofState{..} <- ProofM $ lift get
   (new_fwd, new_inv) <- freshMatchFunctions
-  ProofM $ lift $ put $ ProofState { matching = M.empty
-                                   , inverse = M.empty
-                                   , visiting = S.empty
-                                   , z3_match = Just (new_fwd, new_inv)
-                                   , .. }
+  let match_state = ((M.empty, new_fwd), (M.empty, new_inv), S.empty)
+  ProofM $ lift $ put $ ProofState { matching = (match_state:matching), .. }
+  where
+    freshMatchFunctions = do
+      (_, _, Z3Type{..}) <- fromEnv c_N_Name
+      fwd_sym <- mkStringSymbol "fwd-match"
+      inv_sym <- mkStringSymbol "inv-match"
+      fwd <- mkFuncDecl fwd_sym [sort] sort
+      inv <- mkFuncDecl inv_sym [sort] sort
+      return (fwd, inv)
+
+-- | Pop the current state from the matching stack, on exit from a global
+popMatching :: ProofM ()
+popMatching = do
+  ProofState{..} <- ProofM $ lift get
+  ProofM $ lift $ put $ ProofState { matching = tail matching, .. }
 
 -- | Add a match to the @matching@ and @inverse@ maps; fail if it contradicts
 -- an existing one
 addMatch :: A.Name -> A.Name -> ProofM ()
 addMatch n1 n2 = do
-  ProofState{..} <- ProofM $ lift get
-  case M.lookup n1 matching of
+  ((fwd_map, ffn), (inv_map, ifn), v) <- getMatching
+  case M.lookup n1 fwd_map of
     Just n2' | n2' /= n2 -> proofFail $
       "tried to match " ++ showName n1 ++ "-" ++
       showName n2 ++ " but already have " ++ showName n1 ++ "-" ++ showName n2'
     _ -> return ()
-  case M.lookup n2 inverse of
+  case M.lookup n2 inv_map of
     Just n1' | n1' /= n1 -> proofFail $
       "tried to match " ++ showName n1 ++ "-" ++
       showName n2 ++ " but already have " ++ showName n1' ++ "-" ++ showName n2
     _ -> return ()
-  -- logString $ "addMatch " ++ showName n1 ++ " - " ++ showName n2
-  ProofM $ lift $ put $ ProofState { matching = M.insert n1 n2 matching
-                                   , inverse = M.insert n2 n1 inverse
-                                   , .. }
+  putMatching ((M.insert n1 n2 fwd_map, ffn), (M.insert n2 n1 inv_map, ifn), v)
 
+-- | Add a match to the local matching state and assert it in the z3 solver
 assertMatch :: (ProofEnv -> Z3Constructor) -> A.Name -> A.Name -> ProofM ()
 assertMatch nameCons n1 n2 = do
   addMatch n1 n2
   (mkName, _, Z3Type{..}) <- fromEnv nameCons
-  ProofState{..} <- ProofM $ lift get
-  case z3_match of
-    Just (fwd, inv) -> do
-      z3n1 <- mkApp mkName =<< field n1
-      z3n2 <- mkApp mkName =<< field n2
-      fn1 <- mkApp fwd [z3n1]
-      fn2 <- mkApp inv [z3n2]
-      assert =<< mkEq fn1 z3n2
-      assert =<< mkEq fn2 z3n1
-    _ -> error "assertMatch with no matching functions initialized"
+  ((_, fwd), (_, inv), _) <- getMatching
+  z3n1 <- mkApp mkName =<< field n1
+  z3n2 <- mkApp mkName =<< field n2
+  fn1 <- mkApp fwd [z3n1]
+  fn2 <- mkApp inv [z3n2]
+  assert =<< mkEq fn1 z3n2
+  assert =<< mkEq fn2 z3n1
   where
     field n = case n of
       (A.Name s)   -> sequence $ [mkString $ C.unpack $ fromShort s]
       (A.UnName w) -> sequence $ [mkBitvector 32 $ toInteger w]
 
+-- | Update the disjoint set of equivalent globals with a new pair globals
 addCongruence :: A.Name -> A.Name -> ProofM Bool
 addCongruence lName rName = do
   lSet <- findMemberSet lName
@@ -299,6 +303,8 @@ addCongruence lName rName = do
       ProofState{..} <- ProofM $ lift get
       return $ F.find (S.member n) congruence
 
+-- | Add a new equivalence to the congruence and recurse into both globals to
+-- prove their equivalence.
 proveCongruence :: A.Name -> A.Name -> ProofM ()
 proveCongruence lName rName = do
   exists <- addCongruence lName rName
@@ -307,8 +313,9 @@ proveCongruence lName rName = do
     ProofState{..} <- ProofM $ lift get
     case (M.lookup lName leftGlobals, M.lookup rName rightGlobals) of
       (Just lGlobal, Just rGlobal) -> do
+        pushMatching
         _ <- proveEquiv lGlobal rGlobal
-        return ()
+        popMatching
       _ -> error "global definition not found in NameReferenceMap"
 
 ------------------------------------
@@ -331,19 +338,21 @@ bbSuccessors (A.BasicBlock _ _ term) = case unName term of
 
 -- | Check whether the given name is in the @visiting@ set
 testVisiting :: A.Name -> ProofM Bool
-testVisiting n = ProofM $ lift $ gets $ (S.member n) . visiting
+testVisiting n = do
+  (_, _, visiting) <- getMatching
+  return $ S.member n visiting
 
 -- | Add a given name to the @visiting@ set
 setVisiting :: A.Name -> ProofM ()
 setVisiting n = do
-  ProofState{..} <- ProofM $ lift get
-  ProofM $ lift $ put $ ProofState { visiting = S.insert n visiting, .. }
+  (fwd, inv, visiting) <- getMatching
+  putMatching (fwd, inv, S.insert n visiting)
 
+-- | Prove two lists of basic blocks represent equivalent CFGs
 proveEquivCFG :: [A.BasicBlock] -> [A.BasicBlock] -> ProofM Equiv
 proveEquivCFG cfg1@(A.BasicBlock n1 _ _:_) cfg2@(A.BasicBlock n2 _ _:_) = do
 
   -- Try to establish an isomorphism among the basic blocks
-   -- resetMatching
    matchedPairs <- visit n1 n2
 
    -- Dump the matching information (both forward and back) into Z3-land

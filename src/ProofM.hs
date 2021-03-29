@@ -103,6 +103,9 @@ instance Show Prop where
 
 -- | A mapping from local names in one function, etc. to local names in another
 type NameMap = M.Map A.Name A.Name
+type Z3NameMap = (NameMap, FuncDecl)
+type VisitSet = S.Set A.Name
+type MatchState = (Z3NameMap, Z3NameMap, VisitSet)
 
 -- | A mapping from names to the top level definitions they refer to
 type NameReferenceMap = M.Map A.Name A.Global
@@ -111,29 +114,22 @@ type NameCongruence = S.Set (S.Set A.Name)
 -- | A mapping from Z3 sorts to equivalence functions
 type EquivFunctionMap = M.Map Sort FuncDecl
 
-
 data ProofState = ProofState
-  { currentPID :: !PID                        -- ^ ID for the next proposition
-  , matching :: !NameMap                      -- ^ For name isomorphisms
-  , inverse :: !NameMap                       -- ^ Inverse of matching
-  , z3_match :: !(Maybe (FuncDecl, FuncDecl)) -- ^ forward and inverse z3 match function
-  , leftGlobals :: !NameReferenceMap          -- ^ top level definitions in left file
-  , rightGlobals :: !NameReferenceMap         -- ^ top level definitions in right file
-  , congruence :: !NameCongruence             -- ^ disjoint-set of equiv names
-  , visiting :: !(S.Set A.Name)               -- ^ For DFS algorithms
-  , equivFunctions :: !EquivFunctionMap       -- ^ For each Z3 sort, the equivalence function
+  { currentPID :: !PID                  -- ^ ID for the next proposition
+  , matching :: ![MatchState]           -- ^ Forward and inverse name matching stack with z3 functions
+  , leftGlobals :: !NameReferenceMap    -- ^ top level definitions in left file
+  , rightGlobals :: !NameReferenceMap   -- ^ top level definitions in right file
+  , congruence :: !NameCongruence       -- ^ disjoint-set of equiv names
+  , equivFunctions :: !EquivFunctionMap -- ^ For each Z3 sort, the equivalence function
   }
 
 -- | Initial proof state: PID is 1; empty maps and sets
 initialState :: ProofState
 initialState = ProofState { currentPID = PID 1
-                          , matching = M.empty
-                          , inverse = M.empty
-                          , z3_match = Nothing
+                          , matching = []
                           , leftGlobals = M.empty
                           , rightGlobals = M.empty
                           , congruence = S.empty
-                          , visiting = S.empty
                           , equivFunctions = M.empty
                           }
 

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 93e66bd0cbf560e954028254d7a03f09cd442570bd89a843e6c9d896534c4fcc
+-- hash: 3f30ce3b73b183a7fc3a258477519a12255d8847f1b6f4f89996bac5a715d0c3
 
 name:           ect
 version:        0.1.0.0
@@ -31,7 +31,6 @@ library
       ProofEnv
       ProofM
       ProveEquiv
-      ProveEquivLegacy
       Z3TypeGenerator
   other-modules:
       Paths_ect
