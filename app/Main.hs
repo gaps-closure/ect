@@ -11,7 +11,6 @@ LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack ghci
 :set -XTemplateHaskell
 -}
 
-
 module Main where
 
 import System.Environment (getArgs, getProgName)
@@ -22,20 +21,40 @@ import System.Exit( exitSuccess, exitFailure )
 
 import Data.Maybe
 import Data.ByteString.UTF8 (fromString)
-import Data.ByteString.Short (toShort)
-import Data.List (intercalate)
+import Data.ByteString.Short (toShort, fromShort)
+import Data.List (intercalate, isPrefixOf)
+import qualified Data.ByteString.Char8 as C
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
-
 
 import Control.Monad ( unless, when )
 import Control.Monad.IO.Class ( liftIO )
 
 import LLVM.Context (withContext)
 
-import qualified LLVM.Module as M
-import qualified LLVM.AST as A hiding ( metadata, callingConvention, alignment, returnAttributes, functionAttributes )
+import qualified LLVM.Module as LM
+import qualified LLVM.AST as A hiding ( metadata
+                                      , callingConvention
+                                      , alignment
+                                      , returnAttributes
+                                      , functionAttributes
+                                      , type' )
 import qualified LLVM.AST.Global as A
+import qualified LLVM.AST.Visibility as A
+import qualified LLVM.AST.ThreadLocalStorage as A
+import qualified LLVM.AST.Linkage as A
+import qualified LLVM.AST.DLL as A
+import qualified LLVM.AST.CallingConvention as A
+import qualified LLVM.AST.ParameterAttribute as A
+import qualified LLVM.AST.AddrSpace as A
+import qualified LLVM.AST.InlineAssembly as A hiding ( type' )
+import qualified LLVM.AST.Constant as A hiding ( type' )
+import qualified LLVM.AST.IntegerPredicate as A
+import qualified LLVM.AST.RMWOperation as A
+import qualified LLVM.AST.Float as A
+import qualified LLVM.AST.FunctionAttribute as FA
+import qualified LLVM.AST.FloatingPointPredicate as FPA
+import qualified LLVM.AST.Instruction as I hiding ( type' )
 
 import Z3.Monad
 
@@ -43,23 +62,10 @@ import ProofM
 import InitialEnv
 
 import ProveEquiv
+
+import Debug.Trace (trace)
+
 ----------------------------------------------------------------------
-
--- | Locate a function by name in the given module
-findFunction :: A.Module -> A.Name -> Maybe A.Global
-findFunction A.Module{..} funcName = case mapMaybe ffh moduleDefinitions of
-  f:_ -> Just f
-  []  -> Nothing
-  where
-    ffh (A.GlobalDefinition g@(A.Function {name = n})) | n == funcName = Just g
-    ffh _ = Nothing
-
-findGlobals :: A.Module -> NameReferenceMap
-findGlobals A.Module{..} = M.fromList $ concatMap nameGlobals moduleDefinitions
-  where
-    nameGlobals (A.GlobalDefinition g) = [(A.name g, g)]
-    nameGlobals _ = []
-
 -- | Convert a string into a name used by the LLVM AST
 llvmName :: String -> A.Name
 llvmName = A.Name . toShort . fromString
@@ -105,21 +111,114 @@ dumpModule A.Module {..} =
   show moduleTargetTriple ++ "\n" ++
   concatMap (\x -> dumpDefinition x ++ "\n") moduleDefinitions
 
-
-
 showBBIso :: NameMap -> String
 showBBIso m = intercalate " " $
   map (\(k,v) -> showName k ++ "-" ++ showName v) (M.assocs m)
 
 ----------------------------------------------------------------------
-
 -- | Read a .ll file to produce an LLVM.AST.Module
 readLL :: String -> IO A.Module
 readLL filename = do
   str <- readFile filename
   withContext $ \ctx ->
-    M.withModuleFromLLVMAssembly ctx str $ \llvmMod ->
-      M.moduleAST llvmMod
+    LM.withModuleFromLLVMAssembly ctx str $ \llvmMod ->
+      LM.moduleAST llvmMod
+
+-- | Locate a function by name in the given module
+findFunction :: A.Module -> A.Name -> Maybe A.Global
+findFunction A.Module{..} funcName = case mapMaybe ffh moduleDefinitions of
+  f:_ -> Just f
+  []  -> Nothing
+  where
+    ffh (A.GlobalDefinition g@(A.Function {name = n})) | n == funcName = Just g
+    ffh _ = Nothing
+
+findGlobals :: A.Module -> NameReferenceMap
+findGlobals A.Module{..} = M.fromList $ concatMap nameGlobals moduleDefinitions
+  where
+    nameGlobals (A.GlobalDefinition g) = [(A.name g, g)]
+    nameGlobals _ = []
+
+combineGlobals :: A.Module -> A.Module -> A.Name -> NameReferenceMap
+combineGlobals l r entry = M.unionWithKey dupRefHandler lGlobals rGlobals
+  where
+    lGlobals = M.delete entry $ findGlobals l
+    rGlobals = M.delete entry $ findGlobals r
+    dupRefHandler n g1 _ = trace ("Warning: duplicate A.Global: " ++ show n) g1 -- FIXME
+
+-- FIXME: function calls can potentially come from other places besides,
+-- Call instructions, and we should replace RPC calls there too.
+replRpc :: NameReferenceMap -> NameReferenceMap
+replRpc = M.map replRpcFunc
+  where
+    replRpcFunc f@A.Function{} = f { A.basicBlocks = map
+      (\(A.BasicBlock n i t) -> A.BasicBlock n (map replRpcNamed i) t)
+      (A.basicBlocks f)
+    }
+    replRpcFunc g = g
+
+    replRpcNamed (n A.:= a) = n A.:= (replRpcInstr a)
+    replRpcNamed (A.Do a)   = A.Do (replRpcInstr a)
+
+    replRpcInstr i@A.Call{} = i { A.function = replRpcRef $ A.function i }
+    replRpcInstr i = i
+
+    replRpcRef (Right (A.ConstantOperand (A.GlobalReference t n))) =
+      (Right (A.ConstantOperand (A.GlobalReference t' n')))
+      where
+        n' = case n of
+               A.Name bytes
+                 | isPrefixOf "_rpc_" s -> A.Name $ toShort $ C.pack $ drop 5 s
+                 | otherwise -> n
+                 where s = C.unpack $ fromShort bytes
+               _ -> n
+        t' = if n' == n then t
+             else case t of
+                    A.PointerType (A.FunctionType r a _) addr ->
+                      A.PointerType (A.FunctionType r a False) addr
+                    _ -> error "A.GlobalReference has unexpected type"
+    replRpcRef r = r
+
+rmDbgCalls :: NameReferenceMap -> NameReferenceMap
+rmDbgCalls = M.map rmDbgCalls'
+  where
+    dbg = [llvmName "llvm.var.annotation", llvmName "printf"]
+
+    rmDbgCalls' f@A.Function{} = f { A.basicBlocks = map
+      (\(A.BasicBlock n i t) -> A.BasicBlock n (filter (not . isDbgCall) i) t)
+      (A.basicBlocks f)
+    }
+    rmDbgCalls' g = g
+
+    isDbgCall (_ A.:= a) = isDbgCall' a
+    isDbgCall (A.Do a)   = isDbgCall' a
+
+    isDbgCall' (A.Call _ _ _ ref _ _ _) = isDbgRef ref
+    isDbgCall' _ = False
+
+    isDbgRef (Right (A.ConstantOperand (A.GlobalReference _ n))) = elem n dbg
+    isDbgRef _ = False
+
+rmRpcInit :: A.Global -> Maybe A.Global
+rmRpcInit f@A.Function{} = if new == f then Nothing else Just new
+  where
+    rpci = llvmName "_master_rpc_init"
+    new = f { A.basicBlocks = map
+      (\(A.BasicBlock n i t) -> A.BasicBlock n (rmRpcInit' i) t)
+      (A.basicBlocks f)
+    }
+    rmRpcInit' = filter (not . isRpcInitCall)
+
+    isRpcInitCall (_ A.:= a) = isRpcInitCall' a
+    isRpcInitCall (A.Do a)   = isRpcInitCall' a
+
+    isRpcInitCall' (A.Call _ _ _ ref _ _ _) = isRpcInitRef ref
+    isRpcInitCall' _ = False
+
+    isRpcInitRef (Right (A.ConstantOperand (A.GlobalReference _ n))) = n == rpci
+    isRpcInitRef _ = False
+
+rmRpcInit _ = error "rmRpcInit: Expecting A.Function"
 
 ----------------------------------------------------------------------
 unlessJustFail :: Maybe a -> String -> IO a
@@ -159,7 +258,7 @@ usageMessage = do prg <- getProgName
 
 main :: IO ()
 main = do
-  putStrLn ";;; Encoding constraints..."
+  putStrLn ";;; Parsing LLVM files..."
   args <- getArgs
   let (actions, filenames, errors) =
         getOpt RequireOrder optionDescriptions args
@@ -178,58 +277,51 @@ main = do
 
   let Options {..} = options  -- Bring options into scope
 
-  [leftLl, rightLl, _] <- mapM readLL filenames -- FIXME: do something with third
-  leftEntry <- unlessJustFail
-                 (findFunction leftLl (llvmName entryFunction)) $
-                   "Error: no function " ++ entryFunction ++ " found in left"
+  [leftLl, rightLl, refLl] <- mapM readLL filenames
 
-  rightEntry <- unlessJustFail
-                 (findFunction rightLl (llvmName entryFunction)) $
-                   "Error: no function " ++ entryFunction ++ " found in right"
 
-  when displayFunctions $ do putStrLn (dumpGlobal leftEntry)
-                             putStrLn (dumpGlobal rightEntry)
+  let entryName = llvmName entryFunction
+      leftEntry = findFunction leftLl entryName
+      rightEntry = findFunction rightLl entryName
+      leftOrRightEntry = case (leftEntry, rightEntry) of
+        (Nothing, Nothing) -> Nothing
+        (Just l, Nothing)  -> rmRpcInit l
+        (Nothing, Just r)  -> rmRpcInit r
+        (Just l, Just r)   -> (case (rmRpcInit l, rmRpcInit r) of
+                                (Nothing, Nothing) -> Nothing
+                                (Just l', Nothing) -> Just l'
+                                (Nothing, Just r') -> Just r'
+                                _ -> error "Duplicate _master_rpc_init()")
+
+  partitioned <- unlessJustFail leftOrRightEntry $
+    "Error: no fxn " ++ entryFunction ++ " with _master_rpc_init() in partition"
+
+  refactored <- unlessJustFail (findFunction refLl entryName) $
+    "Error: no fxn " ++ entryFunction ++ " in refactored"
+
+  when displayFunctions $ do putStrLn (dumpGlobal partitioned)
+                             putStrLn (dumpGlobal refactored)
                              exitSuccess
 
-  let gc = S.fromList [S.fromList $ map A.name [leftEntry, rightEntry]]
-      stateWithNameRefs = initialState { leftGlobals = findGlobals leftLl
-                                       , rightGlobals = findGlobals rightLl
-                                       , congruence = gc
-                                       }
+  let gc = S.fromList [S.fromList $ map A.name [partitioned, refactored]]
+      lrGlobals  = combineGlobals leftLl rightLl entryName
+      lrGlobals' = replRpc $ M.insert entryName partitioned lrGlobals
+      stateG = initialState { leftGlobals = rmDbgCalls $ lrGlobals'
+                            , rightGlobals = rmDbgCalls $ findGlobals refLl
+                            , congruence = gc
+                            }
+
   (_, _, proofLog) <-
-    runProofEnvironment stateWithNameRefs initialEnv $ do
+    runProofEnvironment stateG initialEnv $ do
+      liftIO $ putStrLn ";;; Encoding constraints..."
       pushMatching
-      r <- proveEquiv leftEntry rightEntry
+      r <- proveEquiv partitioned refactored
       assert =<< mkNot (z3equiv r)
-      -- assert (z3equiv r)
       logSMTLIB =<< solverToString
       liftIO $ putStrLn ";;; Solving..."
       z3Result <- check
       case z3Result of
         Unsat -> logString "Unsatisfiable"
         _ -> logString $ show z3Result
-
       return r
-
-  -- print rule
   mapM_ print proofLog
-
-
-
-{-
-  (rule', _, proofLog') <- runProofEnvironment initialState initialEnv $ do
-                              e <- proveEquiv A.VoidType A.VoidType
-                              _ <- proveEquiv (A.IntegerType 32) (A.IntegerType 32)
-                              _ <- proveEquiv (A.Default) (A.Default)
-                              _ <- proveEquiv (A.LinkOnce) (A.LinkOnce)
-                              _ <- proveEquiv (Just A.Import) (Just A.Import)
-                              _ <- proveEquiv True True
-                              logString "Complete"
-                              return e
-
-  --  print rule'
-  --  print proofLog'
-  mapM_ print proofLog'
-  exitSuccess
-
--}

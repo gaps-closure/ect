@@ -314,7 +314,9 @@ proveCongruence lName rName = do
     case (M.lookup lName leftGlobals, M.lookup rName rightGlobals) of
       (Just lGlobal, Just rGlobal) -> do
         pushMatching
+        liftIO $ putStrLn ";;; Push"
         _ <- proveEquiv lGlobal rGlobal
+        liftIO $ putStrLn ";;; Pop (globals proven equiv)"
         popMatching
       _ -> error "global definition not found in NameReferenceMap"
 
@@ -353,35 +355,34 @@ proveEquivCFG :: [A.BasicBlock] -> [A.BasicBlock] -> ProofM Equiv
 proveEquivCFG cfg1@(A.BasicBlock n1 _ _:_) cfg2@(A.BasicBlock n2 _ _:_) = do
 
   -- Try to establish an isomorphism among the basic blocks
-   matchedPairs <- visit n1 n2
+  matchedPairs <- visit n1 n2
 
-   -- Dump the matching information (both forward and back) into Z3-land
-   -- and add assertions that say the back(forward n) = n for all n
-   -- (enumerate them explicitly)
-   logString $ "basic block matching " ++
-     intercalate ", "
-        (map (\(a,b) -> showName a ++ "-" ++ showName b) matchedPairs)
+  -- Dump the matching information (both forward and back) into Z3-land
+  -- and add assertions that say the back(forward n) = n for all n
+  -- (enumerate them explicitly)
+  logString $ "basic block matching " ++
+    intercalate ", "
+      (map (\(a,b) -> showName a ++ "-" ++ showName b) matchedPairs)
 
-   -- A list of matched pairs of basic blocks
-   let getBlock (l, r) = (,) <$> (bblookup bbm1 l) <*> (bblookup bbm2 r)
-   bbs <- mapM getBlock matchedPairs
+  -- A list of matched pairs of basic blocks
+  let getBlock (l, r) = (,) <$> (bblookup bbm1 l) <*> (bblookup bbm2 r)
+  bbs <- mapM getBlock matchedPairs
 
-   pairedEquivs <- mapM (uncurry proveEquiv) bbs
-   blocksEquiv <- mkAnd (map z3equiv pairedEquivs)
+  pairedEquivs <- mapM (uncurry proveEquiv) bbs
+  blocksEquiv <- mkAnd (map z3equiv pairedEquivs)
 
-   Z3Type{..} <- fromEnv t_List_BasicBlock
+  Z3Type{..} <- fromEnv t_List_BasicBlock
 
-   equivID <- getNextPID
-   z3v1 <- mkPropConst equivID "x" sort
-   z3v2 <- mkPropConst equivID "y" sort
-   bbEquiv <- mkApp equivFunc [z3v1, z3v2]
+  equivID <- getNextPID
+  z3v1 <- mkPropConst equivID "x" sort
+  z3v2 <- mkPropConst equivID "y" sort
+  bbEquiv <- mkApp equivFunc [z3v1, z3v2]
 
-   z3equiv <- mkEq bbEquiv blocksEquiv
+  z3equiv <- mkEq bbEquiv blocksEquiv
 
-   assert z3equiv
+  assert z3equiv
 
-   return Equiv{..}
-
+  return Equiv{..}
   where
     bbm1 = makeBBMap cfg1
     bbm2 = makeBBMap cfg2
@@ -405,6 +406,17 @@ proveEquivCFG cfg1@(A.BasicBlock n1 _ _:_) cfg2@(A.BasicBlock n2 _ _:_) = do
                  show nbb2 ++ " have a different number of successors"
           matches <- zipWithM visit successors1 successors2
           return $ (nbb1, nbb2):(concat matches)
+
+proveEquivCFG [] [] = do
+  blocksEquiv <- mkAnd []
+  Z3Type{..} <- fromEnv t_List_BasicBlock
+  equivID <- getNextPID
+  z3v1 <- mkPropConst equivID "x" sort
+  z3v2 <- mkPropConst equivID "y" sort
+  bbEquiv <- mkApp equivFunc [z3v1, z3v2]
+  z3equiv <- mkEq bbEquiv blocksEquiv
+  assert z3equiv
+  return Equiv{..}
 
 proveEquivCFG _ _ = proofFail "[BasicBlock] not equivalent (different lengths)"
 
