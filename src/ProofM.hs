@@ -12,7 +12,6 @@ a proof has failed.
 
 module ProofM where
 
-import Control.Monad ( liftM )
 import Control.Monad.IO.Class ( MonadIO )
 import Control.Monad.Trans.Writer.CPS ( WriterT, runWriterT, tell )
 import Control.Monad.Trans.State.Strict ( StateT(..), runStateT, evalStateT,
@@ -48,10 +47,10 @@ data LogEntry = LogString String -- ^ A arbitrary log string
                              }
 
 instance Show LogEntry where
-  show (LogString ss) = intercalate "\n" $ map (\s -> ";;; " ++ s) $ lines ss
+  show (LogString ss) = intercalate "\n" $ map (";;; " ++) $ lines ss
   show (LogSMTLIB s) = s
   show LogInference{..} = intercalate "\n" $ map (";; "++) $
-        (map (indentCenter width) (premises' ++ [separator, conclusion'])) ++
+        map (indentCenter width) (premises' ++ [separator, conclusion']) ++
          ["", "Proof. " ++ infComment ++ " QED"]
     where
       premises' = map show infPremises
@@ -156,7 +155,7 @@ instance MonadZ3 ProofM where
 
 -- | Extract the result from a WriterT, discarding any log
 evalWriterT :: (Monad m, Monoid w) => WriterT w m a -> m a
-evalWriterT m = liftM fst $ runWriterT m
+evalWriterT m = fst <$> runWriterT m
 
 -- | Run initialization code to get a new ProofEnv, then run
 --   the actions with that environment.  Any log generated during
@@ -169,16 +168,16 @@ initializeRun initialization actions = do
 --  logString "initialization complete"
   ProofM $ lift $ lift $
             runWriterT $ lift $
-            withReaderT (\_ -> env') $
+            withReaderT (const env') $
             evalStateT (runMaybeT $ runProofM actions) state
 
 -- | In the proof environment, run the intitialization code to set
 -- up a ProofEnv, then run the given actions with that environment
-runProofEnvironment :: ProofState -> ProofM ProofEnv -> ProofM a
+runProofEnvironment :: Opts -> ProofState -> ProofM ProofEnv -> ProofM a
                     -> IO (Maybe a, ProofState, ProofLog)
-runProofEnvironment initialSt initializeEnv actions = do
+runProofEnvironment options initialSt initializeEnv actions = do
   ((jr, st), l) <-
-      evalZ3 $ runWriterT $ runReaderT (
+      evalZ3With Nothing options $ runWriterT $ runReaderT (
       runStateT (runMaybeT $ runProofM $
                   initializeRun initializeEnv actions) initialSt)
       undefined
@@ -202,7 +201,7 @@ fromEnv selector = ProofM $ lift $ lift $ asks selector
 -- | Get the next PID in sequence and update the state
 getNextPID :: ProofM PID
 getNextPID = do
-  s <- ProofM $ lift $ get
+  s <- ProofM $ lift get
   let pid = currentPID s
   ProofM $ lift $ put $ s {currentPID = nextPID pid }
   return pid
@@ -212,7 +211,7 @@ saveEquivFunction :: Sort -- ^ Sort to be saved
                   -> FuncDecl -- ^ Equivalence function for the sort
                   -> ProofM ()
 saveEquivFunction sort equivFunction = do
-  s <- ProofM $ lift $ get
+  s <- ProofM $ lift get
   let cm = equivFunctions s
   ProofM $ lift $ put $ s { equivFunctions = M.insert sort equivFunction cm }
 

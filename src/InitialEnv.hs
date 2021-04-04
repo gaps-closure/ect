@@ -123,7 +123,7 @@ mkEquivFuncDef sort ctors equivFunc = do
         case equivFunction of
           Just f -> mkApp f [f1, f2]
           Nothing -> mkEq f1 f2 -- Use primitive equality if no special one is defined
-      fieldEquiv f1 f2 (_, Nothing) = do
+      fieldEquiv f1 f2 (_, Nothing) =
         mkApp equivFunc [f1, f2] -- Recursive call
 
   let ctorEquiv (_, fields) recognizer accs = do
@@ -208,7 +208,7 @@ mkMutualZ3Constructors bool names fieldsSet = do
       fixField (field, Right s) = (field, Just s)
   sequence_ $ zipWith3 mkEquivFuncDef sorts fieldsSet' equivFuncs
   constructorsSet <- T.sequence $ map getDatatypeSortConstructors sorts
-  let z3Types = zipWith (\s eq -> Z3Type s eq) sorts equivFuncs
+  let z3Types = zipWith Z3Type sorts equivFuncs
       merge cs fs z3t = (z3t, zip3 cs (map fst fs) (repeat z3t))
   return $ zipWith3 merge constructorsSet fieldsSet z3Types
 

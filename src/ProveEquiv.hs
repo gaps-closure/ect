@@ -84,7 +84,7 @@ proveEquivGeneral getCons fields comment = do
 
   let equiv = Equiv{..}
   logString $
-    "Verifying " ++ cname ++ " " ++ intercalate " " (map show premiseIDs)
+    "Verifying " ++ cname ++ " " ++ unwords (map show premiseIDs)
   logInference premiseIDs (PropEquiv equiv) comment
   return equiv
 
@@ -133,8 +133,8 @@ instance ProveEquiv A.Global where
                        , assertEquivDefault True
                        ]
     proveEquivGeneral c_G_GlobalVariable fields $
-      "global variables " ++ (showName $ A.name v1) ++ " and " ++
-      (showName $ A.name v2) ++ " equivalent"
+      "global variables " ++ showName (A.name v1) ++ " and " ++
+      showName (A.name v2) ++ " equivalent"
     where proveField record = proveEquiv (record v1) (record v2)
 
   proveEquiv a1@A.GlobalAlias{} a2@A.GlobalAlias{} = do
@@ -151,8 +151,8 @@ instance ProveEquiv A.Global where
                        , proveField A.aliasee
                        ]
     proveEquivGeneral c_G_GlobalAlias fields $
-      "global aliases " ++ (showName $ A.name a1) ++ " and " ++
-      (showName $ A.name a2) ++ " equivalent"
+      "global aliases " ++ showName (A.name a1) ++ " and " ++
+      showName (A.name a2) ++ " equivalent"
     where proveField record = proveEquiv (record a1) (record a2)
 
   proveEquiv f1@A.Function{} f2@A.Function{} = do
@@ -178,8 +178,8 @@ instance ProveEquiv A.Global where
                        , assertEquivDefault True
                        ]
     proveEquivGeneral c_G_Function fields $
-      "functions " ++ (showName $ A.name f1) ++ " and " ++
-      (showName $ A.name f2) ++ " equivalent"
+      "functions " ++ showName (A.name f1) ++ " and " ++
+      showName (A.name f2) ++ " equivalent"
     where proveField record = proveEquiv (record f1) (record f2)
 
   proveEquiv _ _ = proofFail "Global"
@@ -194,7 +194,7 @@ instance ProveEquiv A.Name where
     proveEquivGeneral c_N_Name [e] "Name equivalent"
   proveEquiv n1@(A.UnName _) n2@(A.UnName _) = do
     assertMatch c_N_UnName n1 n2
-    e <- assertEquivDefault $ (1 :: Word)
+    e <- assertEquivDefault (1 :: Word)
     proveEquivGeneral c_N_UnName [e] "UnName equivalent"
   proveEquiv _ _ = proofFail "Name != UnName"
 
@@ -225,7 +225,7 @@ getMatching = do
 putMatching :: MatchState -> ProofM ()
 putMatching ms = do
   ProofState{..} <- ProofM $ lift get
-  ProofM $ lift $ put $ ProofState { matching = ms:(tail matching), .. }
+  ProofM $ lift $ put $ ProofState { matching = ms:tail matching, .. }
 
 -- | Push a fresh state onto the matching stack, on entry to a new global
 pushMatching :: ProofM ()
@@ -233,7 +233,7 @@ pushMatching = do
   ProofState{..} <- ProofM $ lift get
   (new_fwd, new_inv) <- freshMatchFunctions
   let match_state = ((M.empty, new_fwd), (M.empty, new_inv), S.empty)
-  ProofM $ lift $ put $ ProofState { matching = (match_state:matching), .. }
+  ProofM $ lift $ put $ ProofState { matching = match_state:matching, .. }
   where
     freshMatchFunctions = do
       (_, _, Z3Type{..}) <- fromEnv c_N_Name
@@ -280,8 +280,8 @@ assertMatch nameCons n1 n2 = do
   assert =<< mkEq fn2 z3n1
   where
     field n = case n of
-      (A.Name s)   -> sequence $ [mkString $ C.unpack $ fromShort s]
-      (A.UnName w) -> sequence $ [mkBitvector 32 $ toInteger w]
+      (A.Name s)   -> sequence [mkString $ C.unpack $ fromShort s]
+      (A.UnName w) -> sequence [mkBitvector 32 $ toInteger w]
 
 -- | Update the disjoint set of equivalent globals with a new pair globals
 addCongruence :: A.Name -> A.Name -> ProofM Bool
@@ -289,11 +289,11 @@ addCongruence lName rName = do
   lSet <- findMemberSet lName
   rSet <- findMemberSet rName
   case (lSet, rSet) of
-    (Just l, Nothing) -> update $ (S.insert $ S.insert rName l) . (S.delete l)
-    (Nothing, Just r) -> update $ (S.insert $ S.insert lName r) . (S.delete r)
-    (Nothing, Nothing) -> update $ (S.insert $ S.fromList [lName, rName])
+    (Just l, Nothing) -> update $ S.insert (S.insert rName l) . S.delete l
+    (Nothing, Just r) -> update $ S.insert (S.insert lName r) . S.delete r
+    (Nothing, Nothing) -> update $ S.insert (S.fromList [lName, rName])
     (Just l, Just r)
-      | l /= r -> update $ S.insert (S.union l r) . (S.delete l) . (S.delete r)
+      | l /= r -> update $ S.insert (S.union l r) . S.delete l . S.delete r
       | otherwise -> return True
   where
     update op = do
@@ -365,7 +365,7 @@ proveEquivCFG cfg1@(A.BasicBlock n1 _ _:_) cfg2@(A.BasicBlock n2 _ _:_) = do
       (map (\(a,b) -> showName a ++ "-" ++ showName b) matchedPairs)
 
   -- A list of matched pairs of basic blocks
-  let getBlock (l, r) = (,) <$> (bblookup bbm1 l) <*> (bblookup bbm2 r)
+  let getBlock (l, r) = (,) <$> bblookup bbm1 l <*> bblookup bbm2 r
   bbs <- mapM getBlock matchedPairs
 
   pairedEquivs <- mapM (uncurry proveEquiv) bbs
@@ -405,7 +405,7 @@ proveEquivCFG cfg1@(A.BasicBlock n1 _ _:_) cfg2@(A.BasicBlock n2 _ _:_) = do
              proofFail $ "basic blocks " ++ show nbb1 ++ " and " ++
                  show nbb2 ++ " have a different number of successors"
           matches <- zipWithM visit successors1 successors2
-          return $ (nbb1, nbb2):(concat matches)
+          return $ (nbb1, nbb2):concat matches
 
 proveEquivCFG [] [] = do
   blocksEquiv <- mkAnd []
@@ -433,27 +433,27 @@ instance ProveEquiv Integer where
 
 instance ProveEquiv Word where
   proveEquiv = proveEquivPrimitive
-    t_Word (\x -> mkBitvector 32 (toInteger x)) "Word"
+    t_Word (mkBitvector 32 . toInteger) "Word"
 
 instance ProveEquiv Word16 where
   proveEquiv = proveEquivPrimitive
-    t_Word16 (\x -> mkBitvector 16 (toInteger x)) "Word16"
+    t_Word16 (mkBitvector 16 . toInteger) "Word16"
 
 instance ProveEquiv Word32 where
   proveEquiv = proveEquivPrimitive
-    t_Word32 (\x -> mkBitvector 32 (toInteger x)) "Word32"
+    t_Word32 (mkBitvector 32 . toInteger) "Word32"
 
 instance ProveEquiv Word64 where
   proveEquiv = proveEquivPrimitive
-    t_Word64 (\x -> mkBitvector 64 (toInteger x)) "Word64"
+    t_Word64 (mkBitvector 64 . toInteger) "Word64"
 
 instance ProveEquiv C.ByteString where
   proveEquiv = proveEquivPrimitive
-    t_ByteString (\x -> mkString $ C.unpack x) "ByteString"
+    t_ByteString (mkString . C.unpack) "ByteString"
 
 instance ProveEquiv ShortByteString where
   proveEquiv = proveEquivPrimitive
-    t_ShortByteString (\x -> mkString $ C.unpack $ fromShort x) "ShortByteStr"
+    t_ShortByteString (mkString . C.unpack . fromShort) "ShortByteStr"
 
 instance ProveEquiv Float where
   proveEquiv = proveEquivPrimitive
@@ -586,8 +586,8 @@ proveEquivNamed :: (ProveEquiv a)
                 => (ProofEnv -> Z3Constructor)
                 -> (ProofEnv -> Z3Constructor)
                 -> String
-                -> (A.Named a)
-                -> (A.Named a)
+                -> A.Named a
+                -> A.Named a
                 -> ProofM Equiv
 proveEquivNamed _ c_Do n (A.Do a) (A.Do b) = do
   e <- proveEquiv a b

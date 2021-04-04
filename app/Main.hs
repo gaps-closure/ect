@@ -40,21 +40,7 @@ import qualified LLVM.AST as A hiding ( metadata
                                       , functionAttributes
                                       , type' )
 import qualified LLVM.AST.Global as A
-import qualified LLVM.AST.Visibility as A
-import qualified LLVM.AST.ThreadLocalStorage as A
-import qualified LLVM.AST.Linkage as A
-import qualified LLVM.AST.DLL as A
-import qualified LLVM.AST.CallingConvention as A
-import qualified LLVM.AST.ParameterAttribute as A
-import qualified LLVM.AST.AddrSpace as A
-import qualified LLVM.AST.InlineAssembly as A hiding ( type' )
 import qualified LLVM.AST.Constant as A hiding ( type' )
-import qualified LLVM.AST.IntegerPredicate as A
-import qualified LLVM.AST.RMWOperation as A
-import qualified LLVM.AST.Float as A
-import qualified LLVM.AST.FunctionAttribute as FA
-import qualified LLVM.AST.FloatingPointPredicate as FPA
-import qualified LLVM.AST.Instruction as I hiding ( type' )
 
 import Z3.Monad
 
@@ -74,24 +60,24 @@ showIN :: A.Instruction -> String
 showIN _ = "instruction"
 
 showTERM :: A.Terminator -> String
-showTERM t = show t
+showTERM = show
 
 showBB :: A.BasicBlock -> String
 showBB (A.BasicBlock name instructions terminator) =
   showName name ++ "\n    " ++
-  (intercalate "\n    "  $ map (showNamed showIN) instructions) ++ "\n    " ++
+  intercalate "\n    "  (map (showNamed showIN) instructions) ++ "\n    " ++
   showNamed showTERM terminator
 
 shortGlobal :: A.Global -> String
-shortGlobal (A.GlobalVariable {..}) = "var " ++ show name
-shortGlobal (A.GlobalAlias {..}) = "alias " ++ show name
-shortGlobal (A.Function {..}) = showName name ++ "()"
+shortGlobal A.GlobalVariable {..} = "var " ++ show name
+shortGlobal A.GlobalAlias {..} = "alias " ++ show name
+shortGlobal A.Function {..} = showName name ++ "()"
 
 
 dumpGlobal :: A.Global -> String
-dumpGlobal (A.GlobalVariable {..}) = "Global Variable " ++ show name
-dumpGlobal (A.GlobalAlias {..}) = "Global Alias " ++ show name
-dumpGlobal (A.Function {..}) = unlines $ (showName name ++ "()") :
+dumpGlobal A.GlobalVariable {..} = "Global Variable " ++ show name
+dumpGlobal A.GlobalAlias {..} = "Global Alias " ++ show name
+dumpGlobal A.Function {..} = unlines $ (showName name ++ "()") :
                                            map showBB basicBlocks
 
 dumpDefinition :: A.Definition -> String
@@ -112,7 +98,7 @@ dumpModule A.Module {..} =
   concatMap (\x -> dumpDefinition x ++ "\n") moduleDefinitions
 
 showBBIso :: NameMap -> String
-showBBIso m = intercalate " " $
+showBBIso m = unwords $
   map (\(k,v) -> showName k ++ "-" ++ showName v) (M.assocs m)
 
 ----------------------------------------------------------------------
@@ -130,7 +116,7 @@ findFunction A.Module{..} funcName = case mapMaybe ffh moduleDefinitions of
   f:_ -> Just f
   []  -> Nothing
   where
-    ffh (A.GlobalDefinition g@(A.Function {name = n})) | n == funcName = Just g
+    ffh (A.GlobalDefinition g@A.Function {name = n}) | n == funcName = Just g
     ffh _ = Nothing
 
 findGlobals :: A.Module -> NameReferenceMap
@@ -157,18 +143,18 @@ replRpc = M.map replRpcFunc
     }
     replRpcFunc g = g
 
-    replRpcNamed (n A.:= a) = n A.:= (replRpcInstr a)
+    replRpcNamed (n A.:= a) = n A.:= replRpcInstr a
     replRpcNamed (A.Do a)   = A.Do (replRpcInstr a)
 
     replRpcInstr i@A.Call{} = i { A.function = replRpcRef $ A.function i }
     replRpcInstr i = i
 
     replRpcRef (Right (A.ConstantOperand (A.GlobalReference t n))) =
-      (Right (A.ConstantOperand (A.GlobalReference t' n')))
+      Right (A.ConstantOperand (A.GlobalReference t' n'))
       where
         n' = case n of
                A.Name bytes
-                 | isPrefixOf "_rpc_" s -> A.Name $ toShort $ C.pack $ drop 5 s
+                 | "_rpc_" `isPrefixOf` s -> A.Name $ toShort $ C.pack $ drop 5 s
                  | otherwise -> n
                  where s = C.unpack $ fromShort bytes
                _ -> n
@@ -196,7 +182,7 @@ rmDbgCalls = M.map rmDbgCalls'
     isDbgCall' (A.Call _ _ _ ref _ _ _) = isDbgRef ref
     isDbgCall' _ = False
 
-    isDbgRef (Right (A.ConstantOperand (A.GlobalReference _ n))) = elem n dbg
+    isDbgRef (Right (A.ConstantOperand (A.GlobalReference _ n))) = n `elem` dbg
     isDbgRef _ = False
 
 rmRpcInit :: A.Global -> Maybe A.Global
@@ -287,11 +273,11 @@ main = do
         (Nothing, Nothing) -> Nothing
         (Just l, Nothing)  -> rmRpcInit l
         (Nothing, Just r)  -> rmRpcInit r
-        (Just l, Just r)   -> (case (rmRpcInit l, rmRpcInit r) of
+        (Just l, Just r)   -> case (rmRpcInit l, rmRpcInit r) of
                                 (Nothing, Nothing) -> Nothing
                                 (Just l', Nothing) -> Just l'
                                 (Nothing, Just r') -> Just r'
-                                _ -> error "Duplicate _master_rpc_init()")
+                                _ -> error "Duplicate _master_rpc_init()"
 
   partitioned <- unlessJustFail leftOrRightEntry $
     "Error: no fxn " ++ entryFunction ++ " with _master_rpc_init() in partition"
@@ -306,13 +292,17 @@ main = do
   let gc = S.fromList [S.fromList $ map A.name [partitioned, refactored]]
       lrGlobals  = combineGlobals leftLl rightLl entryName
       lrGlobals' = replRpc $ M.insert entryName partitioned lrGlobals
-      stateG = initialState { leftGlobals = rmDbgCalls $ lrGlobals'
+      stateG = initialState { leftGlobals = rmDbgCalls lrGlobals'
                             , rightGlobals = rmDbgCalls $ findGlobals refLl
                             , congruence = gc
                             }
 
+  -- Options to pass into the Z3 proof environment
+  -- See https://hackage.haskell.org/package/z3-408.2/docs/Z3-Opts.html
+  let environmentOptions = stdOpts +? opt "auto-config" False
+  
   (_, _, proofLog) <-
-    runProofEnvironment stateG initialEnv $ do
+    runProofEnvironment environmentOptions stateG initialEnv $ do
       liftIO $ putStrLn ";;; Encoding constraints..."
       pushMatching
       r <- proveEquiv partitioned refactored
@@ -322,6 +312,6 @@ main = do
       z3Result <- check
       case z3Result of
         Unsat -> logString "Unsatisfiable"
-        _ -> logString $ show z3Result
+        _     -> logString $ show z3Result
       return r
   mapM_ print proofLog
