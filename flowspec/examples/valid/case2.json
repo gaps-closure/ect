@@ -1,0 +1,438 @@
+{
+    "comment": [
+      "Case 2: PL-proposed Message Flow Partitioning Only",
+      "Components [MPU:1,MPX:2] in orange:1",
+      "Components [ISRM:3, EOIR:4, RDR:5, External:6] in green:2",
+      "Messages: ",
+      "component_heartbeats:01",
+      "updateMissionPlan:02",
+      "pnt:03",
+      "requestISRMDetections:04",
+      "recieveISRMDetections:05",
+      "requestEOIRDetections:06",
+      "recieveEOIRDetections:07",
+      "requestRDRDetections:08",
+      "recieveRDRDetections:09",
+      "groundMovers:10",
+      "FlowID (encodes mux and typ): PQMM component P->Q, message MM"
+    ],
+    "topology": [
+        {
+            "component": "MPU",
+            "label": "MPU_CLE_LABEL",
+            "inFlows":  [ 2101, 3101, 4101, 5101 ],
+            "outFlows": [ 1201, 1301, 1401, 1501,
+                          1202, 1302, 1402, 1502 ]
+        },
+        {
+            "component": "MPX",
+            "label": "MPX_CLE_LABEL",
+            "inFlows":  [ 1201, 3201, 4201, 5201,
+                          1202,
+                          3205],
+            "outFlows": [ 2101, 2301, 2401, 2501,
+                          2503,
+                          2304 ]
+        },
+        {
+            "component": "ISRM",
+            "label": "ISRM_CLE_LABEL",
+            "inFlows":  [ 1301, 2301, 4301, 5301,
+                          1302,
+                          2304,
+                          4307,
+                          5309 ],
+            "outFlows": [ 3101, 3201, 3401, 3501,
+                          3205,
+                          3406,
+                          3508 ]
+        },
+        {
+            "component": "EOIR",
+            "label": "EOIR_CLE_LABEL",
+            "inFlows":  [ 1401, 2401, 3401, 5401,
+                          1402,
+                          3406,
+                          6410 ],
+            "outFlows": [ 4101, 4201, 4301, 4501,
+                          4307 ]
+        },
+        {
+            "component": "RDR",
+            "label": "RDR_CLE_LABEL",
+            "inFlows":  [ 1501, 2501, 3501, 4501,
+                          1502,
+                          2503,
+                          3508,
+                          6510 ],
+            "outFlows": [ 5101, 5201, 5301, 5401,
+                          5309 ]
+        },
+        {
+            "component": "External",
+            "label": "External_CLE_LABEL",
+            "inFlows":  [ ],
+            "outFlows": [ 6410, 6510 ]
+        }
+    ],
+    "flows": [
+        {"flowId": 1201,"message":"component_heartbeats","label":"ALLOW_ORANGE_ORANGE"},
+        {"flowId": 1301,"message":"component_heartbeats","label":"ALLOW_ORANGE_GREEN"},
+        {"flowId": 1401,"message":"component_heartbeats","label":"ALLOW_ORANGE_GREEN"},
+        {"flowId": 1501,"message":"component_heartbeats","label":"ALLOW_ORANGE_GREEN"},
+        {"flowId": 2101,"message":"component_heartbeats","label":"ALLOW_ORANGE_ORANGE"},
+        {"flowId": 2301,"message":"component_heartbeats","label":"ALLOW_ORANGE_GREEN"},
+        {"flowId": 2401,"message":"component_heartbeats","label":"ALLOW_ORANGE_GREEN"},
+        {"flowId": 2501,"message":"component_heartbeats","label":"ALLOW_ORANGE_GREEN"},
+        {"flowId": 3101,"message":"component_heartbeats","label":"ALLOW_GREEN_ORANGE"},
+        {"flowId": 3201,"message":"component_heartbeats","label":"ALLOW_GREEN_ORANGE"},
+        {"flowId": 3401,"message":"component_heartbeats","label":"ALLOW_GREEN_GREEN"},
+        {"flowId": 3501,"message":"component_heartbeats","label":"ALLOW_GREEN_GREEN"},
+        {"flowId": 4101,"message":"component_heartbeats","label":"ALLOW_GREEN_ORANGE"},
+        {"flowId": 4201,"message":"component_heartbeats","label":"ALLOW_GREEN_ORANGE"},
+        {"flowId": 4301,"message":"component_heartbeats","label":"ALLOW_GREEN_GREEN"},
+        {"flowId": 4501,"message":"component_heartbeats","label":"ALLOW_GREEN_GREEN"},
+        {"flowId": 5101,"message":"component_heartbeats","label":"ALLOW_GREEN_ORANGE"},
+        {"flowId": 5201,"message":"component_heartbeats","label":"ALLOW_GREEN_ORANGE"},
+        {"flowId": 5301,"message":"component_heartbeats","label":"ALLOW_GREEN_GREEN"},
+        {"flowId": 5401,"message":"component_heartbeats","label":"ALLOW_GREEN_GREEN"},
+        {"flowId": 1202,"message":"updateMissionPlan","label":"ALLOW_ORANGE_ORANGE"},
+        {"flowId": 1302,"message":"updateMissionPlan","label":"ALLOW_ORANGE_GREEN"},
+        {"flowId": 1402,"message":"updateMissionPlan","label":"ALLOW_ORANGE_GREEN"},
+        {"flowId": 1502,"message":"updateMissionPlan","label":"ALLOW_ORANGE_GREEN"},
+        {"flowId": 2503,"message":"pnt","label":"ALLOW_ORANGE_GREEN"},
+        {"flowId": 2304,"message":"requestISRMDetections","label":"ALLOW_ORANGE_GREEN"},
+        {"flowId": 3205,"message":"recieveISRMDetections","label":"ALLOW_GREEN_ORANGE"},
+        {"flowId": 3406,"message":"requestEOIRDetections","label":"ALLOW_GREEN_GREEN"},
+        {"flowId": 4307,"message":"recieveEOIRDetections","label":"ALLOW_GREEN_GREEN"},
+        {"flowId": 3508,"message":"requestRDRDetections","label":"ALLOW_GREEN_GREEN"},
+        {"flowId": 5309,"message":"recieveRDRDetections","label":"ALLOW_GREEN_GREEN"},
+        {"flowId": 6410,"message":"groundMovers","label":"ALLOW_GREEN_GREEN"},
+        {"flowId": 6510,"message":"groundMovers","label":"ALLOW_GREEN_GREEN"}
+    ],
+    "messages": [
+        {
+            "name": "component_heartbeats",
+            "topic": true,
+            "schemaType": "JSONSchema",
+            "schemaFile": "schema/component_heartbeats_schema.json"
+        },
+        {
+            "name": "updateMissionPlan",
+            "topic": true,
+            "schemaType": "JSONSchema",
+            "schemaFile": "schema/updateMissionPlan_schema.json"
+        },
+        {
+            "name": "recieveISRMDetections",
+            "topic": true,
+            "schemaType": "JSONSchema",
+            "schemaFile": "schema/recieveISRMDetections_schema.json"
+        },
+        {
+            "name": "groundMovers",
+            "topic": true,
+            "schemaType": "JSONSchema",
+            "schemaFile": "schema/groundMovers_schema.json"
+        },
+        {
+            "name": "requestISRMDetections",
+            "topic": true,
+            "schemaType": "JSONSchema",
+            "schemaFile": "schema/requestISRMDetections_schema.json"
+        },
+        {
+            "name": "pnt",
+            "topic": true,
+            "schemaType": "JSONSchema",
+            "schemaFile": "schema/pnt_schema.json"
+        },
+        {
+            "name": "requestEOIRDetections",
+            "topic": true,
+            "schemaType": "JSONSchema",
+            "schemaFile": "schema/requestEOIRDetections_schema.json"
+        },
+        {
+            "name": "requestRDRDetections",
+            "topic": true,
+            "schemaType": "JSONSchema",
+            "schemaFile": "schema/requestRDRDetections_schema.json"
+        },
+        {
+            "name": "recieveEOIRDetections",
+            "topic": true,
+            "schemaType": "JSONSchema",
+            "schemaFile": "schema/recieveEOIRDetections_schema.json"
+        },
+        {
+            "name": "recieveRDRDetections",
+            "topic": true,
+            "schemaType": "JSONSchema",
+            "schemaFile": "schema/recieveRDRDetections_schema.json"
+        }
+    ],
+    "cles": [
+        {
+            "cle-label": "MPU_CLE_LABEL",
+            "cle-json": {
+                "level": "orange",
+                "cdf": [
+                    {
+                        "remotelevel": "green",
+                        "direction": "egress",
+                        "guarddirective": {
+                            "operation": "allow"
+                        },
+                        "argtaints": [
+                            [ "ALLOW_ORANGE_ORANGE" ],
+                            [ "ALLOW_GREEN_ORANGE" ],
+                            [ "ALLOW_GREEN_ORANGE" ],
+                            [ "ALLOW_GREEN_ORANGE" ],
+
+                            [ "ALLOW_ORANGE_ORANGE" ],
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_ORANGE_ORANGE" ],
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_ORANGE_GREEN" ]
+                        ],
+                        "codtaints": [
+                        ],
+                        "rettaints": [
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "cle-label": "MPX_CLE_LABEL",
+            "cle-json": {
+                "level": "orange",
+                "cdf": [
+                    {
+                        "remotelevel": "green",
+                        "direction": "egress",
+                        "guarddirective": {
+                            "operation": "allow"
+                        },
+                        "argtaints": [
+                            [ "ALLOW_ORANGE_ORANGE" ],
+                            [ "ALLOW_GREEN_ORANGE" ],
+                            [ "ALLOW_GREEN_ORANGE" ],
+                            [ "ALLOW_GREEN_ORANGE" ],
+                            [ "ALLOW_ORANGE_ORANGE" ],
+                            [ "ALLOW_GREEN_ORANGE" ],
+
+                            [ "ALLOW_ORANGE_ORANGE" ],
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_ORANGE_GREEN" ]
+                        ],
+                        "codtaints": [
+                        ],
+                        "rettaints": [
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "cle-label": "ISRM_CLE_LABEL",
+            "cle-json": {
+                "level": "green",
+                "cdf": [
+                    {
+                        "remotelevel": "orange",
+                        "direction": "egress",
+                        "guarddirective": {
+                            "operation": "allow"
+                        },
+                        "argtaints": [
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_GREEN_GREEN" ],
+                            [ "ALLOW_GREEN_GREEN" ],
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_GREEN_GREEN" ],
+                            [ "ALLOW_GREEN_GREEN" ],
+
+                            [ "ALLOW_GREEN_ORANGE" ],
+                            [ "ALLOW_GREEN_ORANGE" ],
+                            [ "ALLOW_GREEN_GREEN" ],
+                            [ "ALLOW_GREEN_GREEN" ],
+                            [ "ALLOW_GREEN_ORANGE" ],
+                            [ "ALLOW_GREEN_GREEN" ],
+                            [ "ALLOW_GREEN_GREEN" ]
+                        ],
+                        "codtaints": [
+                        ],
+                        "rettaints": [
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "cle-label": "EOIR_CLE_LABEL",
+            "cle-json": {
+                "level": "green",
+                "cdf": [
+                    {
+                        "remotelevel": "orange",
+                        "direction": "egress",
+                        "guarddirective": {
+                            "operation": "allow"
+                        },
+                        "argtaints": [
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_GREEN_GREEN" ],
+                            [ "ALLOW_GREEN_GREEN" ],
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_GREEN_GREEN" ],
+                            [ "ALLOW_GREEN_GREEN" ],
+
+                            [ "ALLOW_GREEN_ORANGE" ],
+                            [ "ALLOW_GREEN_ORANGE" ],
+                            [ "ALLOW_GREEN_GREEN" ],
+                            [ "ALLOW_GREEN_GREEN" ],
+                            [ "ALLOW_GREEN_GREEN" ]
+                        ],
+                        "codtaints": [
+                        ],
+                        "rettaints": [
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "cle-label": "RDR_CLE_LABEL",
+            "cle-json": {
+                "level": "green",
+                "cdf": [
+                    {
+                        "remotelevel": "orange",
+                        "direction": "egress",
+                        "guarddirective": {
+                            "operation": "allow"
+                        },
+                        "argtaints": [
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_GREEN_GREEN" ],
+                            [ "ALLOW_GREEN_GREEN" ],
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_ORANGE_GREEN" ],
+                            [ "ALLOW_GREEN_GREEN" ],
+                            [ "ALLOW_GREEN_GREEN" ],
+
+                            [ "ALLOW_GREEN_ORANGE" ],
+                            [ "ALLOW_GREEN_ORANGE" ],
+                            [ "ALLOW_GREEN_GREEN" ],
+                            [ "ALLOW_GREEN_GREEN" ],
+                            [ "ALLOW_GREEN_GREEN" ]
+                        ],
+                        "codtaints": [
+                        ],
+                        "rettaints": [
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "cle-label": "External_CLE_LABEL",
+            "cle-json": {
+                "level": "green",
+                "cdf": [
+                    {
+                        "remotelevel": "orange",
+                        "direction": "egress",
+                        "guarddirective": {
+                            "operation": "allow"
+                        },
+                        "argtaints": [
+                            [ "ALLOW_GREEN_GREEN" ],
+                            [ "ALLOW_GREEN_GREEN" ]
+                        ],
+                        "codtaints": [
+                        ],
+                        "rettaints": [
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "cle-label": "ALLOW_ORANGE_ORANGE",
+            "cle-json": {
+               "level":"orange",
+               "cdf":[
+                  {
+                     "remotelevel":"orange",
+                     "direction":"egress",
+                     "guarddirective":{
+                        "operation":"allow",
+                        "oneway":true
+                     }
+                  }
+               ]
+            }
+        },
+        {
+            "cle-label": "ALLOW_GREEN_ORANGE",
+            "cle-json": {
+               "level":"green",
+               "cdf":[
+                  {
+                     "remotelevel":"orange",
+                     "direction":"egress",
+                     "guarddirective":{
+                        "operation":"allow",
+                        "oneway":true
+                     }
+                  }
+               ]
+            }
+        },
+        {
+            "cle-label": "ALLOW_ORANGE_GREEN",
+            "cle-json": {
+               "level":"orange",
+               "cdf":[
+                  {
+                     "remotelevel":"green",
+                     "direction":"egress",
+                     "guarddirective":{
+                        "operation":"allow",
+                        "oneway":true
+                     }
+                  }
+               ]
+            }
+        },
+        {
+            "cle-label": "ALLOW_GREEN_GREEN",
+            "cle-json": {
+               "level":"green",
+               "cdf":[
+                  {
+                     "remotelevel":"green",
+                     "direction":"egress",
+                     "guarddirective":{
+                        "operation":"allow",
+                        "oneway":true
+                     }
+                  }
+               ]
+            }
+        }
+    ]
+}

@@ -1,0 +1,30 @@
+{
+    "rules": [
+        {
+            "message": "component_heartbeats",
+            "cdf": [
+                ["orange", "green"],
+                ["green", "orange"]
+            ]
+        },
+        {
+            "message": "requestEOIRDetections",
+            "cdf": [
+                ["orange", "green"]
+            ]
+        },
+        {
+            "message": "updateMissionPlan",
+            "cdf": [
+                ["orange", "green"]
+            ]
+        },
+        {
+            "message": "groundMovers",
+            "cdf": [
+                ["green", "orange"]
+            ]
+        }
+    ]
+
+}

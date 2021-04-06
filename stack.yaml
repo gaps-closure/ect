@@ -1,0 +1,15 @@
+resolver: lts-15.3
+
+packages:
+- .
+
+extra-deps:
+#- z3-408.2@sha256:1f8b6ccbcc6d06a6701900a09fcfcbaf86ed8a8495615710bef4da5cdb073a3f,4226
+- git: git@github.com:gaps-closure/haskell-z3.git
+  commit: fad1fe11ab9dda192bb89e90ea14a80d90140fcb
+
+extra-include-dirs:
+- z3-4.8.8-x64-ubuntu-16.04/include
+
+extra-lib-dirs:
+- z3-4.8.8-x64-ubuntu-16.04/bin

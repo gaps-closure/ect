@@ -1,0 +1,36 @@
+{
+    "rules": [
+        {
+            "message": "component_heartbeats",
+            "cdf": [
+                ["orange", "green"],
+                ["green", "orange"]
+            ]
+        },
+        {
+            "message": "requestISRMDetections",
+            "cdf": [
+                ["orange", "green"]
+            ]
+        },
+        {
+            "message": "updateMissionPlan",
+            "cdf": [
+                ["orange", "green"]
+            ]
+        },
+        {
+            "message": "pnt",
+            "cdf": [
+                ["orange", "green"]
+            ]
+        },
+        {
+            "message": "recieveISRMDetections",
+            "cdf": [
+                ["green", "orange"]
+            ]
+        }
+    ]
+
+}
