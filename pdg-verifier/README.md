@@ -1,9 +1,14 @@
 # PDG-verifier (PDGv)
 
-Verify that the partitioned program conforms to the conflict-free topology
-derived from conflict analysis on the original program.
+TODO: Description.
 
-## Preliminary plan
+## Requirements
+
+- TODO: Write a starter formal requirements document, based on
+capo/formal/ontology/conflict_analyzer.md and the verifier doc that mike
+emailed (and the PDG spec).
+
+## Preliminary plan (outdated)
 
 - Take in partitioned program as LLVM IR parsed to LLVM.AST, as in the ECT.
 
@@ -26,21 +31,14 @@ partition must assign colors to nodes consistently.
 - Check validity with Z3 to verify. Output validity and, if invalid,
 an explanation of why.
 
-## Additional notes/questions
-
-- Am I correct about where this verifier fits in the toolchain, and what it
-should do?
-
-- Where can I find the formal specification for topology.json?
-
-## PDG data structure in Haskell and Z3
+#### PDG data structure in Haskell and Z3
 
 TK
 
-## Topology data structure in Haskell
+#### Topology data structure in Haskell
 
 TK
 
-## Mapping of topology elements to SMT-LIB constraints on PDG elements
+#### Mapping of topology elements to SMT-LIB constraints on PDG elements
 
 TK
