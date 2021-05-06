@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3f30ce3b73b183a7fc3a258477519a12255d8847f1b6f4f89996bac5a715d0c3
+-- hash: 5f4d4497e003eec603efe33af9dcc54aa25c6c8685fa807c2efd1b2059fef286
 
 name:           ect
 version:        0.1.0.0
@@ -38,7 +38,8 @@ library
       src
   ghc-options: -Wall -ddump-splices -ddump-to-file
   build-depends:
-      base >=4.7 && <5
+      aeson
+    , base >=4.7 && <5
     , bytestring
     , containers
     , llvm-hs >=9.0.1
@@ -52,13 +53,37 @@ library
 executable ect
   main-is: Main.hs
   other-modules:
+      ParseCLE
       PrintTypes
       Paths_ect
   hs-source-dirs:
       app
   ghc-options: -Wall -dynamic
   build-depends:
-      base >=4.7 && <5
+      aeson
+    , base >=4.7 && <5
+    , bytestring
+    , containers
+    , ect
+    , llvm-hs >=9.0.1
+    , llvm-hs-pure >=9.0.0
+    , transformers
+    , utf8-string
+    , z3 >=408.2
+  default-language: Haskell2010
+
+executable parseCLE
+  main-is: ParseCLE.hs
+  other-modules:
+      Main
+      PrintTypes
+      Paths_ect
+  hs-source-dirs:
+      app
+  ghc-options: -main-is ParseCLE -dynamic -Wall
+  build-depends:
+      aeson
+    , base >=4.7 && <5
     , bytestring
     , containers
     , ect
@@ -73,12 +98,14 @@ executable printTypes
   main-is: PrintTypes.hs
   other-modules:
       Main
+      ParseCLE
       Paths_ect
   hs-source-dirs:
       app
   ghc-options: -main-is PrintTypes -dynamic -Wall
   build-depends:
-      base >=4.7 && <5
+      aeson
+    , base >=4.7 && <5
     , bytestring
     , containers
     , ect

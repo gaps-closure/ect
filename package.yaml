@@ -21,7 +21,7 @@ description:         Please see the README on GitHub at <https://github.com/gaps
 
 dependencies:
 - base >= 4.7 && < 5
-    
+
 library:
   source-dirs: src
   ghc-options:
@@ -37,6 +37,7 @@ library:
   - containers
   - bytestring
   - utf8-string
+  - aeson
 
 executables:
   ect:
@@ -48,7 +49,7 @@ executables:
 #    - -threaded
 #    - -rtsopts
 #    - -with-rtsopts=-N
-    
+
     dependencies:
     - z3 >= 408.2
     - llvm-hs-pure >= 9.0.0
@@ -58,6 +59,7 @@ executables:
     - utf8-string
     - containers
     - ect
+    - aeson
 
   printTypes:
     main:                PrintTypes.hs
@@ -66,7 +68,7 @@ executables:
     - -dynamic
     - -Wall
     source-dirs:         app
-    
+
     dependencies:
     - z3 >= 408.2
     - llvm-hs-pure >= 9.0.0
@@ -76,6 +78,27 @@ executables:
     - containers
     - transformers
     - ect
+    - aeson
+
+  parseCLE:
+    main:                ParseCLE.hs
+    ghc-options:
+    - -main-is ParseCLE
+    - -dynamic
+    - -Wall
+    source-dirs:         app
+
+    dependencies:
+    - z3 >= 408.2
+    - llvm-hs-pure >= 9.0.0
+    - llvm-hs >= 9.0.1
+    - bytestring
+    - utf8-string
+    - containers
+    - transformers
+    - ect
+    - aeson
+
 
 # stack build -v --ghc-options="-v" --cabal-verbose > log 2>&1
 # shows the sausage being made
