@@ -179,10 +179,10 @@ monoConstructors env tCon dCons = (tConName, dConsInfo)
 
     dConInfo (NormalC n bts) =
       ( n, namePrefix ++ nameBase n ++ typeSuffix
-      , zipWith (\(_,t) nn -> ((sanitize $ "f_" ++ nameBase n ++ "_" ++ show nn)
-                             , typeName env t)) bts [(1::Int)..])
+      , zipWith (\(_,t) nn -> (sanitize $ "f_" ++ nameBase n ++ "_" ++ show nn
+                              , typeName env t)) bts [(1::Int)..])
     dConInfo (RecC n vbts) = (n, namePrefix ++ nameBase n ++ typeSuffix,
-                       map (\(f,_,t) -> ((sanitize $ nameBase n ++ "_" ++ nameBase f)
+                       map (\(f,_,t) -> (sanitize $ nameBase n ++ "_" ++ nameBase f
                                         ,typeName env t)) vbts)
     dConInfo (InfixC (_,t1) n (_,t2)) =
       (n, namePrefix ++ "infix" ++ typeSuffix,    -- FIXME: name is like ":-"
@@ -208,11 +208,10 @@ monoDec _ i _ = error $ "expecting a type constructor; got " ++ show i
 -- the base names of all its data constructors,
 -- and the names of the of each of its fields, if any
 monoType :: NameEnv -> Type -> Q StringTypeInfo
-monoType env ty = collect [] ty
+monoType env = collect []
   where
     collect args (AppT t1 t2) = collect (typeName env t2 : args) t1
-    collect args (ConT n) = do
-      reify n >>= \case
+    collect args (ConT n) = reify n >>= \case
         TyConI dec -> monoDec env dec args
         i -> error $ "monoType: expecting a TyConI; got " ++ show i
     collect [arg] ListT = return (tCon, dConsInfo)
@@ -378,7 +377,7 @@ genProofEnvDecl proofEnvType primitives types = do
       proofEnvTypeName = mkName proofEnvType
   typeEs <- sequence types
   fields <- concatMap infoToFields <$> mapM (monoType []) typeEs
-  return $ [DataD [] proofEnvTypeName [] Nothing
+  return [DataD [] proofEnvTypeName [] Nothing
               [RecC proofEnvTypeName (primitiveFields ++ fields)] []]
 
 
@@ -433,13 +432,12 @@ decTypes _ d _ = error $ "decTypes: unhandled declaration " ++ show d
 -- of concrete types it depends on.  Do so by collecting any type arguments
 -- being applied to a type declaration before using 'decTypes'
 dependingTypes :: TypeEnv -> Type -> Q [Type]
-dependingTypes env ty = collect [] ty
+dependingTypes env = collect []
   where
     collect args (AppT t1 t2) = collect (t2 : args) t1
-    collect args (ConT n) = do
-      reify n >>= \case
-        TyConI dec -> decTypes env dec args
-        PrimTyConI _ _ _ -> return [] -- Stop at primitives
+    collect args (ConT n) = reify n >>= \case
+        TyConI dec    -> decTypes env dec args
+        PrimTyConI {} -> return [] -- Stop at primitives
         i -> error $ "dependingTypes : expecting TyConI; got " ++ show i
     collect args ListT = return args
     collect args (TupleT _) = return args
@@ -568,4 +566,4 @@ genProveEquiv typ' = do
                            ,"Int")
                 ] -}
   let decs = [FunD proveEquivN clauses]
-  return $ [InstanceD Nothing [] (AppT (ConT proveEquivClass) typ) $ decs]
+  return [InstanceD Nothing [] (AppT (ConT proveEquivClass) typ) decs]
