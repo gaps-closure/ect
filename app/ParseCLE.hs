@@ -30,7 +30,7 @@ data CDF = CDF {
 
 data GD = GD {
   operation :: String
-, gapstag :: Maybe [String]
+, gapstag :: Maybe [Int]
 , oneway :: Maybe Bool
 } deriving (Generic, Show)
 
