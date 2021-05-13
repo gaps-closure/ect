@@ -1,0 +1,179 @@
+[
+  {
+    "cle-label": "GREEN",
+    "cle-json": {
+      "level": "green"
+    }
+  },
+  {
+    "cle-label": "GREEN_SHAREABLE",
+    "cle-json": {
+      "level": "green",
+      "cdf": [
+        {
+          "remotelevel": "orange",
+          "direction": "egress",
+          "guarddirective": {
+            "operation": "allow"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "cle-label": "XDLINKAGE_ECHO_COMPONENT_HEARTBEATS",
+    "cle-json": {
+      "cdf": [
+        {
+          "argtaints": [
+            [
+              "TAG_REQUEST_ECHO_COMPONENT_HEARTBEATS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_COMPONENT_HEARTBEATS"
+            ]
+          ],
+          "codtaints": [],
+          "direction": "egress",
+          "guarddirective": {
+            "gapstag": [],
+            "oneway": true,
+            "operation": "allow"
+          },
+          "remotelevel": "green",
+          "rettaints": []
+        }
+      ],
+      "level": "orange"
+    }
+  },
+  {
+    "cle-label": "XDLINKAGE_ECHO_GROUNDMOVERS",
+    "cle-json": {
+      "cdf": [
+        {
+          "argtaints": [
+            [
+              "TAG_REQUEST_ECHO_GROUNDMOVERS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_GROUNDMOVERS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_GROUNDMOVERS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_GROUNDMOVERS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_GROUNDMOVERS"
+            ]
+          ],
+          "codtaints": [],
+          "direction": "egress",
+          "guarddirective": {
+            "gapstag": [],
+            "oneway": true,
+            "operation": "allow"
+          },
+          "remotelevel": "green",
+          "rettaints": []
+        }
+      ],
+      "level": "orange"
+    }
+  },
+  {
+    "cle-label": "XDLINKAGE_ECHO_RECIEVEEOIRDETECTIONS",
+    "cle-json": {
+      "cdf": [
+        {
+          "argtaints": [
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ],
+            [
+              "TAG_REQUEST_ECHO_RECIEVEEOIRDETECTIONS"
+            ]
+          ],
+          "codtaints": [],
+          "direction": "egress",
+          "guarddirective": {
+            "gapstag": [],
+            "oneway": true,
+            "operation": "allow"
+          },
+          "remotelevel": "green",
+          "rettaints": []
+        }
+      ],
+      "level": "orange"
+    }
+  }
+]
