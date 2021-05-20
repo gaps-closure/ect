@@ -309,13 +309,13 @@ comment s = putStrLn $ ";;; " ++ s
 ----------------------------------------------------------------------
 data Options = Options { entryFunction :: String
                        , displayFunctions :: Bool
-                       , showLog :: Bool
+                       , logFile :: Maybe String
                        }
 
 defaultOptions :: Options
 defaultOptions = Options { entryFunction = "main"
                          , displayFunctions = False
-                         , showLog = False
+                         , logFile = Nothing
                          }
 
 optionDescriptions :: [ OptDescr (Options -> IO Options) ]
@@ -324,15 +324,14 @@ optionDescriptions =
         (NoArg (\_ -> usageMessage >> exitSuccess ))
         "Print help"
     , Option "f" ["entry-function"]
-        (ReqArg (\fn o -> return o { entryFunction = fn })
-          "<function-name>")
+        (ReqArg (\fn o -> return o { entryFunction = fn }) "<function-name>")
         "Specify the entry function (default: main)"
     , Option "d" ["display"]
         (NoArg (\o -> return o { displayFunctions = True }))
         "Dump information about the entry functions"
-    , Option "l" ["log"]
-        (NoArg (\o -> return o { showLog = True }))
-        "Dump the proof log to stdout after solving"
+    , Option "l" ["logfile"]
+        (ReqArg (\fn o -> return o { logFile = Just fn }) "<log-file.smt2>")
+        "Write the proof log to the given file after solving"
     ]
 
 usageMessage :: IO ()
@@ -415,5 +414,7 @@ main = do
         _     -> do logString $ show z3Result
                     liftIO $ comment $ "Invalid (" ++ show z3Result ++ ")"
       return r
-  when showLog $ mapM_ print proofLog
+  case logFile of
+    Just name -> writeFile name $ unlines $ map show proofLog
+    _ -> return ()
   comment "Done"
