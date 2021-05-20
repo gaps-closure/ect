@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5f4d4497e003eec603efe33af9dcc54aa25c6c8685fa807c2efd1b2059fef286
+-- hash: e83654f63c1f32164195e95cc9ea503119f7387962830dc47862608c645da241
 
 name:           ect
 version:        0.1.0.0
@@ -27,6 +27,7 @@ source-repository head
 
 library
   exposed-modules:
+      CLEMap
       InitialEnv
       ProofEnv
       ProofM
@@ -53,7 +54,6 @@ library
 executable ect
   main-is: Main.hs
   other-modules:
-      ParseCLE
       PrintTypes
       Paths_ect
   hs-source-dirs:
@@ -72,33 +72,10 @@ executable ect
     , z3 >=408.2
   default-language: Haskell2010
 
-executable parseCLE
-  main-is: ParseCLE.hs
-  other-modules:
-      Main
-      PrintTypes
-      Paths_ect
-  hs-source-dirs:
-      app
-  ghc-options: -main-is ParseCLE -dynamic -Wall
-  build-depends:
-      aeson
-    , base >=4.7 && <5
-    , bytestring
-    , containers
-    , ect
-    , llvm-hs >=9.0.1
-    , llvm-hs-pure >=9.0.0
-    , transformers
-    , utf8-string
-    , z3 >=408.2
-  default-language: Haskell2010
-
 executable printTypes
   main-is: PrintTypes.hs
   other-modules:
       Main
-      ParseCLE
       Paths_ect
   hs-source-dirs:
       app

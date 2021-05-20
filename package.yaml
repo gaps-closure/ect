@@ -80,25 +80,6 @@ executables:
     - ect
     - aeson
 
-  parseCLE:
-    main:                ParseCLE.hs
-    ghc-options:
-    - -main-is ParseCLE
-    - -dynamic
-    - -Wall
-    source-dirs:         app
-
-    dependencies:
-    - z3 >= 408.2
-    - llvm-hs-pure >= 9.0.0
-    - llvm-hs >= 9.0.1
-    - bytestring
-    - utf8-string
-    - containers
-    - transformers
-    - ect
-    - aeson
-
 
 # stack build -v --ghc-options="-v" --cabal-verbose > log 2>&1
 # shows the sausage being made

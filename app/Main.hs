@@ -4,8 +4,13 @@
 
 LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack build
 
-stack run -- examples/example1/example1-refactored-9.ll examples/example1/example1-orange-9.ll examples/example1/example1-purple-9.ll
-
+stack run -- \
+  examples/example1/example1-orange-9.ll \
+  examples/example1/example1-purple-9.ll \
+  examples/example1/example1-refactored-9.ll \
+  examples/xdcc/case1_ingress_orange.json \
+  examples/xdcc/case1_ingress_green.json \
+  examples/xdcc/case1_ingress_refactored.json
 
 LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack ghci
 :set -XTemplateHaskell
@@ -13,24 +18,27 @@ LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack ghci
 
 module Main where
 
-import System.Environment (getArgs, getProgName)
-import System.Console.GetOpt (getOpt, usageInfo, OptDescr(..),
-                              ArgDescr(NoArg, ReqArg), ArgOrder(RequireOrder))
-import System.IO ( hPutStrLn, hPutStr, stderr )
+import System.Environment ( getArgs, getProgName )
+import System.Console.GetOpt ( getOpt, usageInfo, OptDescr(..),
+                              ArgDescr(NoArg, ReqArg), ArgOrder(RequireOrder) )
+import System.IO
 import System.Exit( exitSuccess, exitFailure )
 
 import Data.Maybe
-import Data.ByteString.UTF8 (fromString)
-import Data.ByteString.Short (toShort, fromShort)
-import Data.List (intercalate, isPrefixOf)
+import qualified Data.ByteString.UTF8 as BS
+import qualified Data.ByteString.Lazy.UTF8 as BSL
+import Data.ByteString.Short ( toShort, fromShort )
+import Data.List ( intercalate, isPrefixOf, nub )
 import qualified Data.ByteString.Char8 as C
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
+import Data.Aeson ( decode )
+
 import Control.Monad ( unless, when )
 import Control.Monad.IO.Class ( liftIO )
 
-import LLVM.Context (withContext)
+import LLVM.Context ( withContext )
 
 import qualified LLVM.Module as LM
 import qualified LLVM.AST as A hiding ( metadata
@@ -46,6 +54,7 @@ import Z3.Monad
 
 import ProofM
 import InitialEnv
+import CLEMap
 
 import ProveEquiv
 
@@ -54,7 +63,7 @@ import Debug.Trace (trace)
 ----------------------------------------------------------------------
 -- | Convert a string into a name used by the LLVM AST
 llvmName :: String -> A.Name
-llvmName = A.Name . toShort . fromString
+llvmName = A.Name . toShort . BS.fromString
 
 showIN :: A.Instruction -> String
 showIN _ = "instruction"
@@ -126,13 +135,14 @@ findGlobals A.Module{..} = M.fromList $ concatMap nameGlobals moduleDefinitions
     nameGlobals _ = []
 
 combineGlobals :: A.Module -> A.Module -> A.Name -> NameReferenceMap
-combineGlobals l r entry = M.unionWithKey dupRefHandler lGlobals rGlobals
+combineGlobals l r entry = M.unionWithKey dupHandler lGlobals rGlobals
   where
     lGlobals = M.delete entry $ findGlobals l
     rGlobals = M.delete entry $ findGlobals r
-    dupRefHandler n g1 _ = trace ("Warning: duplicate A.Global: " ++ show n) g1 -- FIXME
+    dupHandler n g1 _ = trace (";;; WARNING: duplicate A.Global: " ++ show n) g1
+    -- FIXME
 
--- FIXME: function calls can potentially come from other places besides,
+-- FIXME: function calls can potentially come from other places besides
 -- Call instructions, and we should replace RPC calls there too.
 replRpc :: NameReferenceMap -> NameReferenceMap
 replRpc = M.map replRpcFunc
@@ -207,20 +217,105 @@ rmRpcInit f@A.Function{} = if new == f then Nothing else Just new
 rmRpcInit _ = error "rmRpcInit: Expecting A.Function"
 
 ----------------------------------------------------------------------
+
+firstError :: [Maybe Error] -> Maybe Error
+firstError [] = Nothing
+firstError (x:xs) = case x of
+  Nothing -> firstError xs
+  e -> e
+
+gdValidate :: StringTable -> GD -> Maybe Error
+gdValidate _ (GD op _ _) =
+  if op `elem` cleOps
+  then Nothing
+  else Just $ "unknown operation: '" ++ op ++ "'"
+
+taintsValidate :: StringTable -> Taints -> Maybe Error
+taintsValidate _ Nothing = Nothing
+taintsValidate tbl (Just tss) = firstError $ map (taintValidate tbl) tss
+  where
+    taintValidate _ _ = Nothing
+    -- taintValidate _ [] = Nothing
+    -- taintValidate tbl' (t:ts) =
+    --   if M.member t tbl'
+    --   then taintValidate tbl' ts
+    --   else Just $ "taint label does not exist: '" ++ t ++ "'"
+
+cdfValidate :: StringTable -> CDF -> Maybe Error
+cdfValidate tbl (CDF lvl dir gd argt codt rett) = firstError all_errs
+  where
+    all_errs = [lvl_err, dir_err, gd_err, argt_err, codt_err, rett_err]
+    gd_err = gdValidate tbl gd
+    argt_err = taintsValidate tbl argt
+    codt_err = taintsValidate tbl codt
+    rett_err = taintsValidate tbl rett
+    lvl_err =
+      if lvl `elem` cleColors
+      then Nothing
+      else Just $ "unknown level: '" ++ lvl ++ "'"
+    dir_err =
+      if dir `elem` cleDirs
+      then Nothing
+      else Just $ "unknown direction: '" ++ dir ++ "'"
+
+jsonValidate :: StringTable -> CLEJSON -> Maybe Error
+jsonValidate tbl (CLEJSON cdfs lvl) =
+  if lvl `elem` cleColors
+  then (case cdfs of
+    Just cdfs' -> firstError $ map (cdfValidate tbl) cdfs'
+    _ -> Nothing)
+  else Just $ "unknown level: '" ++ lvl ++ "'"
+
+cleValidate :: StringTable -> CLE -> Maybe Error
+cleValidate tbl (CLE l js) = case jsonValidate tbl js of
+  Just e -> Just $ "in CLE '" ++ l ++ "': " ++ e
+  _ -> Nothing
+
+clemapValidate :: [CLE] -> Either Error StringTable
+clemapValidate cles =
+  if (length $ nub lbls) == length lbls
+  then (case firstError (map (cleValidate tbl) cles) of
+    Just e -> Left e
+    Nothing -> Right tbl)
+  else (Left "duplicate cle-label")
+  where
+    lbls = map label cles
+    tbl = M.fromList $ zip lbls [0..]
+
+readCLE :: String -> IO [CLE]
+readCLE f = do
+  h <- openFile f ReadMode
+  contents <- hGetContents h
+  let cle = (decode $ BSL.fromString contents) :: Maybe [CLE]
+  case cle of
+    Nothing   -> die ["Error: " ++ f ++ " is not a CLEmap json"]
+    Just cle' -> return cle'
+
+----------------------------------------------------------------------
+die :: [String] -> IO a
+die errs = do
+  mapM_ (hPutStr stderr) errs
+  putStrLn "\n"
+  usageMessage
+  exitFailure
+
 unlessJustFail :: Maybe a -> String -> IO a
 unlessJustFail p s = case p of Just x -> return x
-                               Nothing -> do hPutStrLn stderr s
-                                             usageMessage
-                                             exitFailure
+                               Nothing -> die [s]
+
+comment :: String -> IO ()
+comment s = putStrLn $ ";;; " ++ s
 
 ----------------------------------------------------------------------
 data Options = Options { entryFunction :: String
                        , displayFunctions :: Bool
+                       , showLog :: Bool
                        }
 
 defaultOptions :: Options
 defaultOptions = Options { entryFunction = "main"
                          , displayFunctions = False
+                         , showLog = False
                          }
 
 optionDescriptions :: [ OptDescr (Options -> IO Options) ]
@@ -235,37 +330,41 @@ optionDescriptions =
     , Option "d" ["display"]
         (NoArg (\o -> return o { displayFunctions = True }))
         "Dump information about the entry functions"
+    , Option "l" ["log"]
+        (NoArg (\o -> return o { showLog = True }))
+        "Dump the proof log to stdout after solving"
     ]
 
 usageMessage :: IO ()
 usageMessage = do prg <- getProgName
-                  let header = "Usage: " ++ prg ++ " [options] file..."
+                  let fs = "orange.ll purple.ll ref.ll"
+                      fs' = fs ++ " orange.json purple.json ref.json"
+                      header = "Usage: " ++ prg ++ " [options] " ++ fs'
                   hPutStr stderr (usageInfo header optionDescriptions)
 
 main :: IO ()
 main = do
-  putStrLn ";;; Parsing LLVM files..."
+  -- Parse and validate args
+  comment "Parsing arguments..."
   args <- getArgs
-  let (actions, filenames, errors) =
-        getOpt RequireOrder optionDescriptions args
+  let (actions, filenames, errors) = getOpt RequireOrder optionDescriptions args
   options <- foldl (>>=) (return defaultOptions) actions
-  unless (null errors) $ do mapM_ (hPutStr stderr) errors
-                            usageMessage
-                            exitFailure
-  when (null filenames) $ do hPutStrLn stderr "Error: no source files"
-                             usageMessage
-                             exitFailure
+  unless (null errors) $ die errors
+  when (null filenames) $ die ["Error: no source files"]
+  unless (length filenames == 6) $ die ["Error: expecting six filenames"]
+  let Options {..} = options
 
-  unless (length filenames == 3) $ do hPutStrLn stderr
-                                       "Error: expecting three filenames"
-                                      usageMessage
-                                      exitFailure
+  -- Parse and validate CLE maps
+  comment "Valdating CLE maps..."
+  cmaps@[_, _, _] <- mapM readCLE $ drop 3 filenames
+  let checkCmap (cmap, name) = case clemapValidate cmap of
+        Right _ -> comment $ name ++ " is a well-formed CLE map."
+        Left e  -> die ["Error: " ++ name ++ ": " ++ e ++ "."]
+  mapM_ checkCmap $ zip cmaps $ drop 3 filenames
 
-  let Options {..} = options  -- Bring options into scope
-
-  [leftLl, rightLl, refLl] <- mapM readLL filenames
-
-
+  -- Parse and valdiate LLVM files
+  comment "Parsing LLVM files..."
+  [leftLl, rightLl, refLl] <- mapM readLL $ take 3 filenames
   let entryName = llvmName entryFunction
       leftEntry = findFunction leftLl entryName
       rightEntry = findFunction rightLl entryName
@@ -289,6 +388,7 @@ main = do
                              putStrLn (dumpGlobal refactored)
                              exitSuccess
 
+  -- Construct intial proof state
   let gc = S.fromList [S.fromList $ map A.name [partitioned, refactored]]
       lrGlobals  = combineGlobals leftLl rightLl entryName
       lrGlobals' = replRpc $ M.insert entryName partitioned lrGlobals
@@ -296,22 +396,24 @@ main = do
                             , rightGlobals = rmDbgCalls $ findGlobals refLl
                             , congruence = gc
                             }
+      environmentOptions = stdOpts +? opt "auto-config" False
+      -- ^ See https://hackage.haskell.org/package/z3-408.2/docs/Z3-Opts.html
 
-  -- Options to pass into the Z3 proof environment
-  -- See https://hackage.haskell.org/package/z3-408.2/docs/Z3-Opts.html
-  let environmentOptions = stdOpts +? opt "auto-config" False
-  
+  -- Begin proof
   (_, _, proofLog) <-
     runProofEnvironment environmentOptions stateG initialEnv $ do
-      liftIO $ putStrLn ";;; Encoding constraints..."
+      liftIO $ comment "Encoding constraints..."
       pushMatching
       r <- proveEquiv partitioned refactored
       assert =<< mkNot (z3equiv r)
       logSMTLIB =<< solverToString
-      liftIO $ putStrLn ";;; Solving..."
+      liftIO $ comment "Solving..."
       z3Result <- check
       case z3Result of
-        Unsat -> logString "Unsatisfiable"
-        _     -> logString $ show z3Result
+        Unsat -> do logString "Unsatisfiable"
+                    liftIO $ comment "Valid (unsat)"
+        _     -> do logString $ show z3Result
+                    liftIO $ comment $ "Invalid (" ++ show z3Result ++ ")"
       return r
-  mapM_ print proofLog
+  when showLog $ mapM_ print proofLog
+  comment "Done"
