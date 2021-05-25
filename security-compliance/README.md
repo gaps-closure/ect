@@ -1,4 +1,4 @@
-# Compliance Verifier Requirements
+# Compliance Verifier Requirements (OUTDATED)
 
 Documenting the formal requirements of the compliance verifier.
 
@@ -108,9 +108,9 @@ they express the same things, and that they are sane.
 - The CLE labels in `orange.json` and `purple.json` should together, contain all of
 the CLE lables in `original.json`, where every label in `original.json` with level
 `orange` appears in `orange.json`, and every label in `original.json` with level
-`purple` appears in `purple.json`.
-- The only labels duplicated in `orange.json` and `purple.json` will be TAGS
-that do not appear in `original.json`, which must differ only in their level.
+`purple` appears in `purple.json`. Update: FALSE.
+- The only labels in `orange.json` and `purple.json` that don't appear in
+`original.json` will be TAGS, which must differ only in their level.
 - Variables and functions that are annotated in the original must have a matching
 annotation in the partitioned code.
 - Once JSON agreement is determined, code w/ annotations
@@ -143,3 +143,26 @@ annotations/JSON?
 - Variables and functions that are annotated in the original must have a matching
 annotation in the partitioned code.
 - Output formal machine-checkable proof and graph of the cut.
+
+## Meeting notes 05/25/21
+
+- Q: Bidirectional vs ingress/egress?
+- Q: Distinguish between tags and labels? E.g. do labels always have certain
+fields, tags don't. Is my way of differentiating tags and labels sensible?
+- Q: Is my method for inter-json checks sound? Check refactored is subset, then
+compare tags. Is refactored always subset?
+- Q: Can you tell enclave by looking at the level of the tags?
+- Q: Refactored json for example1? No tags? Where is TAG_RESPONSE_GET_A?
+- Q: Difference between ingress and egress for case1 xdcc?
+- Q: What are gapstags?
+- Q: Will we ever see a non-allow guarddirective? When?
+- Q: What does oneway do?
+- Q: What does ingress/egress do?
+
+- For Stephen: We need to unify our approach to JSON agreement with our
+approach to llvm agreement. First validation checks, then inter-agreement
+within a reference environment which is constant for each participant in the
+agreement. Agreement is subject to rules which are encoded in Z3.
+- In z3, hard code each label, then encode llvm as a pdg with labels attached to
+variables. Encode constraints on the pdg from conflict_analyzer.md and check.
+- If names can change, how do we match up variables between original/refactored?

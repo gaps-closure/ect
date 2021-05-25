@@ -230,7 +230,7 @@ gdValidate _ (GD op _ _) =
   then Nothing
   else Just $ "unknown operation: '" ++ op ++ "'"
 
-taintsValidate :: StringTable -> Taints -> Maybe Error
+taintsValidate :: StringTable -> Maybe [[String]] -> Maybe Error
 taintsValidate _ Nothing = Nothing
 taintsValidate tbl (Just tss) = firstError $ map (taintValidate tbl) tss
   where
@@ -247,8 +247,8 @@ cdfValidate tbl (CDF lvl dir gd argt codt rett) = firstError all_errs
     all_errs = [lvl_err, dir_err, gd_err, argt_err, codt_err, rett_err]
     gd_err = gdValidate tbl gd
     argt_err = taintsValidate tbl argt
-    codt_err = taintsValidate tbl codt
-    rett_err = taintsValidate tbl rett
+    codt_err = Nothing -- taintsValidate tbl codt
+    rett_err = Nothing -- taintsValidate tbl rett
     lvl_err =
       if lvl `elem` cleColors
       then Nothing

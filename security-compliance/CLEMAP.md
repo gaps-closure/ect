@@ -20,38 +20,37 @@ type CLEMap = [CLE]
 data CLE = CLE {
   label :: String
 , json :: CLEJSON
-} deriving (Generic, Show)
+} deriving (Generic, Eq, Ord, Show)
 
 data CLEJSON = CLEJSON {
   cdf :: Maybe [CDF]
 , level :: String
-} deriving (Generic, Show)
+} deriving (Generic, Eq, Ord, Show)
 
 data CDF = CDF {
   remotelevel :: String
 , direction :: String
 , guarddirective :: GD
-, argtaints :: Taints
-, codtaints :: Taints
-, rettaints :: Taints
-} deriving (Generic, Show)
-
-type Taints = Maybe [[String]]
+, argtaints :: Maybe [[String]]
+, codtaints :: Maybe [String]
+, rettaints :: Maybe [String]
+} deriving (Generic, Eq, Ord, Show)
 
 data GD = GD {
   operation :: String
 , gapstag :: Maybe [Int]
 , oneway :: Maybe Bool
-} deriving (Generic, Show)
+} deriving (Generic, Eq, Ord, Show)
 ```
 
 Certain fields are subject to additional correctness constraints. Each CLE in
 a CLEMap must have a unique label. The level and remotelevel of any CLE or
 cross-domain flow (CDF) must refer to a valid enclave, typically by color (e.g.
 "orange", "green", "purple"). The direction of a CDF must be "ingress" or
-"egress", and the operation in a guard directive (GD) must be one of "allow",
-"deny", or "redact". The argtaints, codtaints, and rettaints must refer to
-existing CLE labels, though the label may be defined in a different JSON file.
+"egress" or "bidirectional", and the operation in a guard directive (GD) must
+be one of "allow", "deny", or "redact". The argtaints, codtaints, and rettaints
+must refer to existing CLE labels, though the label may be defined in a
+different JSON file.
 
 ## Semantic meaning
 

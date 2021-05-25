@@ -22,12 +22,10 @@ data CDF = CDF {
   remotelevel :: String
 , direction :: String
 , guarddirective :: GD
-, argtaints :: Taints
-, codtaints :: Taints
-, rettaints :: Taints
+, argtaints :: Maybe [[String]]
+, codtaints :: Maybe [String]
+, rettaints :: Maybe [String]
 } deriving (Generic, Eq, Ord, Show)
-
-type Taints = Maybe [[String]]
 
 data GD = GD {
   operation :: String
@@ -49,10 +47,10 @@ instance FromJSON CDF where
 instance FromJSON GD where
 
 cleColors :: [String]
-cleColors = ["green", "orange"]
+cleColors = ["green", "orange", "purple"]
 
 cleOps :: [String]
 cleOps = ["allow", "deny", "redact"]
 
 cleDirs :: [String]
-cleDirs = ["ingress", "egress"]
+cleDirs = ["ingress", "egress", "bidirectional"]
