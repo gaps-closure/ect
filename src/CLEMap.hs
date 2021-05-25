@@ -11,12 +11,12 @@ type CLEMap = [CLE]
 data CLE = CLE {
   label :: String
 , json :: CLEJSON
-} deriving (Generic, Show)
+} deriving (Generic, Eq, Ord, Show)
 
 data CLEJSON = CLEJSON {
   cdf :: Maybe [CDF]
 , level :: String
-} deriving (Generic, Show)
+} deriving (Generic, Eq, Ord, Show)
 
 data CDF = CDF {
   remotelevel :: String
@@ -25,7 +25,7 @@ data CDF = CDF {
 , argtaints :: Taints
 , codtaints :: Taints
 , rettaints :: Taints
-} deriving (Generic, Show)
+} deriving (Generic, Eq, Ord, Show)
 
 type Taints = Maybe [[String]]
 
@@ -33,7 +33,7 @@ data GD = GD {
   operation :: String
 , gapstag :: Maybe [Int]
 , oneway :: Maybe Bool
-} deriving (Generic, Show)
+} deriving (Generic, Eq, Ord, Show)
 
 type StringTable = (M.Map String Int)
 type Error = String

@@ -164,7 +164,7 @@ replRpc = M.map replRpcFunc
       where
         n' = case n of
                A.Name bytes
-                 | "_rpc_" `isPrefixOf` s -> A.Name $ toShort $ C.pack $ drop 5 s
+                 | isPrefixOf "_rpc_" s -> A.Name $ toShort $ C.pack $ drop 5 s
                  | otherwise -> n
                  where s = C.unpack $ fromShort bytes
                _ -> n
@@ -271,7 +271,7 @@ cleValidate tbl (CLE l js) = case jsonValidate tbl js of
   Just e -> Just $ "in CLE '" ++ l ++ "': " ++ e
   _ -> Nothing
 
-clemapValidate :: [CLE] -> Either Error StringTable
+clemapValidate :: CLEMap -> Either Error StringTable
 clemapValidate cles =
   if (length $ nub lbls) == length lbls
   then (case firstError (map (cleValidate tbl) cles) of
@@ -282,11 +282,48 @@ clemapValidate cles =
     lbls = map label cles
     tbl = M.fromList $ zip lbls [0..]
 
-readCLE :: String -> IO [CLE]
+tagsMatch :: S.Set CLE -> S.Set CLE -> Maybe Error
+tagsMatch ltags rtags = firstError $ map tagError matches
+  where
+    [ltags', rtags'] = map S.toList [ltags, rtags]
+    matches = [(x, y) | x <- ltags', y <- rtags', label x == label y]
+    tColor = level . json
+    tCdf = cdf . json
+    lc = tColor . head $ ltags'
+    rc = tColor . head $ rtags'
+    tagError (l, r) =
+      if   (tColor l == lc)
+        && (tColor r == rc)
+        && (tColor l /= tColor r)
+        && (tCdf l == tCdf r)
+      then Nothing
+      else Just $ "Tag in partitioned CLEmaps is inconsistent: " ++ label l
+
+clemapsAgree :: CLEMap -> CLEMap -> CLEMap -> Maybe Error
+clemapsAgree left right ref = firstError all_errs
+  where
+    all_errs = [subsetOfLeft, subsetOfRight, sameTags, tagsMatch ltags rtags]
+    lset = S.fromList left
+    rset = S.fromList right
+    refset = S.fromList ref
+    ltags = S.difference lset refset
+    rtags = S.difference rset refset
+    subsetOfLeft = checkSubset refset lset
+    subsetOfRight = checkSubset refset rset
+    checkSubset s s' =
+      if s `S.isSubsetOf` s'
+      then Nothing
+      else Just $ "Refactored CLEmap is not a subset of each partitioned CLEmap"
+    sameTags =
+      if (S.map label ltags) == (S.map label rtags)
+      then Nothing
+      else Just $ "Partitioned CLEmaps do not use the same set of tag labels"
+
+readCLE :: String -> IO CLEMap
 readCLE f = do
   h <- openFile f ReadMode
   contents <- hGetContents h
-  let cle = (decode $ BSL.fromString contents) :: Maybe [CLE]
+  let cle = (decode $ BSL.fromString contents) :: Maybe CLEMap
   case cle of
     Nothing   -> die ["Error: " ++ f ++ " is not a CLEmap json"]
     Just cle' -> return cle'
@@ -355,11 +392,17 @@ main = do
 
   -- Parse and validate CLE maps
   comment "Valdating CLE maps..."
-  cmaps@[_, _, _] <- mapM readCLE $ drop 3 filenames
+  cmaps@[leftCle, rightCle, refCle] <- mapM readCLE $ drop 3 filenames
   let checkCmap (cmap, name) = case clemapValidate cmap of
         Right _ -> comment $ name ++ " is a well-formed CLE map."
         Left e  -> die ["Error: " ++ name ++ ": " ++ e ++ "."]
+      checkAgreement l r rf = case clemapsAgree l r rf of
+        Nothing -> do
+          comment $ "Refactored CLE map is a subset of each partition."
+          comment $ "Tags in the partitioned CLE maps are consistent."
+        Just e -> die ["Error: " ++ e ++ "."]
   mapM_ checkCmap $ zip cmaps $ drop 3 filenames
+  checkAgreement leftCle rightCle refCle
 
   -- Parse and valdiate LLVM files
   comment "Parsing LLVM files..."
