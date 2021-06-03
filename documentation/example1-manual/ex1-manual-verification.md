@@ -30,7 +30,7 @@ node that uses the variable.
 
 ```
 ;;; enclave assignment function
-(declare-fun enclave (Int) String) ; string for readability, but this should be an integer
+(declare-fun enclave (Int) String)
 
 ;;; edge functions
 (declare-fun datadep-defuse (Int Int) Bool)
@@ -43,11 +43,6 @@ node that uses the variable.
 
 ; function definitions must be in the same enclave as their instructions
 (assert (forall ((x Int) (y Int)) (=> (controldep-entry x y) (= (enclave x) (enclave y)))))
-
-; two instructions in the same function must be in the same enclave
-(assert (forall ((x Int) (y Int) (z Int))
-                (=> (and (controldep-entry x y) (controldep-entry x z))
-                    (= (enclave y) (enclave z)))))
 
 ; instructions connected to a definition by a DATADEP_DEFUSE must be in the same
 ; enclave as their definition
@@ -84,3 +79,15 @@ sure z3 agrees with the partition given by `example1-orange.ll` and
 The formalization of CLE labels/definitions, enclave assignments, nodes, and
 data/control dependencies I am working with is described in
 `formal/z3-verifier.md`.
+
+The general method is that a pass over the LLVM AST encodes a number of 'base'
+assertions about control and data dependencies in the source code and initial
+enclave assignments, using the `formal/z3-verifier.md` format, and then the
+solver extrapolates additional dependencies uses them to propagate enclave
+assignments to every node in the source. We showed this in the simple example
+above:
+- The PURPLE label forces a single node into the "purple" enclave, which is
+encoded.
+- The def-use data dependency along with the control dependency of a function's
+body on its definition forces the entire function into the "purple" enclave,
+which is determined by z3.

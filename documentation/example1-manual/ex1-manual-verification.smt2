@@ -1,38 +1,47 @@
-;;; enclave assignment function
-(declare-fun enclave (Int) String) ; string for readability, but this should be an integer
+;;; TYPES
+(declare-datatypes () ((Color Orange Purple)))
 
-;;; edge functions
-(declare-fun datadep-defuse (Int Int) Bool)
-(declare-fun controldep-entry (Int Int) Bool)
+;;; DECLARATIONS
+(declare-fun enclave         (Int) Color) ; Node -> Color
+(declare-fun labeled         (Int) Bool ) ; Node -> Bool
+(declare-fun level           (Int) Color) ; Node -> Color
+(declare-fun remotelevel     (Int) Color) ; Node -> Color
 
-;;; rules
+(declare-fun ctrldep-callinv (Int Int) Bool) ; Node -> Node -> Bool
+(declare-fun ctrldep-callret (Int Int) Bool) ; ..
+(declare-fun ctrldep-entry   (Int Int) Bool)
+(declare-fun ctrldep-br      (Int Int) Bool)
+(declare-fun ctrldep-other   (Int Int) Bool)
+(declare-fun datadep-defuse  (Int Int) Bool)
+(declare-fun datadep-raw     (Int Int) Bool)
+(declare-fun datadep-ret     (Int Int) Bool)
+(declare-fun datadep-alias   (Int Int) Bool)
 
-; enclave domain
-(assert (forall ((x Int)) (or (= (enclave x) "purple") (= (enclave x) "orange"))))
+;;; RULES
+(assert (forall ((x Int))
+  (=> (labeled x) (= (level x) (enclave x)))
+))
+(assert (forall ((x Int) (y Int))
+  (=> (ctrldep-entry x y) (= (enclave x) (enclave y)))
+))
+(assert (forall ((x Int) (y Int))
+  (=> (datadep-defuse x y) (= (enclave x) (enclave y)))
+))
 
-; function definitions must be in the same enclave as their instructions
-(assert (forall ((x Int) (y Int)) (=> (controldep-entry x y) (= (enclave x) (enclave y)))))
+;;; INITIAL ENCODING
+(assert (labeled 1))
+(assert (= (level 1) Purple))
 
-; two instructions in the same function must be in the same enclave
-(assert (forall ((x Int) (y Int) (z Int))
-                (=> (and (controldep-entry x y) (controldep-entry x z))
-                    (= (enclave y) (enclave z)))))
+(assert (datadep-defuse 1 3))
 
-; instructions connected to a definition by a DATADEP_DEFUSE must be in the same
-; enclave as their definition
-(assert (forall ((x Int) (y Int)) (=> (datadep-defuse x y) (= (enclave x) (enclave y)))))
+(assert (ctrldep-entry 2 3))
+(assert (ctrldep-entry 2 4))
+(assert (ctrldep-entry 2 5))
+(assert (ctrldep-entry 2 6))
 
-; let: 123 be the id of the VAR_STATICFUNCTION node which defines @get_b.b
-;      456 be the FUNCTIONENTRY node which defines get_b()
-;      789 be an INSTR node which uses @get_b.b
+(assert (labeled 7))
+(assert (= (level 7) Orange))
 
-;;; partial enclave assignments derived from labels
-(assert (= (enclave 123) "purple"))
-
-;;; PDG edges determined by parsing LLVM
-(assert (datadep-defuse 123 789))
-(assert (controldep-entry 456 789))
-; plus (controldep-entry 456 X) edges for all nodes X in get_b()
-
+;;; CHECK
 (check-sat)
-(get-model)
+(get-value (enclave 1))

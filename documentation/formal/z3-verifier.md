@@ -15,10 +15,10 @@ integer, so they have no datatype declaration in z3.
 
 #### Colors / Enclaves
 
-A `Color` is a scalar type which is either `Green` or `Orange`:
+A `Color` is a scalar type which is either `Purple` or `Orange`:
 
 ```
-(declare-datatypes () ((Color Green Orange)))
+(declare-datatypes () ((Color Orange Purple)))
 ```
 
 The end goal of solving is to assign a `Color` to each `Node`, corresponding to
@@ -33,21 +33,19 @@ determine the partition.
 
 #### Labels
 
-Each `Node` is optionally associated with a `Label`. Each `Label` is identified
-by a unique integer:
+Each `Node` is optionally labeled:
 
 ```
-(declare-fun label (Int) Int) ; Node -> Label
 (declare-fun labeled (Int) Bool) ; Node -> Bool
 ```
 
 Labels correspond to CLE labels (see `formal/cle.md`) and confer a number of
-properties. For the time being, we omit all properties except the `level` and
-`remotelevel` of the label and assume there is only one CDF, to simplify this
-first-draft formalization.
+properties on labeled nodes. For the time being, we omit all properties except
+the `level` and `remotelevel` of the label and assume there is only one CDF,
+to simplify this first-draft formalization.
 
 ```
-(declare-fun level (Int) Color) ; Label -> Color
+(declare-fun level       (Int) Color) ; Label -> Color
 (declare-fun remotelevel (Int) Color) ; Label -> Color
 ```
 
@@ -58,10 +56,77 @@ propagate enclave assignments. These dependencies are conceptualized as directed
 graph edges:
 
 ```
-(declare-fun datadep (Int) Int) ; Node -> Node
-(decalre-fun ctrldep (Int) Int) ; Node -> Node
+;;; Node -> Node
+(declare-fun ctrldep-callinv (Int Int) Bool)
+(declare-fun ctrldep-callret (Int Int) Bool)
+(declare-fun ctrldep-entry   (Int Int) Bool)
+(declare-fun ctrldep-br      (Int Int) Bool)
+(declare-fun ctrldep-other   (Int Int) Bool)
+(declare-fun datadep-defuse  (Int Int) Bool)
+(declare-fun datadep-raw     (Int Int) Bool)
+(declare-fun datadep-ret     (Int Int) Bool)
+(declare-fun datadep-alias   (Int Int) Bool)
 ```
 
 ## Rules
 
 Adapted from `capo/formal/ontology/conflict_analyzer.md`.
+
+#### Basic
+
+A labeled node must be in the enclave given by the label:
+
+```
+(assert (forall ((x Int))
+  (=> (labeled x) (= (level x) (enclave x)))
+))
+```
+
+#### Control dependencies
+
+Control dependencies which are not function calls or returns must be between
+two nodes in the same enclave.
+
+```
+(assert (forall ((x Int) (y Int))
+  (=>
+    (not (or (ctrldep-callinv x y) (ctrldep-callret x y)))
+    (= (enclave x) (enclave y))
+  )
+))
+```
+
+Two nodes involved in a function call control dependency may only be in
+different enclaves if the function being called is labeled, and the level of
+the label matches the callee enclave and the remotelevel of the label matches
+the function definition enclave.
+
+```
+(assert (forall ((x Int) (y Int))
+  (=>
+    (ctrldep-callinv x y)
+    (ite
+      (labeled y)
+      (and (= (enclave x) (remotelevel y)) (= enclave y (level y)))
+      (= (enclave x) (enclave y))
+    )
+  )
+))
+```
+
+#### Data dependencies
+
+Instructions which refer to definitions (def-use dependency) must be in the
+same enclave as those definitions:
+
+```
+(assert (forall ((x Int) (y Int))
+  (=> (datadep-defuse x y) (= (enclave x) (enclave y)))
+))
+```
+
+TODO
+
+#### Taint propagation
+
+TODO
