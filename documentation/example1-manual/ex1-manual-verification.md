@@ -77,10 +77,10 @@ all nodes in `get_b()` being assigned to PURPLE.
 
 Let's try this for all of `example1-refactored.ll`. We will try to build every
 constraint that follows from the labels in `refactored.json`, their locations
-in `example1-refactored.ll`, and the rules in `conflict_analyzer.md`, and make
+in `example1-refactored.ll`, and the rules in `formal/z3-verifier.md`, and make
 sure z3 agrees with the partition given by `example1-orange.ll` and
 `example1-purple.ll`.
 
 The formalization of CLE labels/definitions, enclave assignments, nodes, and
 data/control dependencies I am working with is described in
-`formal/z3-formalization.md`.
+`formal/z3-verifier.md`.

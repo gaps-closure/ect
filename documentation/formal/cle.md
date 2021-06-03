@@ -1,4 +1,4 @@
-# CLEMAP
+# CLE formalization
 
 A CLE map is a JSON file which is associated with a particular C program,
 either an original program with inter-function communication or one side of a
