@@ -130,13 +130,3 @@ TODO
 #### Taint propagation
 
 TODO
-
-## Implementation notes
-
-Use haskell, tag on to existing main.hs, but only operate on refactored file
-and refactored json.
-
-Encode base environment and constraints as above. Pass over LLVM AST, assign
-each node an integer, encode labels and dependencies over integers. Remember
-to encode negations as well (i.e. labeled is false for all unlabeled nodes) to
-prevent any z3 shenanigans.
