@@ -133,8 +133,8 @@ TODO
 
 ## Implementation notes
 
-Use haskell, but build a standalone module first, that accepts a refactored
-file and refactored json as command-line arguments.
+Use haskell, tag on to existing main.hs, but only operate on refactored file
+and refactored json.
 
 Encode base environment and constraints as above. Pass over LLVM AST, assign
 each node an integer, encode labels and dependencies over integers. Remember
