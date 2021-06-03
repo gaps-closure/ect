@@ -1,22 +1,20 @@
-## Example verification steps: simple example
+## High-level partial example
 
 Input: `example1-refactored.c`, `example1-refactored.json`
 
 Assume there is at least one pass over the entire LLVM AST.
 
-This example is missing some info that needs to be culled from the label
-definition in the json file, based on the name of the label.
-
 - C file has PURPLE annotation around b variable in `get_b()`.
-- In LLVM, this shows up in the globals as `@get_b.b` because it's a static variable.
-- As we parse the LLVM, we see this global and remember it as a VAR_STATICFUNCTION
-from the view of the PDG.
+- In LLVM, this shows up in the globals as `@get_b.b` because it's a static
+variable.
+- As we parse the LLVM, we see this global and remember it as a
+VAR_STATICFUNCTION from the view of the PDG.
 - When the LLVM annotations are parsed, we see that `@get_b.b` has an annotation
 attached to it, the PURPLE label. We remember/encode that the label is assigned
 to the definition.
-- We examine the json file for the PURPLE label, and see that it has level "purple"
-(among other potentially useful info, that will also need to be encoded for
-more complex cases).
+- We examine the json file for the PURPLE label, and see that it has level
+"purple" (among other potentially useful info, that will also need to be encoded
+for more complex cases).
 - We assign the node defining `@get_b.b` to the "purple" enclave.
 - When we parse the `get_b()` function, we see `@get_b.b` used, meaning there
 is a DATADEP_DEFUSE edge between the definition of `@get_b.b` and each INST
@@ -75,6 +73,14 @@ node that uses the variable.
 checking the assignment of each node in the model in this case would result in
 all nodes in `get_b()` being assigned to PURPLE.
 
-## Harder example
+## Entire file
 
-Chasing the `ewma` variable in `ewma_main()`.
+Let's try this for all of `example1-refactored.ll`. We will try to build every
+constraint that follows from the labels in `refactored.json`, their locations
+in `example1-refactored.ll`, and the rules in `conflict_analyzer.md`, and make
+sure z3 agrees with the partition given by `example1-orange.ll` and
+`example1-purple.ll`.
+
+The formalization of CLE labels/definitions, enclave assignments, nodes, and
+data/control dependencies I am working with is described in
+`formal/z3-formalization.md`.
