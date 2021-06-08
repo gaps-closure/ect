@@ -90,16 +90,16 @@ two nodes in the same enclave.
 ```
 (assert (forall ((x Int) (y Int))
   (=>
-    (not (or (ctrldep-callinv x y) (ctrldep-callret x y)))
+    (or (ctrldep-entry x y) (ctrldep-br x y) (ctrldep-other x y))
     (= (enclave x) (enclave y))
   )
 ))
 ```
 
 Two nodes involved in a function call control dependency may only be in
-different enclaves if the function being called is labeled, and the level of
-the label matches the callee enclave and the remotelevel of the label matches
-the function definition enclave.
+different enclaves if the callee is labeled, the level of the label matches the
+callee's enclave (already guaranteed by the first Basic rule), and the
+remotelevel of the label matches the caller enclave.
 
 ```
 (assert (forall ((x Int) (y Int))
@@ -107,7 +107,7 @@ the function definition enclave.
     (ctrldep-callinv x y)
     (ite
       (labeled y)
-      (and (= (enclave x) (remotelevel y)) (= enclave y (level y)))
+      (= (enclave x) (remotelevel y))
       (= (enclave x) (enclave y))
     )
   )
