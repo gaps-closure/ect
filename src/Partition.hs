@@ -26,12 +26,7 @@ import qualified Data.Map.Strict as M
 
 import CLEMap
 
-type Z3IdTable = M.Map A.Name Int
-
--- Encode base environment and constraints as above. Pass over LLVM AST, assign
--- each node an integer, encode labels and dependencies over integers. Remember
--- to encode negations as well (i.e. labeled is false for all unlabeled nodes) to
--- prevent any z3 shenanigans.
+type IdTable = M.Map A.Name Int
 
 data PartitionEnv = PartitionEnv { s_Bool        :: !Sort
                                  , s_Int         :: !Sort
@@ -142,11 +137,30 @@ addPartitionRules PartitionEnv{..} = do
   -- ))
   assert =<< mkForallConst [] [qx, qy] =<< mkImplies dd_defuse sameEnclave
 
-encodeLabelsEdges :: PartitionEnv -> A.Module -> CLEMap -> Z3 Z3IdTable
+-- Pass over LLVM AST, assign each node an integer, encode labels and
+-- dependencies over integers. Remember to encode negations as well
+-- (i.e. labeled is false for all unlabeled nodes, edge functions are false
+-- outside the edges specified)
+-- Encode:
+  -- ids: Every Node gets a corresponding id in the ID table.
+    -- Convert both names and unnames to unique string keys (multiplex unnames).
+    -- Nodes include instructions and definitions.
+    -- LLVM object must have an A.Name to be considered a Node.
+  -- labels: Every node that has an llvm annotation corresponding to a label in
+    -- the CLE gets the information in that label encoded into z3
+  -- ctrldep-callinv: Tie every function call instruction to the definition
+  -- ctrldep-callret: Tie every return to the node it's returning to
+  -- ctrldep-entry: Tie every function definition to all instructions in it
+  -- datadep-defuse: Tie every instruction using a variable to the variable def
+encodeLabelsEdges :: PartitionEnv -> A.Module -> CLEMap -> Z3 IdTable
 encodeLabelsEdges PartitionEnv{..} llvm cle = do
+  -- Consider splitting into three functions?
+  -- encodeIds (returns table),
+  -- encodeLabels (uses table),
+  -- encodeEdges (uses table)
   return M.empty
 
-provePartitionable :: A.Module -> CLEMap -> Z3 (Result, Z3IdTable)
+provePartitionable :: A.Module -> CLEMap -> Z3 (Result, IdTable)
 provePartitionable llvm cle = do
   env <- mkPartitionEnv
   addPartitionRules env
@@ -154,7 +168,7 @@ provePartitionable llvm cle = do
   res <- check
   return (res, idTable)
 
-runProvePartitionable :: A.Module -> CLEMap -> IO (Result, Maybe Model, Z3IdTable)
+runProvePartitionable :: A.Module -> CLEMap -> IO (Result, Maybe Model, IdTable)
 runProvePartitionable llvm cle = do
   (res, idTable) <- evalZ3 $ provePartitionable llvm cle
   return (res, Nothing, idTable)
