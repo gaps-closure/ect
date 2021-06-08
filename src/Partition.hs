@@ -142,13 +142,19 @@ addPartitionRules PartitionEnv{..} = do
   -- ))
   assert =<< mkForallConst [] [qx, qy] =<< mkImplies dd_defuse sameEnclave
 
-provePartitionable :: A.Module -> CLEMap -> Z3 Result
+encodeLabelsEdges :: PartitionEnv -> A.Module -> CLEMap -> Z3 Z3IdTable
+encodeLabelsEdges PartitionEnv{..} llvm cle = do
+  return M.empty
+
+provePartitionable :: A.Module -> CLEMap -> Z3 (Result, Z3IdTable)
 provePartitionable llvm cle = do
-  PartitionEnv{..} <- mkPartitionEnv
-  addPartitionRules PartitionEnv{..}
-  check
+  env <- mkPartitionEnv
+  addPartitionRules env
+  idTable <- encodeLabelsEdges env llvm cle
+  res <- check
+  return (res, idTable)
 
 runProvePartitionable :: A.Module -> CLEMap -> IO (Result, Maybe Model, Z3IdTable)
 runProvePartitionable llvm cle = do
-  res <- evalZ3 $ provePartitionable llvm cle
-  return (res, Nothing, M.empty)
+  (res, idTable) <- evalZ3 $ provePartitionable llvm cle
+  return (res, Nothing, idTable)
