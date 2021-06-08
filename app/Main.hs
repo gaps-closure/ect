@@ -55,6 +55,7 @@ import Z3.Monad
 import ProofM
 import InitialEnv
 import CLEMap
+import Partition
 
 import ProveEquiv
 
@@ -398,8 +399,8 @@ main = do
         Left e  -> die ["Error: " ++ name ++ ": " ++ e ++ "."]
       checkAgreement l r rf = case clemapsAgree l r rf of
         Nothing -> do
-          comment $ "Refactored CLE map is a subset of each partition."
-          comment $ "Tags in the partitioned CLE maps are consistent."
+          comment "Refactored CLE map is a subset of each partition."
+          comment "Tags in the partitioned CLE maps are consistent."
         Just e -> die ["Error: " ++ e ++ "."]
   mapM_ checkCmap $ zip cmaps $ drop 3 filenames
   checkAgreement leftCle rightCle refCle
@@ -429,6 +430,17 @@ main = do
   when displayFunctions $ do putStrLn (dumpGlobal partitioned)
                              putStrLn (dumpGlobal refactored)
                              exitSuccess
+
+  -- Make sure the refactored file can be partitioned
+  (z3Result, _, _) <- runProvePartitionable refLl refCle
+  case z3Result of
+    Sat -> do
+      comment "Refactored LLVM can be partitioned by:"
+      comment "TK"
+      -- FIXME: eval model for enclave of each (nodeIdMap G) where
+      -- G is a function or global variable in refLl
+    _ -> die ["Error: refactored LLVM cannot be partitioned."]
+
 
   -- Construct intial proof state
   let gc = S.fromList [S.fromList $ map A.name [partitioned, refactored]]
