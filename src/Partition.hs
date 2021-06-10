@@ -5,28 +5,14 @@ module Partition where
 import Z3.Monad
 
 import qualified LLVM.AST as A
-import qualified LLVM.AST.DLL as A (StorageClass(..))
-import qualified LLVM.AST.AddrSpace as A
-import qualified LLVM.AST.Visibility as A
-import qualified LLVM.AST.Linkage as A
-import qualified LLVM.AST.CallingConvention as A
-import qualified LLVM.AST.ParameterAttribute as A
-import qualified LLVM.AST.FunctionAttribute as A
-import qualified LLVM.AST.Constant as A
-import qualified LLVM.AST.InlineAssembly as A
-import qualified LLVM.AST.RMWOperation as A
-import qualified LLVM.AST.IntegerPredicate as A
-import qualified LLVM.AST.FloatingPointPredicate as A
-import qualified LLVM.AST.ThreadLocalStorage as A
-import qualified LLVM.AST.Float as A
-import Data.ByteString.Short (ShortByteString)
-import Data.Word (Word32)
+import qualified LLVM.AST.Global as A
 
+import qualified Data.Traversable as T
 import qualified Data.Map.Strict as M
 
 import CLEMap
 
-type IdTable = M.Map A.Name Int
+type GlobalsIdTable = M.Map A.Name Int
 
 data PartitionEnv = PartitionEnv { s_Bool        :: !Sort
                                  , s_Int         :: !Sort
@@ -137,38 +123,107 @@ addPartitionRules PartitionEnv{..} = do
   -- ))
   assert =<< mkForallConst [] [qx, qy] =<< mkImplies dd_defuse sameEnclave
 
--- Pass over LLVM AST, assign each node an integer, encode labels and
--- dependencies over integers. Remember to encode negations as well
--- (i.e. labeled is false for all unlabeled nodes, edge functions are false
--- outside the edges specified)
--- Encode:
-  -- ids: Every Node gets a corresponding id in the ID table.
-    -- Convert both names and unnames to unique string keys (multiplex unnames).
-    -- Nodes include instructions and definitions.
-    -- LLVM object must have an A.Name to be considered a Node.
-  -- labels: Every node that has an llvm annotation corresponding to a label in
-    -- the CLE gets the information in that label encoded into z3
-  -- ctrldep-callinv: Tie every function call instruction to the definition
-  -- ctrldep-callret: Tie every return to the node it's returning to
-  -- ctrldep-entry: Tie every function definition to all instructions in it
-  -- datadep-defuse: Tie every instruction using a variable to the variable def
-encodeLabelsEdges :: PartitionEnv -> A.Module -> CLEMap -> Z3 IdTable
-encodeLabelsEdges PartitionEnv{..} llvm cle = do
-  -- Consider splitting into three functions?
-  -- encodeIds (returns table),
-  -- encodeLabels (uses table),
-  -- encodeEdges (uses table)
-  return M.empty
+numInstrs :: [A.BasicBlock] -> Int
+numInstrs [] = 0
+numInstrs ((A.BasicBlock _ il _):bbs) = length il + 1 + numInstrs bbs
 
-provePartitionable :: A.Module -> CLEMap -> Z3 (Result, IdTable)
+-- Make a map of integer IDs for globals
+mkGlobalsIds :: [A.Global] -> GlobalsIdTable
+mkGlobalsIds gs = fst $ foldl addG (M.empty, 1) gs
+  where
+    addG (tbl, i) g = case g of
+      A.Function{..} -> (M.insert name i tbl, i + (numInstrs basicBlocks) + 1)
+      _ -> (M.insert (A.name g) i tbl, i + 1)
+
+lookup' :: A.Name -> GlobalsIdTable -> Int
+lookup' n gids = case M.lookup n gids of
+  Just i -> i
+  _ -> error $ "GlobalsIdTable missing key: " ++ show n
+
+-- ctrldep-callinv: Tie every function call instruction to the definition
+getCallinv :: GlobalsIdTable -> [A.Global] -> [(Int, Int)]
+getCallinv _ _ = []
+
+-- ctrldep-callret: Tie every return to the node it's returning to
+getCallret :: GlobalsIdTable -> [A.Global] -> [(Int, Int)]
+getCallret _ _ = []
+
+-- ctrldep-entry: Tie every function definition to all instructions in it
+getEntry :: GlobalsIdTable -> [A.Global] -> [(Int, Int)]
+getEntry gids (A.Function{..}:gs) = pairs ++ getEntry gids gs
+  where
+    pairs = (zip (repeat func_id) instr_ids)
+    func_id = lookup' name gids
+    instr_ids = [(func_id + 1)..(func_id + numInstrs basicBlocks)]
+getEntry _ _ = []
+
+getBr :: GlobalsIdTable -> [A.Global] -> [(Int, Int)] -- Unused
+getBr _ _ = []
+
+getOther :: GlobalsIdTable -> [A.Global] -> [(Int, Int)] -- Unused
+getOther _ _ = []
+
+-- datadep-defuse: Tie every instruction using a variable to the variable def
+-- FIXME: Partial: only handles global references right now
+getDefuse :: GlobalsIdTable -> [A.Global] -> [(Int, Int)]
+getDefuse _ _ = []
+
+getRaw :: GlobalsIdTable -> [A.Global] -> [(Int, Int)] -- Unused
+getRaw _ _ = []
+
+getRet :: GlobalsIdTable -> [A.Global] -> [(Int, Int)] -- Unused
+getRet _ _ = []
+
+getAlias :: GlobalsIdTable -> [A.Global] -> [(Int, Int)] -- Unused
+getAlias _ _ = []
+
+addEdges :: FuncDecl -> [(Int, Int)] -> Z3 ()
+addEdges f pairs = do
+  int <- mkIntSort
+  x <- mkFreshConst "x" int
+  y <- mkFreshConst "y" int
+  qx <- toApp x
+  qy <- toApp y
+  f' <- mkApp f [x, y]
+
+  let intEq a b = mkEq a =<< mkIntNum b
+      mkEdge (a, b) = mkAnd =<< T.sequence [intEq x a, intEq y b]
+
+  edgeExprs <- mapM mkEdge pairs
+  assert =<< mkForallConst [] [qx, qy] =<< mkEq f' =<< mkOr edgeExprs
+
+encodeEdges :: PartitionEnv -> GlobalsIdTable -> [A.Global] -> Z3 ()
+encodeEdges PartitionEnv{..} gids gs = mapM_ (uncurry addEdges) allPairs
+  where
+    run f = f gids gs
+    allPairs = [ (f_cd_callinv, run getCallinv), (f_cd_callret, run getCallret)
+               , (f_cd_entry, run getEntry), (f_cd_br, run getBr)
+               , (f_cd_other, run getOther), (f_dd_defuse, run getDefuse)
+               , (f_dd_raw, run getRaw), (f_dd_ret, run getRet)
+               , (f_dd_alias, run getAlias) ]
+
+-- labels: Every node that has an llvm annotation corresponding to a label in
+-- the CLE gets the information in that label encoded into z3
+-- Remember to encode negations as well
+-- (i.e. labeled is false for all unlabeled nodes)
+encodeLabels :: PartitionEnv -> GlobalsIdTable -> [A.Global] -> CLEMap -> Z3 ()
+encodeLabels PartitionEnv{..} _ _ _ = do
+  return ()
+
+provePartitionable :: A.Module -> CLEMap -> Z3 (Result, GlobalsIdTable)
 provePartitionable llvm cle = do
+  let gs = concatMap isG (A.moduleDefinitions llvm)
+      isG (A.GlobalDefinition g) = [g]
+      isG _ = []
+      gids = mkGlobalsIds gs
   env <- mkPartitionEnv
   addPartitionRules env
-  idTable <- encodeLabelsEdges env llvm cle
+  encodeEdges env gids gs
+  encodeLabels env gids gs cle
   res <- check
-  return (res, idTable)
+  return (res, gids)
 
-runProvePartitionable :: A.Module -> CLEMap -> IO (Result, Maybe Model, IdTable)
+runProvePartitionable :: A.Module -> CLEMap -> IO (Result, Maybe Model, GlobalsIdTable)
 runProvePartitionable llvm cle = do
-  (res, idTable) <- evalZ3 $ provePartitionable llvm cle
-  return (res, Nothing, idTable)
+  (res, gids) <- evalZ3 $ provePartitionable llvm cle
+  return (res, Nothing, gids)

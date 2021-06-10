@@ -243,7 +243,7 @@ taintsValidate tbl (Just tss) = firstError $ map (taintValidate tbl) tss
     --   else Just $ "taint label does not exist: '" ++ t ++ "'"
 
 cdfValidate :: StringTable -> CDF -> Maybe Error
-cdfValidate tbl (CDF lvl dir gd argt codt rett) = firstError all_errs
+cdfValidate tbl (CDF lvl dir gd argt _ _) = firstError all_errs
   where
     all_errs = [lvl_err, dir_err, gd_err, argt_err, codt_err, rett_err]
     gd_err = gdValidate tbl gd
@@ -432,11 +432,13 @@ main = do
                              exitSuccess
 
   -- Make sure the refactored file can be partitioned
-  (z3Result, _, _) <- runProvePartitionable refLl refCle
-  case z3Result of
+  (partitionSat, _, gids) <- runProvePartitionable refLl refCle
+  case partitionSat of
     Sat -> do
       comment "Refactored LLVM can be partitioned by:"
       comment "TK"
+      comment "Globals:"
+      comment $ show gids
       -- FIXME: eval model for enclave of each (nodeIdMap G) where
       -- G is a function or global variable in refLl
     _ -> die ["Error: refactored LLVM cannot be partitioned."]
