@@ -10,6 +10,8 @@ import qualified LLVM.AST.Global as A
 import qualified Data.Traversable as T
 import qualified Data.Map.Strict as M
 
+import Control.Monad.IO.Class
+
 import CLEMap
 
 type GlobalsIdTable = M.Map A.Name Int
@@ -150,12 +152,13 @@ getCallret _ _ = []
 
 -- ctrldep-entry: Tie every function definition to all instructions in it
 getEntry :: GlobalsIdTable -> [A.Global] -> [(Int, Int)]
+getEntry _ [] = []
 getEntry gids (A.Function{..}:gs) = pairs ++ getEntry gids gs
   where
     pairs = (zip (repeat func_id) instr_ids)
     func_id = lookup' name gids
     instr_ids = [(func_id + 1)..(func_id + numInstrs basicBlocks)]
-getEntry _ _ = []
+getEntry gids (_:gs) = getEntry gids gs
 
 getBr :: GlobalsIdTable -> [A.Global] -> [(Int, Int)] -- Unused
 getBr _ _ = []
@@ -221,6 +224,8 @@ provePartitionable llvm cle = do
   encodeEdges env gids gs
   encodeLabels env gids gs cle
   res <- check
+  script <- solverToString
+  liftIO $ writeFile "partition.smt2" script
   return (res, gids)
 
 runProvePartitionable :: A.Module -> CLEMap -> IO (Result, Maybe Model, GlobalsIdTable)
