@@ -5,12 +5,12 @@
 LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack build
 
 stack run -- \
-  examples/example1/example1-orange-9.ll \
-  examples/example1/example1-purple-9.ll \
-  examples/example1/example1-refactored-9.ll \
-  examples/xdcc/case1_ingress_orange.json \
-  examples/xdcc/case1_ingress_green.json \
-  examples/xdcc/case1_ingress_refactored.json
+  examples/example1/llvm/example1-orange-9.ll \
+  examples/example1/llvm/example1-purple-9.ll \
+  examples/example1/llvm/example1-refactored-9.ll \
+  examples/example1/clemaps/orange.json \
+  examples/example1/clemaps/purple.json \
+  examples/example1/clemaps/refactored.json
 
 LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack ghci
 :set -XTemplateHaskell
@@ -219,107 +219,6 @@ rmRpcInit _ = error "rmRpcInit: Expecting A.Function"
 
 ----------------------------------------------------------------------
 
-firstError :: [Maybe Error] -> Maybe Error
-firstError [] = Nothing
-firstError (x:xs) = case x of
-  Nothing -> firstError xs
-  e -> e
-
-gdValidate :: StringTable -> GD -> Maybe Error
-gdValidate _ (GD op _ _) =
-  if op `elem` cleOps
-  then Nothing
-  else Just $ "unknown operation: '" ++ op ++ "'"
-
-taintsValidate :: StringTable -> Maybe [[String]] -> Maybe Error
-taintsValidate _ Nothing = Nothing
-taintsValidate tbl (Just tss) = firstError $ map (taintValidate tbl) tss
-  where
-    taintValidate _ _ = Nothing
-    -- taintValidate _ [] = Nothing
-    -- taintValidate tbl' (t:ts) =
-    --   if M.member t tbl'
-    --   then taintValidate tbl' ts
-    --   else Just $ "taint label does not exist: '" ++ t ++ "'"
-
-cdfValidate :: StringTable -> CDF -> Maybe Error
-cdfValidate tbl (CDF lvl dir gd argt _ _) = firstError all_errs
-  where
-    all_errs = [lvl_err, dir_err, gd_err, argt_err, codt_err, rett_err]
-    gd_err = gdValidate tbl gd
-    argt_err = taintsValidate tbl argt
-    codt_err = Nothing -- taintsValidate tbl codt
-    rett_err = Nothing -- taintsValidate tbl rett
-    lvl_err =
-      if lvl `elem` cleColors
-      then Nothing
-      else Just $ "unknown level: '" ++ lvl ++ "'"
-    dir_err =
-      if dir `elem` cleDirs
-      then Nothing
-      else Just $ "unknown direction: '" ++ dir ++ "'"
-
-jsonValidate :: StringTable -> CLEJSON -> Maybe Error
-jsonValidate tbl (CLEJSON cdfs lvl) =
-  if lvl `elem` cleColors
-  then (case cdfs of
-    Just cdfs' -> firstError $ map (cdfValidate tbl) cdfs'
-    _ -> Nothing)
-  else Just $ "unknown level: '" ++ lvl ++ "'"
-
-cleValidate :: StringTable -> CLE -> Maybe Error
-cleValidate tbl (CLE l js) = case jsonValidate tbl js of
-  Just e -> Just $ "in CLE '" ++ l ++ "': " ++ e
-  _ -> Nothing
-
-clemapValidate :: CLEMap -> Either Error StringTable
-clemapValidate cles =
-  if (length $ nub lbls) == length lbls
-  then (case firstError (map (cleValidate tbl) cles) of
-    Just e -> Left e
-    Nothing -> Right tbl)
-  else (Left "duplicate cle-label")
-  where
-    lbls = map label cles
-    tbl = M.fromList $ zip lbls [0..]
-
-tagsMatch :: S.Set CLE -> S.Set CLE -> Maybe Error
-tagsMatch ltags rtags = firstError $ map tagError matches
-  where
-    [ltags', rtags'] = map S.toList [ltags, rtags]
-    matches = [(x, y) | x <- ltags', y <- rtags', label x == label y]
-    tColor = level . json
-    tCdf = cdf . json
-    lc = tColor . head $ ltags'
-    rc = tColor . head $ rtags'
-    tagError (l, r) =
-      if   (tColor l == lc)
-        && (tColor r == rc)
-        && (tColor l /= tColor r)
-        && (tCdf l == tCdf r)
-      then Nothing
-      else Just $ "Tag in partitioned CLEmaps is inconsistent: " ++ label l
-
-clemapsAgree :: CLEMap -> CLEMap -> CLEMap -> Maybe Error
-clemapsAgree left right ref = firstError all_errs
-  where
-    all_errs = [subsetOfLeft, subsetOfRight, sameTags, tagsMatch ltags rtags]
-    lset = S.fromList left
-    rset = S.fromList right
-    refset = S.fromList ref
-    ltags = S.difference lset refset
-    rtags = S.difference rset refset
-    subsetOfLeft = checkSubset refset lset
-    subsetOfRight = checkSubset refset rset
-    checkSubset s s' =
-      if s `S.isSubsetOf` s'
-      then Nothing
-      else Just $ "Refactored CLEmap is not a subset of each partitioned CLEmap"
-    sameTags =
-      if (S.map label ltags) == (S.map label rtags)
-      then Nothing
-      else Just $ "Partitioned CLEmaps do not use the same set of tag labels"
-
 readCLE :: String -> IO CLEMap
 readCLE f = do
   h <- openFile f ReadMode
@@ -395,14 +294,17 @@ main = do
   comment "Valdating CLE maps..."
   cmaps@[leftCle, rightCle, refCle] <- mapM readCLE $ drop 3 filenames
   let checkCmap (cmap, name) = case clemapValidate cmap of
-        Right _ -> comment $ name ++ " is a well-formed CLE map."
+        Right cs -> do
+          comment $ name ++ " is a well-formed CLE map."
+          return cs
         Left e  -> die ["Error: " ++ name ++ ": " ++ e ++ "."]
       checkAgreement l r rf = case clemapsAgree l r rf of
         Nothing -> do
           comment "Refactored CLE map is a subset of each partition."
           comment "Tags in the partitioned CLE maps are consistent."
         Just e -> die ["Error: " ++ e ++ "."]
-  mapM_ checkCmap $ zip cmaps $ drop 3 filenames
+  cs <- mapM checkCmap $ zip cmaps $ drop 3 filenames
+  let colorSet = nub $ concat cs
   checkAgreement leftCle rightCle refCle
 
   -- Parse and valdiate LLVM files
@@ -432,7 +334,7 @@ main = do
                              exitSuccess
 
   -- Make sure the refactored file can be partitioned
-  partition <- runProvePartitionable refLl refCle
+  partition <- runProvePartitionable refLl refCle colorSet
   case partition of
     Just partition' -> do
       comment "Refactored LLVM can be partitioned by:"

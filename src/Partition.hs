@@ -25,8 +25,7 @@ type Solution = M.Map A.Name String
 
 data PartitionEnv = PartitionEnv { s_Bool        :: !Sort
                                  , s_Int         :: !Sort
-                                 , c_Orange      :: !FuncDecl
-                                 , c_Purple      :: !FuncDecl
+                                 , c_Colors      :: !(M.Map String FuncDecl)
                                  , s_Color       :: !Sort
                                  , f_enclave     :: !FuncDecl
                                  , f_labeled     :: !FuncDecl
@@ -42,17 +41,17 @@ data PartitionEnv = PartitionEnv { s_Bool        :: !Sort
                                  , f_dd_ret      :: !FuncDecl
                                  , f_dd_alias    :: !FuncDecl }
 
-mkPartitionEnv :: Z3 PartitionEnv
-mkPartitionEnv = do
+mkPartitionEnv :: ColorSet -> Z3 PartitionEnv
+mkPartitionEnv cs = do
 
   -- Datatypes
-  -- FIXME: make color agnostic
-  let symbols = ["Color", "Orange", "Purple", "is_Orange", "is_Purple"]
-  [cSym, oSym, pSym, oRec, pRec] <- mapM mkStringSymbol symbols
-  consOrange <- mkConstructor oSym oRec []
-  consPurple <- mkConstructor pSym pRec []
-  s_Color <- mkDatatype cSym [consOrange, consPurple]
-  [c_Orange, c_Purple] <- getDatatypeSortConstructors s_Color
+  cSym <- mkStringSymbol "Color"
+  nameSyms <- mapM mkStringSymbol cs
+  recSyms <- mapM mkStringSymbol $ map ("is_"++) cs
+  colorCons <- mapM (\(n, r) -> mkConstructor n r []) $ zip nameSyms recSyms
+  s_Color <- mkDatatype cSym colorCons
+  colorFuncs <- getDatatypeSortConstructors s_Color
+  let c_Colors = M.fromList $ zip cs colorFuncs
 
   s_Int <- mkIntSort
   s_Bool <- mkBoolSort
@@ -186,9 +185,7 @@ getBr _ _ = []
 getOther :: GlobalsIdTable -> [A.Global] -> [(Int, Int)] -- Unused
 getOther _ _ = []
 
--- FIXME: datadep-defuse: Tie every instruction using a variable to the variable def
--- Partial: only handles global references right now
-getDefuse :: GlobalsIdTable -> [A.Global] -> [(Int, Int)]
+getDefuse :: GlobalsIdTable -> [A.Global] -> [(Int, Int)] -- Unused
 getDefuse _ _ = []
 
 getRaw :: GlobalsIdTable -> [A.Global] -> [(Int, Int)] -- Unused
@@ -238,9 +235,8 @@ markAllLabeled f nodes = do
 addLabels' :: PartitionEnv -> [(Int, CLE)] -> Z3 ()
 addLabels' PartitionEnv{..} ns = mapM_ (\(y, c) -> assert =<< mkLabel y c) ns
   where
-    mkColor s = case s of
-      "orange" -> mkApp c_Orange []
-      "purple" -> mkApp c_Purple []
+    mkColor s = case M.lookup s c_Colors of
+      Just c -> mkApp c []
       _ -> error "addLabels': bad color"
 
     levelIsColor color f y = do
@@ -374,15 +370,15 @@ encodeLabels env gids gs cles = addLabels env allPairs
       Just cle -> M.insert i cle pairs
       _ -> error $ "CLE label missing from CLEmap: " ++ s
 
-provePartitionable :: A.Module -> CLEMap -> Z3 (Maybe Solution)
-provePartitionable llvm cle = do
+provePartitionable :: A.Module -> CLEMap -> ColorSet -> Z3 (Maybe Solution)
+provePartitionable llvm cle cs = do
 
   -- Encode
   let gs = concatMap isG (A.moduleDefinitions llvm)
       isG (A.GlobalDefinition g) = [g]
       isG _ = []
       gids = mkGlobalsIds gs
-  env <- mkPartitionEnv
+  env <- mkPartitionEnv cs
   addPartitionRules env
 
   -- liftIO $ print gids
@@ -436,5 +432,5 @@ gidsToEnclaves vals els gids = foldl gidToEnclave M.empty $ M.toList gids
       Just c -> M.insert n c soln
       Nothing -> M.insert n els soln
 
-runProvePartitionable :: A.Module -> CLEMap -> IO (Maybe Solution)
-runProvePartitionable llvm cle = evalZ3 $ provePartitionable llvm cle
+runProvePartitionable :: A.Module -> CLEMap -> ColorSet -> IO (Maybe Solution)
+runProvePartitionable llvm cle cs = evalZ3 $ provePartitionable llvm cle cs
