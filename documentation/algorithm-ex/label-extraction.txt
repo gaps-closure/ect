@@ -1,0 +1,34 @@
+Labels src 1: GLOBAL
+Find in globals, GlobalVariable with name = llvm.global.annotations
+go to initializer, enforce Just Array (else ignore)
+each member in memberValues potentially contains one label
+for each member:
+    enforce that it's a Struct (else ignore)
+    go to memberValues, enforce length 4 (else ignore), look at the first 2
+    enforce that first is BitCast, second is GetElementPtr (else ignore)
+    enforce that BitCast's operand0 is a GlobalReference, get name (n1)
+    enforce that GetElementPtr's address is a GlobalReference, get name (n2)
+    find global with name n2,
+        get initializer, enforce that it's Just Array, get memberValues
+        enforce they're all 8 bit integers, turn integerValue fields into [Int]
+        convert -> char array -> string
+        this string is CLE label
+    get integer id of global name n1, map to n2's string.
+
+labels src 2: LOCAL
+for every function, look in every basic block.
+for every basic block, look at every instruction.
+for each instruction:
+    ignore unless it's a call instruction to a function
+    ignore unless the function is (Right (ConstantOperand (GlobalReference)))
+    ignore unless the GlobalReference has name "llvm.var.annotation"
+    look at the 'arguments' to the function call instr, ignore unless 4.
+    examine first argument:
+        ignore unless LocalReference with an UnName, get UnName
+        search every instruction of every basic block of the current function
+        when the UnName is found, note the z3 integer id of this instr (i1).
+    examine second argument:
+        ignore unless ConstantOperand (GetElementPtr {address = GlobalReference})
+        get Name n3 of global reference.
+        globalArrToString n3
+    map the integer id i1 to n3's string

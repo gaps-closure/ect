@@ -432,15 +432,11 @@ main = do
                              exitSuccess
 
   -- Make sure the refactored file can be partitioned
-  (partitionSat, _, gids) <- runProvePartitionable refLl refCle
-  case partitionSat of
-    Sat -> do
+  partition <- runProvePartitionable refLl refCle
+  case partition of
+    Just partition' -> do
       comment "Refactored LLVM can be partitioned by:"
-      comment "TK"
-      comment "Globals:"
-      comment $ show gids
-      -- FIXME: eval model for enclave of each (nodeIdMap G) where
-      -- G is a function or global variable in refLl
+      mapM_ (comment . show . fst) $ M.toList partition' -- FIXME: snd
     _ -> die ["Error: refactored LLVM cannot be partitioned."]
 
 

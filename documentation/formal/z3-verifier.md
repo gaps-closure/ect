@@ -41,13 +41,16 @@ Each `Node` is optionally labeled:
 
 Labels correspond to CLE labels (see `formal/cle.md`) and confer a number of
 properties on labeled nodes. For the time being, we omit all properties except
-the `level` and `remotelevel` of the label and assume there is only one CDF,
+the `level` and `remotelevel` of the label and assume there is at most one CDF,
 to simplify this first-draft formalization.
 
 ```
 (declare-fun level       (Int) Color) ; Label -> Color
 (declare-fun remotelevel (Int) Color) ; Label -> Color
 ```
+
+If a label has no associated CDF, the remotelevel is the same as the level,
+indicating that no cross domain flows are permitted.
 
 #### Dependencies
 
