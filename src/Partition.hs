@@ -152,21 +152,30 @@ lookup' n gids = case M.lookup n gids of
   Just i -> i
   _ -> error $ "GlobalsIdTable missing key: " ++ show n
 
+findGByName :: A.Name -> [A.Global] -> A.Global
+findGByName n [] = error $ "findGByName: missing " ++ show n
+findGByName n (g:gs)
+  | A.name g == n = g
+  | otherwise = findGByName n gs
+
 -- ctrldep-callinv: Tie every function call instruction to the definition
 getCallinv :: GlobalsIdTable -> [A.Global] -> [(Int, Int)]
 getCallinv gids gs = concatMap (map (\(i, n, _) -> (i, lookup' n gids))) calls
   where calls = map (findCallInstrs gids) gs
 
--- FIXME: ctrldep-callret: Tie every return to the node it's returning to
+-- ctrldep-callret: Tie every return to the node it's returning to
 getCallret :: GlobalsIdTable -> [A.Global] -> [(Int, Int)]
-getCallret _ _ = []
+getCallret gids gs = concatMap (concatMap findRets) calls
+  where
+    calls = map (findCallInstrs gids) gs
+    findRets (i, n, _) = zip (findRetInstrs gids $ findGByName n gs) (repeat i)
 
 -- ctrldep-entry: Tie every function definition to all instructions in it
 getEntry :: GlobalsIdTable -> [A.Global] -> [(Int, Int)]
 getEntry _ [] = []
 getEntry gids (A.Function{..}:gs) = pairs ++ getEntry gids gs
   where
-    pairs = (zip (repeat func_id) instr_ids)
+    pairs = zip (repeat func_id) instr_ids
     func_id = lookup' name gids
     instr_ids = [(func_id + 1)..(func_id + numInstrs basicBlocks)]
 getEntry gids (_:gs) = getEntry gids gs
@@ -265,6 +274,19 @@ globalArrToString n gs = init $ map toChar $ getGlobalArr n gs
 toName :: String -> A.Name
 toName = A.Name . BSS.toShort . BS.fromString
 
+findTerminatorId :: (A.Named A.Terminator) -> GlobalsIdTable -> A.Global -> Int
+findTerminatorId t gids A.Function{..} = case foldl bbFind gid basicBlocks of
+  Left i -> i
+  Right _ -> error $ "findTerminatorId: No terminator satisfies predicate"
+  where
+    gid = (Right $ lookup' name gids)
+    bbFind (Right c) (A.BasicBlock _ is t')
+      | t == t' = Left term
+      | otherwise = Right term
+      where term = c + length is + 1
+    bbFind c _ = c
+findTerminatorId _ _ _ = error "unreachable"
+
 findLocalIdWith :: ((A.Named A.Instruction) -> Bool)
                 -> GlobalsIdTable
                 -> A.Global
@@ -288,6 +310,15 @@ findLocalIdByName n = findLocalIdWith sameName
   where
     sameName (n' A.:= _) = n' == n
     sameName _ = False
+
+findRetInstrs :: GlobalsIdTable -> A.Global -> [Int]
+findRetInstrs gids f@A.Function{..} = concatMap bbRetInstr basicBlocks
+  where
+    retId r = findTerminatorId r gids f
+    bbRetInstr (A.BasicBlock _ _ r@(A.Do (A.Ret _ _))) = [retId r]
+    bbRetInstr (A.BasicBlock _ _ r@(_ A.:= (A.Ret _ _))) = [retId r]
+    bbRetInstr _ = []
+findRetInstrs _ _ = []
 
 findCallInstrs :: GlobalsIdTable -> A.Global -> [(Int, A.Name, [A.Operand])]
 findCallInstrs gids f@A.Function{..} = concatMap bbCallInstrs basicBlocks
