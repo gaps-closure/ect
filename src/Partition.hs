@@ -7,10 +7,11 @@ import Z3.Monad
 import qualified LLVM.AST as A hiding (GetElementPtr, BitCast)
 import qualified LLVM.AST.Global as A
 import qualified LLVM.AST.Constant as A
+import qualified LLVM.AST.Linkage as A
 
 import qualified Data.Traversable as T
 import qualified Data.Map.Strict as M
-
+import qualified Data.Set as S
 import qualified Data.Char as C
 import qualified Data.List as L
 import qualified Data.ByteString.UTF8 as BS
@@ -146,28 +147,34 @@ mkGlobalsIds gs = fst $ foldl addG (M.empty, 1) gs
       A.Function{..} -> (M.insert name i tbl, i + (numInstrs basicBlocks) + 1)
       _ -> (M.insert (A.name g) i tbl, i + 1)
 
-lookup' :: A.Name -> GlobalsIdTable -> Int
-lookup' n gids = case M.lookup n gids of
+lookupGid :: A.Name -> GlobalsIdTable -> Int
+lookupGid n gids = case M.lookup n gids of
   Just i -> i
   _ -> error $ "GlobalsIdTable missing key: " ++ show n
 
-findGByName :: A.Name -> [A.Global] -> A.Global
-findGByName n [] = error $ "findGByName: missing " ++ show n
-findGByName n (g:gs)
-  | A.name g == n = g
-  | otherwise = findGByName n gs
+lookupGlobal :: A.Name -> [A.Global] -> Maybe A.Global
+lookupGlobal _ [] = Nothing
+lookupGlobal n (g:gs)
+  | A.name g == n = Just g
+  | otherwise = lookupGlobal n gs
 
 -- ctrldep-callinv: Tie every function call instruction to the definition
 getCallinv :: GlobalsIdTable -> [A.Global] -> [(Int, Int)]
-getCallinv gids gs = concatMap (map (\(i, n, _) -> (i, lookup' n gids))) calls
-  where calls = map (findCallInstrs gids) gs
+getCallinv gids gs = concatMap (concatMap callToEdge) calls
+  where
+    calls = map (findCallInstrs gids) gs
+    callToEdge (i, n, _) = case M.lookup n gids of
+      Just j -> [(i, j)]
+      Nothing -> []
 
 -- ctrldep-callret: Tie every return to the node it's returning to
 getCallret :: GlobalsIdTable -> [A.Global] -> [(Int, Int)]
 getCallret gids gs = concatMap (concatMap findRets) calls
   where
     calls = map (findCallInstrs gids) gs
-    findRets (i, n, _) = zip (findRetInstrs gids $ findGByName n gs) (repeat i)
+    findRets (i, n, _) = case lookupGlobal n gs of
+      Just g -> zip (findRetInstrs gids g) (repeat i)
+      Nothing -> []
 
 -- ctrldep-entry: Tie every function definition to all instructions in it
 getEntry :: GlobalsIdTable -> [A.Global] -> [(Int, Int)]
@@ -175,7 +182,7 @@ getEntry _ [] = []
 getEntry gids (A.Function{..}:gs) = pairs ++ getEntry gids gs
   where
     pairs = zip (repeat func_id) instr_ids
-    func_id = lookup' name gids
+    func_id = lookupGid name gids
     instr_ids = [(func_id + 1)..(func_id + numInstrs basicBlocks)]
 getEntry gids (_:gs) = getEntry gids gs
 
@@ -275,7 +282,7 @@ findTerminatorId t gids A.Function{..} = case foldl bbFind gid basicBlocks of
   Left i -> i
   Right _ -> error $ "findTerminatorId: No terminator satisfies predicate"
   where
-    gid = (Right $ lookup' name gids)
+    gid = (Right $ lookupGid name gids)
     bbFind (Right c) (A.BasicBlock _ is t')
       | t == t' = Left term
       | otherwise = Right term
@@ -291,7 +298,7 @@ findLocalIdWith f gids A.Function{..} = case foldl bbFind gid basicBlocks of
   Left i -> i
   Right _ -> error $ "findLocalIdWith: No instruction satisfies predicate"
   where
-    gid = (Right $ lookup' name gids)
+    gid = (Right $ lookupGid name gids)
     bbFind (Right c) (A.BasicBlock _ is _) = case L.findIndex f is of
       Just i -> Left $ c + i + 1
       _ -> Right $ c + length is + 1
@@ -353,7 +360,7 @@ findGlobalAnnotations gids gs = map parseAnn $ getGlobalArr n gs
     parseAnn _ = die
 
     parseAnn' (A.GlobalReference _ tgtName) (A.GlobalReference _ lblName) =
-      (lookup' tgtName gids, globalArrToString lblName gs)
+      (lookupGid tgtName gids, globalArrToString lblName gs)
     parseAnn' _ _ = die
 
     die = error $ "unexpected structure in @" ++ s
@@ -370,21 +377,35 @@ encodeLabels env gids gs cles = addLabels env allPairs
       Just cle -> M.insert i cle pairs
       _ -> error $ "CLE label missing from CLEmap: " ++ s
 
+universal :: A.Global -> Bool
+universal A.GlobalVariable{..} = linkage == A.Private || linkage == A.Appending
+universal A.Function{..} = basicBlocks == []
+universal _ = False
+
+rmUniversalDefs :: GlobalsIdTable -> [A.Global] -> (GlobalsIdTable, [A.Global])
+rmUniversalDefs gids gs = (gids', gs')
+  where
+    gs' = filter (not . universal) gs
+    gids' = M.restrictKeys gids $ S.fromList $ map A.name gs'
+
 provePartitionable :: A.Module -> CLEMap -> ColorSet -> Z3 (Maybe Solution)
 provePartitionable llvm cle cs = do
 
-  -- Encode
+  -- Add types, maps, and rules
+  env <- mkPartitionEnv cs
+  addPartitionRules env
+
+  -- Encode the llvm and cle
   let gs = concatMap isG (A.moduleDefinitions llvm)
       isG (A.GlobalDefinition g) = [g]
       isG _ = []
       gids = mkGlobalsIds gs
-  env <- mkPartitionEnv cs
-  addPartitionRules env
-
-  -- liftIO $ print gids
-
-  encodeEdges env gids gs
   encodeLabels env gids gs cle
+
+  let (gids', gs') = rmUniversalDefs gids gs
+  encodeEdges env gids' gs'
+
+  --liftIO $ print gids'
 
   -- Dump file
   script <- solverToString
@@ -393,7 +414,7 @@ provePartitionable llvm cle cs = do
   -- Check
   (_, m) <- solverCheckAndGetModel
   case m of
-    Just m' -> Just <$> extractEnclaves m' env gids
+    Just m' -> Just <$> extractEnclaves m' env gids'
     _ -> return Nothing
 
 extractEnclaves :: Model -> PartitionEnv -> GlobalsIdTable -> Z3 Solution
