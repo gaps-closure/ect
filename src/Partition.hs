@@ -4,22 +4,29 @@ module Partition where
 
 import Z3.Monad
 
-import qualified LLVM.AST as A
+import qualified LLVM.AST as A hiding (GetElementPtr, BitCast)
 import qualified LLVM.AST.Global as A
+import qualified LLVM.AST.Constant as A
 
 import qualified Data.Traversable as T
 import qualified Data.Map.Strict as M
+
+import qualified Data.Char as C
+import qualified Data.List as L
+import qualified Data.ByteString.UTF8 as BS
+import qualified Data.ByteString.Short as BSS
 
 import Control.Monad.IO.Class
 
 import CLEMap
 
 type GlobalsIdTable = M.Map A.Name Int
+type Solution = M.Map A.Name String
 
 data PartitionEnv = PartitionEnv { s_Bool        :: !Sort
                                  , s_Int         :: !Sort
-                                 , c_Orange      :: !Constructor
-                                 , c_Purple      :: !Constructor
+                                 , c_Orange      :: !FuncDecl
+                                 , c_Purple      :: !FuncDecl
                                  , s_Color       :: !Sort
                                  , f_enclave     :: !FuncDecl
                                  , f_labeled     :: !FuncDecl
@@ -39,11 +46,14 @@ mkPartitionEnv :: Z3 PartitionEnv
 mkPartitionEnv = do
 
   -- Datatypes
+  -- FIXME: make color agnostic
   let symbols = ["Color", "Orange", "Purple", "is_Orange", "is_Purple"]
   [cSym, oSym, pSym, oRec, pRec] <- mapM mkStringSymbol symbols
-  c_Orange <- mkConstructor oSym oRec []
-  c_Purple <- mkConstructor pSym pRec []
-  s_Color <- mkDatatype cSym [c_Orange, c_Purple]
+  consOrange <- mkConstructor oSym oRec []
+  consPurple <- mkConstructor pSym pRec []
+  s_Color <- mkDatatype cSym [consOrange, consPurple]
+  [c_Orange, c_Purple] <- getDatatypeSortConstructors s_Color
+
   s_Int <- mkIntSort
   s_Bool <- mkBoolSort
 
@@ -142,11 +152,11 @@ lookup' n gids = case M.lookup n gids of
   Just i -> i
   _ -> error $ "GlobalsIdTable missing key: " ++ show n
 
--- ctrldep-callinv: Tie every function call instruction to the definition
+-- FIXME: ctrldep-callinv: Tie every function call instruction to the definition
 getCallinv :: GlobalsIdTable -> [A.Global] -> [(Int, Int)]
 getCallinv _ _ = []
 
--- ctrldep-callret: Tie every return to the node it's returning to
+-- FIXME: ctrldep-callret: Tie every return to the node it's returning to
 getCallret :: GlobalsIdTable -> [A.Global] -> [(Int, Int)]
 getCallret _ _ = []
 
@@ -166,8 +176,8 @@ getBr _ _ = []
 getOther :: GlobalsIdTable -> [A.Global] -> [(Int, Int)] -- Unused
 getOther _ _ = []
 
--- datadep-defuse: Tie every instruction using a variable to the variable def
--- FIXME: Partial: only handles global references right now
+-- FIXME: datadep-defuse: Tie every instruction using a variable to the variable def
+-- Partial: only handles global references right now
 getDefuse :: GlobalsIdTable -> [A.Global] -> [(Int, Int)]
 getDefuse _ _ = []
 
@@ -205,30 +215,178 @@ encodeEdges PartitionEnv{..} gids gs = mapM_ (uncurry addEdges) allPairs
                , (f_dd_raw, run getRaw), (f_dd_ret, run getRet)
                , (f_dd_alias, run getAlias) ]
 
--- labels: Every node that has an llvm annotation corresponding to a label in
--- the CLE gets the information in that label encoded into z3
--- Remember to encode negations as well
--- (i.e. labeled is false for all unlabeled nodes)
-encodeLabels :: PartitionEnv -> GlobalsIdTable -> [A.Global] -> CLEMap -> Z3 ()
-encodeLabels PartitionEnv{..} _ _ _ = do
-  return ()
+markAllLabeled :: FuncDecl -> [(Int, CLE)] -> Z3 ()
+markAllLabeled f nodes = do
+  int <- mkIntSort
+  x <- mkFreshConst "x" int
+  qx <- toApp x
+  isLabeled <- mkApp f [x]
 
-provePartitionable :: A.Module -> CLEMap -> Z3 (Result, GlobalsIdTable)
+  labeledExprs <- mapM (\(y, _) -> mkEq x =<< mkIntNum y) nodes
+  assert =<< mkForallConst [] [qx] =<< mkEq isLabeled =<< mkOr labeledExprs
+
+addLabels' :: PartitionEnv -> [(Int, CLE)] -> Z3 ()
+addLabels' PartitionEnv{..} ns = mapM_ (\(y, c) -> assert =<< mkLabel y c) ns
+  where
+    mkColor s = case s of
+      "orange" -> mkApp c_Orange []
+      "purple" -> mkApp c_Purple []
+      _ -> error "addLabels': bad color"
+
+    levelIsColor color f y = do
+      levelOfY <- mkApp f =<< T.sequence [mkIntNum y]
+      mkEq levelOfY =<< color
+
+    mkLvl y cle = levelIsColor (mkColor . level . json $ cle) f_level y
+    mkRmt y cle = case cdf (json cle) of
+      Just [cdf'] -> levelIsColor (mkColor $ remotelevel cdf') f_remotelevel y
+      Nothing -> levelIsColor (mkColor . level . json $ cle) f_remotelevel y
+      _ -> error $ "CLE label has unsupported CDF: " ++ label cle
+
+    mkLabel y cle = mkAnd =<< T.sequence [mkLvl y cle, mkRmt y cle]
+
+addLabels :: PartitionEnv -> [(Int, CLE)] -> Z3 ()
+addLabels env labeledNodes = do
+  markAllLabeled (f_labeled env) labeledNodes
+  addLabels' env labeledNodes
+
+getGlobalArr :: A.Name -> [A.Global] -> [A.Constant]
+getGlobalArr n gs = case filter (\g -> A.name g == n) gs of
+  [(A.GlobalVariable _ _ _ _ _ _ _ _ _ (Just (A.Array _ ms)) _ _ _ _)] -> ms
+  _ -> error $ "Global name not found: " ++ show n
+
+globalArrToString :: A.Name -> [A.Global] -> String
+globalArrToString n gs = init $ map toChar $ getGlobalArr n gs
+  where
+    toChar (A.Int 8 i) = C.chr $ fromIntegral i
+    toChar _ = error "globalArrToString: expected Int constant"
+
+toName :: String -> A.Name
+toName = A.Name . BSS.toShort . BS.fromString
+
+findUnNameId :: GlobalsIdTable -> A.Global -> A.Name -> Int
+findUnNameId gids (A.Function{..}) n = case foldl (bbFind n) gid basicBlocks of
+  Left i -> i
+  Right _ -> error $ "findUnNameId: unName " ++ show n ++ " missing"
+  where
+    gid = (Right $ lookup' name gids)
+
+    bbFind n' (Right c) (A.BasicBlock _ is _) = case L.findIndex (isUn n') is of
+      Just i -> Left $ c + i + 1
+      _ -> Right $ c + length is + 1
+    bbFind _ c _ = c
+
+    isUn n'' (n' A.:= _) = n'' == n'
+    isUn _ _ = False
+
+findUnNameId _ _ _ = error "unreachable"
+
+fxnLocalAnnos :: GlobalsIdTable -> [A.Global] -> A.Global -> [(Int, String)]
+fxnLocalAnnos gids gs f@(A.Function{..}) = concatMap bbAnnos basicBlocks
+  where
+    bbAnnos (A.BasicBlock _ is _) = concatMap pa is
+    pa (_ A.:= i) = pa' i
+    pa (A.Do i) = pa' i
+    pa' (A.Call _ _ _ (Right (A.ConstantOperand gr)) args _ _) = pa'' gr args
+    pa' _ = []
+    pa'' (A.GlobalReference _ n) [(lr, _), (co, _), _, _] = pa''' n lr co
+    pa'' _ _ = []
+    pa''' n (A.LocalReference _ un) (A.ConstantOperand gep) = pa'''' n un gep
+    pa''' _ _ _ = []
+    pa'''' lln un (A.GetElementPtr _ (A.GlobalReference _ n) _)
+      | lln == toName s = [(findUnNameId gids f un, globalArrToString n gs)]
+      | otherwise = []
+    pa'''' _ _ _ = []
+    s = "llvm.var.annotation"
+fxnLocalAnnos _ _ _ = []
+
+findLocalAnnotations :: GlobalsIdTable -> [A.Global] -> [(Int, String)]
+findLocalAnnotations gids gs = concatMap (fxnLocalAnnos gids gs) gs
+
+findGlobalAnnotations :: GlobalsIdTable -> [A.Global] -> [(Int, String)]
+findGlobalAnnotations gids gs = map parseAnn $ getGlobalArr n gs
+  where
+    parseAnn (A.Struct _ _ [(A.BitCast a _), (A.GetElementPtr _ b _), _, _]) =
+      parseAnn' a b
+    parseAnn _ = die
+
+    parseAnn' (A.GlobalReference _ tgtName) (A.GlobalReference _ lblName) =
+      (lookup' tgtName gids, globalArrToString lblName gs)
+    parseAnn' _ _ = die
+
+    die = error $ "unexpected structure in @" ++ s
+    s = "llvm.global.annotations"
+    n = toName s
+
+encodeLabels :: PartitionEnv -> GlobalsIdTable -> [A.Global] -> CLEMap -> Z3 ()
+encodeLabels env gids gs cles = addLabels env allPairs
+  where
+    allPairs = M.toList $ foldl nameToCle M.empty annotations
+    annotations = findLocalAnnotations gids gs ++ findGlobalAnnotations gids gs
+    clemap = M.fromList $ map (\c@(CLE l _) -> (l, c)) cles
+    nameToCle pairs (i, s) = case M.lookup s clemap of
+      Just cle -> M.insert i cle pairs
+      _ -> error $ "CLE label missing from CLEmap: " ++ s
+
+provePartitionable :: A.Module -> CLEMap -> Z3 (Maybe Solution)
 provePartitionable llvm cle = do
+
+  -- Encode
   let gs = concatMap isG (A.moduleDefinitions llvm)
       isG (A.GlobalDefinition g) = [g]
       isG _ = []
       gids = mkGlobalsIds gs
   env <- mkPartitionEnv
   addPartitionRules env
+
   encodeEdges env gids gs
   encodeLabels env gids gs cle
-  res <- check
+
+  -- Dump file
   script <- solverToString
   liftIO $ writeFile "partition.smt2" script
-  return (res, gids)
 
-runProvePartitionable :: A.Module -> CLEMap -> IO (Result, Maybe Model, GlobalsIdTable)
-runProvePartitionable llvm cle = do
-  (res, gids) <- evalZ3 $ provePartitionable llvm cle
-  return (res, Nothing, gids)
+  -- Check
+  (_, m) <- solverCheckAndGetModel
+  case m of
+    Just m' -> Just <$> extractEnclaves m' env gids
+    _ -> return Nothing
+
+extractEnclaves :: Model -> PartitionEnv -> GlobalsIdTable -> Z3 Solution
+extractEnclaves m PartitionEnv{..} gids = do
+  enclave <- evalFunc m f_enclave
+  case enclave of
+    Just (FuncModel vals els) -> do
+      vals' <- mapM interpretEntry vals
+
+      -- kind <- getAstKind els
+      -- aels <- toApp els
+      -- fname <- getSymbolString =<< getDeclName =<< getAppDecl aels
+      -- nargs <- getAppNumArgs aels
+      -- args <- getAppArgs aels
+      -- args' <- mapM astToString args
+      -- liftIO $ print kind
+      -- liftIO $ print fname
+      -- liftIO $ print nargs
+      -- liftIO $ print $ unlines args'
+
+      els' <- astToString els -- FIXME
+      return $ gidsToEnclaves vals' els' gids
+    Nothing -> error "enclave function has no interpretation in model"
+
+interpretEntry :: ([AST], AST) -> Z3 (Int, String)
+interpretEntry ([z3gid], z3clr) = do
+  gid <- fromIntegral <$> getInt z3gid
+  clr <- astToString z3clr -- FIXME
+  return (gid, clr)
+interpretEntry _ = error "InterpretEntry: bad functionEntry"
+
+gidsToEnclaves :: [(Int, String)] -> String -> GlobalsIdTable -> Solution
+gidsToEnclaves vals els gids = foldl gidToEnclave M.empty $ M.toList gids
+  where
+    gidToEnclave soln (n, i) = case M.lookup i (M.fromList vals) of
+      Just c -> M.insert n c soln
+      Nothing -> M.insert n els soln
+
+runProvePartitionable :: A.Module -> CLEMap -> IO (Maybe Solution)
+runProvePartitionable llvm cle = evalZ3 $ provePartitionable llvm cle
