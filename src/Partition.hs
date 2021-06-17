@@ -152,9 +152,10 @@ lookup' n gids = case M.lookup n gids of
   Just i -> i
   _ -> error $ "GlobalsIdTable missing key: " ++ show n
 
--- FIXME: ctrldep-callinv: Tie every function call instruction to the definition
+-- ctrldep-callinv: Tie every function call instruction to the definition
 getCallinv :: GlobalsIdTable -> [A.Global] -> [(Int, Int)]
-getCallinv _ _ = []
+getCallinv gids gs = concatMap (map (\(i, n, _) -> (i, lookup' n gids))) calls
+  where calls = map (findCallInstrs gids) gs
 
 -- FIXME: ctrldep-callret: Tie every return to the node it's returning to
 getCallret :: GlobalsIdTable -> [A.Global] -> [(Int, Int)]
@@ -264,39 +265,53 @@ globalArrToString n gs = init $ map toChar $ getGlobalArr n gs
 toName :: String -> A.Name
 toName = A.Name . BSS.toShort . BS.fromString
 
-findUnNameId :: GlobalsIdTable -> A.Global -> A.Name -> Int
-findUnNameId gids (A.Function{..}) n = case foldl (bbFind n) gid basicBlocks of
+findLocalIdWith :: ((A.Named A.Instruction) -> Bool)
+                -> GlobalsIdTable
+                -> A.Global
+                -> Int
+findLocalIdWith f gids A.Function{..} = case foldl bbFind gid basicBlocks of
   Left i -> i
-  Right _ -> error $ "findUnNameId: unName " ++ show n ++ " missing"
+  Right _ -> error $ "findLocalIdWith: No instruction satisfies predicate"
   where
     gid = (Right $ lookup' name gids)
-
-    bbFind n' (Right c) (A.BasicBlock _ is _) = case L.findIndex (isUn n') is of
+    bbFind (Right c) (A.BasicBlock _ is _) = case L.findIndex f is of
       Just i -> Left $ c + i + 1
       _ -> Right $ c + length is + 1
-    bbFind _ c _ = c
+    bbFind c _ = c
+findLocalIdWith _ _ _ = error "unreachable"
 
-    isUn n'' (n' A.:= _) = n'' == n'
-    isUn _ _ = False
+findLocalIdByEq :: (A.Named A.Instruction) -> GlobalsIdTable -> A.Global -> Int
+findLocalIdByEq i = findLocalIdWith (==i)
 
-findUnNameId _ _ _ = error "unreachable"
+findLocalIdByName :: A.Name -> GlobalsIdTable -> A.Global -> Int
+findLocalIdByName n = findLocalIdWith sameName
+  where
+    sameName (n' A.:= _) = n' == n
+    sameName _ = False
+
+findCallInstrs :: GlobalsIdTable -> A.Global -> [(Int, A.Name, [A.Operand])]
+findCallInstrs gids f@A.Function{..} = concatMap bbCallInstrs basicBlocks
+  where
+    callId i = findLocalIdByEq i gids f
+    bbCallInstrs (A.BasicBlock _ is _) = concatMap isInv is
+    isInv ninstr@(_ A.:= instr) = isInv' instr $ callId ninstr
+    isInv ninstr@(A.Do instr) = isInv' instr $ callId ninstr
+    isInv' (A.Call _ _ _ (Right (A.ConstantOperand g)) a _ _) i = isInv'' g a i
+    isInv' _ _ = []
+    isInv'' (A.GlobalReference _ n) as i = [(i, n, map fst as)]
+    isInv'' _ _ _ = []
+findCallInstrs _ _ = []
 
 fxnLocalAnnos :: GlobalsIdTable -> [A.Global] -> A.Global -> [(Int, String)]
-fxnLocalAnnos gids gs f@(A.Function{..}) = concatMap bbAnnos basicBlocks
+fxnLocalAnnos gids gs f@(A.Function{..}) = concatMap (uncurry p) fxnCalls
   where
-    bbAnnos (A.BasicBlock _ is _) = concatMap pa is
-    pa (_ A.:= i) = pa' i
-    pa (A.Do i) = pa' i
-    pa' (A.Call _ _ _ (Right (A.ConstantOperand gr)) args _ _) = pa'' gr args
-    pa' _ = []
-    pa'' (A.GlobalReference _ n) [(lr, _), (co, _), _, _] = pa''' n lr co
-    pa'' _ _ = []
-    pa''' n (A.LocalReference _ un) (A.ConstantOperand gep) = pa'''' n un gep
-    pa''' _ _ _ = []
-    pa'''' lln un (A.GetElementPtr _ (A.GlobalReference _ n) _)
-      | lln == toName s = [(findUnNameId gids f un, globalArrToString n gs)]
+    fxnCalls = map (\(_, b, c) -> (b, c)) $ findCallInstrs gids f
+    p n [(A.LocalReference _ u), (A.ConstantOperand g), _, _] = p' n u g
+    p _ _ = []
+    p' lln u (A.GetElementPtr _ (A.GlobalReference _ n) _)
+      | lln == toName s = [(findLocalIdByName u gids f, globalArrToString n gs)]
       | otherwise = []
-    pa'''' _ _ _ = []
+    p' _ _ _ = []
     s = "llvm.var.annotation"
 fxnLocalAnnos _ _ _ = []
 
@@ -338,6 +353,8 @@ provePartitionable llvm cle = do
       gids = mkGlobalsIds gs
   env <- mkPartitionEnv
   addPartitionRules env
+
+  -- liftIO $ print gids
 
   encodeEdges env gids gs
   encodeLabels env gids gs cle
