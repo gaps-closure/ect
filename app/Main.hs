@@ -1,7 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
 {-
-
 LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack build
 
 stack run -- \
@@ -83,7 +82,6 @@ shortGlobal A.GlobalVariable {..} = "var " ++ show name
 shortGlobal A.GlobalAlias {..} = "alias " ++ show name
 shortGlobal A.Function {..} = showName name ++ "()"
 
-
 dumpGlobal :: A.Global -> String
 dumpGlobal A.GlobalVariable {..} = "Global Variable " ++ show name
 dumpGlobal A.GlobalAlias {..} = "Global Alias " ++ show name
@@ -119,6 +117,15 @@ readLL filename = do
   withContext $ \ctx ->
     LM.withModuleFromLLVMAssembly ctx str $ \llvmMod ->
       LM.moduleAST llvmMod
+
+readCLE :: String -> IO CLEMap
+readCLE f = do
+  h <- openFile f ReadMode
+  contents <- hGetContents h
+  let cle = (decode $ BSL.fromString contents) :: Maybe CLEMap
+  case cle of
+    Nothing   -> die ["Error: " ++ f ++ " is not a CLEmap json"]
+    Just cle' -> return cle'
 
 -- | Locate a function by name in the given module
 findFunction :: A.Module -> A.Name -> Maybe A.Global
@@ -216,17 +223,6 @@ rmRpcInit f@A.Function{} = if new == f then Nothing else Just new
     isRpcInitRef _ = False
 
 rmRpcInit _ = error "rmRpcInit: Expecting A.Function"
-
-----------------------------------------------------------------------
-
-readCLE :: String -> IO CLEMap
-readCLE f = do
-  h <- openFile f ReadMode
-  contents <- hGetContents h
-  let cle = (decode $ BSL.fromString contents) :: Maybe CLEMap
-  case cle of
-    Nothing   -> die ["Error: " ++ f ++ " is not a CLEmap json"]
-    Just cle' -> return cle'
 
 ----------------------------------------------------------------------
 die :: [String] -> IO a
@@ -338,9 +334,9 @@ main = do
   case partition of
     Just partition' -> do
       comment "Refactored LLVM can be partitioned by:"
-      mapM_ (comment . show . fst) $ M.toList partition' -- FIXME: snd
+      let toStr (A.Name b, s) = (C.unpack $ fromShort b) ++ " -> " ++ s
+      mapM_ (comment . toStr) partition'
     _ -> die ["Error: refactored LLVM cannot be partitioned."]
-
 
   -- Construct intial proof state
   let gc = S.fromList [S.fromList $ map A.name [partitioned, refactored]]

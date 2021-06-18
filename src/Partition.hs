@@ -22,7 +22,7 @@ import Control.Monad.IO.Class
 import CLEMap
 
 type GlobalsIdTable = M.Map A.Name Int
-type Solution = M.Map A.Name String
+type Solution = [(A.Name, String)]
 
 data PartitionEnv = PartitionEnv { s_Bool        :: !Sort
                                  , s_Int         :: !Sort
@@ -147,6 +147,16 @@ mkGlobalsIds gs = fst $ foldl addG (M.empty, 1) gs
       A.Function{..} -> (M.insert name i tbl, i + (numInstrs basicBlocks) + 1)
       _ -> (M.insert (A.name g) i tbl, i + 1)
 
+getMaxId :: GlobalsIdTable -> [A.Global] -> Int
+getMaxId gids gs = case maxGlobal of
+  A.Function{..} -> maxGlobalId + (numInstrs basicBlocks)
+  _ -> maxGlobalId
+  where
+    gids' = M.toList gids
+    m = maximum $ map snd gids'
+    [(maxGlobalName, maxGlobalId)] = filter ((== m) . snd) gids'
+    maxGlobal = lookupGlobal' maxGlobalName gs
+
 lookupGid :: A.Name -> GlobalsIdTable -> Int
 lookupGid n gids = case M.lookup n gids of
   Just i -> i
@@ -157,6 +167,11 @@ lookupGlobal _ [] = Nothing
 lookupGlobal n (g:gs)
   | A.name g == n = Just g
   | otherwise = lookupGlobal n gs
+
+lookupGlobal' :: A.Name -> [A.Global] -> A.Global
+lookupGlobal' n gs = case lookupGlobal n gs of
+  Just g -> g
+  Nothing -> error $ "lookupGlobal': Global not found: " ++ show n
 
 -- ctrldep-callinv: Tie every function call instruction to the definition
 getCallinv :: GlobalsIdTable -> [A.Global] -> [(Int, Int)]
@@ -229,15 +244,24 @@ encodeEdges PartitionEnv{..} gids gs = mapM_ (uncurry addEdges) allPairs
                , (f_dd_raw, run getRaw), (f_dd_ret, run getRet)
                , (f_dd_alias, run getAlias) ]
 
-markAllLabeled :: FuncDecl -> [(Int, CLE)] -> Z3 ()
-markAllLabeled f nodes = do
+markAllLabeled :: FuncDecl -> [Int] -> Int -> Z3 ()
+markAllLabeled f labeledIds _ = do --
   int <- mkIntSort
   x <- mkFreshConst "x" int
   qx <- toApp x
   isLabeled <- mkApp f [x]
 
-  labeledExprs <- mapM (\(y, _) -> mkEq x =<< mkIntNum y) nodes
+  labeledExprs <- mapM (\i -> mkEq x =<< mkIntNum i) labeledIds
   assert =<< mkForallConst [] [qx] =<< mkEq isLabeled =<< mkOr labeledExprs
+
+  -- ALTERNATE ENCODING
+  -- mapM_ assertLabel [1..maxId]
+  -- where
+  --   assertLabel i = do
+  --     labeledExpr <- mkApp f =<< T.sequence [mkIntNum i]
+  --     truthVal <- mkBool $ i `elem` labeledIds
+  --     assert =<< mkEq labeledExpr truthVal
+
 
 addLabels' :: PartitionEnv -> [(Int, CLE)] -> Z3 ()
 addLabels' PartitionEnv{..} ns = mapM_ (\(y, c) -> assert =<< mkLabel y c) ns
@@ -258,9 +282,9 @@ addLabels' PartitionEnv{..} ns = mapM_ (\(y, c) -> assert =<< mkLabel y c) ns
 
     mkLabel y cle = mkAnd =<< T.sequence [mkLvl y cle, mkRmt y cle]
 
-addLabels :: PartitionEnv -> [(Int, CLE)] -> Z3 ()
-addLabels env labeledNodes = do
-  markAllLabeled (f_labeled env) labeledNodes
+addLabels :: PartitionEnv -> [(Int, CLE)] -> Int -> Z3 ()
+addLabels env labeledNodes maxId = do
+  markAllLabeled (f_labeled env) (map fst labeledNodes) maxId
   addLabels' env labeledNodes
 
 getGlobalArr :: A.Name -> [A.Global] -> [A.Constant]
@@ -368,7 +392,7 @@ findGlobalAnnotations gids gs = map parseAnn $ getGlobalArr n gs
     n = toName s
 
 encodeLabels :: PartitionEnv -> GlobalsIdTable -> [A.Global] -> CLEMap -> Z3 ()
-encodeLabels env gids gs cles = addLabels env allPairs
+encodeLabels env gids gs cles = addLabels env allPairs $ getMaxId gids gs
   where
     allPairs = M.toList $ foldl nameToCle M.empty annotations
     annotations = findLocalAnnotations gids gs ++ findGlobalAnnotations gids gs
@@ -388,6 +412,22 @@ rmUniversalDefs gids gs = (gids', gs')
     gs' = filter (not . universal) gs
     gids' = M.restrictKeys gids $ S.fromList $ map A.name gs'
 
+evalEnclave :: Model -> FuncDecl -> Int -> Z3 String
+evalEnclave m enclave i = do
+  z3i <- mkIntNum i
+  appEnclave <- mkApp enclave [z3i]
+  res <- eval m appEnclave
+  case res of
+    Just res' -> astToString res'
+    Nothing -> error $ "evalEnclave: failed to evaluate id " ++ show i
+
+extractEnclaves :: Model -> PartitionEnv -> GlobalsIdTable -> Z3 Solution
+extractEnclaves m PartitionEnv{..} gids = mapM extractEnclave (M.toList gids)
+  where
+    extractEnclave (n, gid) = do
+      enclave <- evalEnclave m f_enclave gid
+      return (n, enclave)
+
 provePartitionable :: A.Module -> CLEMap -> ColorSet -> Z3 (Maybe Solution)
 provePartitionable llvm cle cs = do
 
@@ -405,53 +445,15 @@ provePartitionable llvm cle cs = do
   let (gids', gs') = rmUniversalDefs gids gs
   encodeEdges env gids' gs'
 
-  --liftIO $ print gids'
-
   -- Dump file
   script <- solverToString
   liftIO $ writeFile "partition.smt2" script
 
   -- Check
-  (_, m) <- solverCheckAndGetModel
+  (_, m) <- getModel
   case m of
     Just m' -> Just <$> extractEnclaves m' env gids'
     _ -> return Nothing
-
-extractEnclaves :: Model -> PartitionEnv -> GlobalsIdTable -> Z3 Solution
-extractEnclaves m PartitionEnv{..} gids = do
-  enclave <- evalFunc m f_enclave
-  case enclave of
-    Just (FuncModel vals els) -> do
-      vals' <- mapM interpretEntry vals
-
-      -- kind <- getAstKind els
-      -- aels <- toApp els
-      -- fname <- getSymbolString =<< getDeclName =<< getAppDecl aels
-      -- nargs <- getAppNumArgs aels
-      -- args <- getAppArgs aels
-      -- args' <- mapM astToString args
-      -- liftIO $ print kind
-      -- liftIO $ print fname
-      -- liftIO $ print nargs
-      -- liftIO $ print $ unlines args'
-
-      els' <- astToString els -- FIXME
-      return $ gidsToEnclaves vals' els' gids
-    Nothing -> error "enclave function has no interpretation in model"
-
-interpretEntry :: ([AST], AST) -> Z3 (Int, String)
-interpretEntry ([z3gid], z3clr) = do
-  gid <- fromIntegral <$> getInt z3gid
-  clr <- astToString z3clr -- FIXME
-  return (gid, clr)
-interpretEntry _ = error "InterpretEntry: bad functionEntry"
-
-gidsToEnclaves :: [(Int, String)] -> String -> GlobalsIdTable -> Solution
-gidsToEnclaves vals els gids = foldl gidToEnclave M.empty $ M.toList gids
-  where
-    gidToEnclave soln (n, i) = case M.lookup i (M.fromList vals) of
-      Just c -> M.insert n c soln
-      Nothing -> M.insert n els soln
 
 runProvePartitionable :: A.Module -> CLEMap -> ColorSet -> IO (Maybe Solution)
 runProvePartitionable llvm cle cs = evalZ3 $ provePartitionable llvm cle cs
