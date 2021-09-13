@@ -134,21 +134,30 @@ tagsMatch ltags rtags = firstError $ map tagError matches
       then Nothing
       else Just $ "Tag in partitioned CLEmaps is inconsistent: " ++ label l
 
+getTags :: S.Set CLE -> S.Set CLE
+getTags cleset = S.filter hasGapstag cleset
+  where
+    hasGapstag cle = case (cdf . json) cle of
+      Nothing    -> False
+      Just []    -> False
+      Just (x:_) ->
+        case (gapstag . guarddirective) x of
+          Nothing -> False
+          Just _  -> True
+
 clemapsAgree :: CLEMap -> CLEMap -> CLEMap -> Maybe Error
 clemapsAgree left right ref = firstError all_errs
   where
-    all_errs = [subsetOfLeft, subsetOfRight, sameTags, tagsMatch ltags rtags]
+    all_errs = [isSubset, sameTags, tagsMatch ltags rtags]
     lset = S.fromList left
     rset = S.fromList right
     refset = S.fromList ref
-    ltags = S.difference lset refset
-    rtags = S.difference rset refset
-    subsetOfLeft = checkSubset refset lset
-    subsetOfRight = checkSubset refset rset
-    checkSubset s s' =
-      if s `S.isSubsetOf` s'
+    ltags = getTags lset
+    rtags = getTags rset
+    isSubset =
+      if refset `S.isSubsetOf` (S.union lset rset)
       then Nothing
-      else Just $ "Refactored CLEmap is not a subset of each partitioned CLEmap"
+      else Just $ "Refactored CLEmap is not a subset of the union of partitioned CLEmaps"
     sameTags =
       if (S.map label ltags) == (S.map label rtags)
       then Nothing

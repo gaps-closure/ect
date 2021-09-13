@@ -296,7 +296,7 @@ main = do
         Left e  -> die ["Error: " ++ name ++ ": " ++ e ++ "."]
       checkAgreement l r rf = case clemapsAgree l r rf of
         Nothing -> do
-          comment "Refactored CLE map is a subset of each partition."
+          comment "Refactored CLE map is a subset of the union of partitioned CLE maps."
           comment "Tags in the partitioned CLE maps are consistent."
         Just e -> die ["Error: " ++ e ++ "."]
   cs <- mapM checkCmap $ zip cmaps $ drop 3 filenames

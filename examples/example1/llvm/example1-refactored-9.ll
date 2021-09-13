@@ -11,7 +11,29 @@ target triple = "x86_64-unknown-linux-gnu"
 @get_b.b = internal global double 1.000000e+00, align 8, !dbg !15
 @.str.3 = private unnamed_addr constant [7 x i8] c"PURPLE\00", section "llvm.metadata"
 @.str.4 = private unnamed_addr constant [4 x i8] c"%f\0A\00", align 1
-@llvm.global.annotations = appending global [3 x { i8*, i8*, i8*, i32 }] [{ i8*, i8*, i8*, i32 } { i8* bitcast (double* @get_a.a to i8*), i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str.1, i32 0, i32 0), i32 37 }, { i8*, i8*, i8*, i32 } { i8* bitcast (double ()* @get_a to i8*), i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str.2, i32 0, i32 0), i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str.1, i32 0, i32 0), i32 32 }, { i8*, i8*, i8*, i32 } { i8* bitcast (double* @get_b.b to i8*), i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str.3, i32 0, i32 0), i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str.1, i32 0, i32 0), i32 47 }], section "llvm.metadata"
+@llvm.global.annotations = appending global [3 x { i8*, i8*, i8*, i32 }]
+[
+  { i8*, i8*, i8*, i32 }
+  { i8* bitcast (double* @get_a.a to i8*),
+    i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str, i32 0, i32 0),
+    i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str.1, i32 0, i32 0),
+    i32 37
+  },
+
+  { i8*, i8*, i8*, i32 }
+  { i8* bitcast (double ()* @get_a to i8*),
+    i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str.2, i32 0, i32 0),
+    i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str.1, i32 0, i32 0),
+    i32 32
+  },
+
+  { i8*, i8*, i8*, i32 }
+  { i8* bitcast (double* @get_b.b to i8*),
+    i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str.3, i32 0, i32 0),
+    i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str.1, i32 0, i32 0),
+    i32 47
+  }
+], section "llvm.metadata"
 
 ; Function Attrs: noinline nounwind optnone uwtable
 define dso_local double @calc_ewma(double, double) #0 !dbg !2 {
@@ -68,7 +90,12 @@ define dso_local i32 @ewma_main() #0 !dbg !46 {
   call void @llvm.dbg.declare(metadata double* %2, metadata !52, metadata !DIExpression()), !dbg !53
   call void @llvm.dbg.declare(metadata double* %3, metadata !54, metadata !DIExpression()), !dbg !55
   %5 = bitcast double* %3 to i8*, !dbg !56
-  call void @llvm.var.annotation(i8* %5, i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str.3, i32 0, i32 0), i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str.1, i32 0, i32 0), i32 59), !dbg !56
+  call void @llvm.var.annotation(
+    i8* %5,
+    i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str.3, i32 0, i32 0),
+    i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str.1, i32 0, i32 0),
+    i32 59
+  ), !dbg !56
   call void @llvm.dbg.declare(metadata i32* %4, metadata !57, metadata !DIExpression()), !dbg !59
   store i32 0, i32* %4, align 4, !dbg !59
   br label %6, !dbg !60

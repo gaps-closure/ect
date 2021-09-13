@@ -6,40 +6,70 @@
     }
   },
   {
-    "cle-label": "ORANGE",
+    "cle-label": "TAG_RESPONSE_GET_A",
     "cle-json": {
-      "level": "orange",
+      "level": "purple",
       "cdf": [
         {
           "remotelevel": "purple",
           "direction": "egress",
           "guarddirective": {
-            "operation": "allow"
+            "operation": "allow",
+            "gapstag": [2,2,4]
           }
         }
       ]
     }
   },
   {
-    "cle-label": "XDLINKAGE_GET_A",
+    "cle-label": "TAG_REQUEST_GET_A",
     "cle-json": {
-      "level": "orange",
+      "level": "purple",
       "cdf": [
-        {
-          "remotelevel": "purple",
-          "direction": "bidirectional",
-          "guarddirective": {
-            "operation": "allow"
-          },
-          "argtaints": [],
-          "codtaints": [
-            "ORANGE"
-          ],
-          "rettaints": [
-            "TAG_RESPONSE_GET_A"
-          ]
-        }
+        {"remotelevel":"orange",
+         "direction": "egress",
+         "guarddirective": { "operation": "allow",
+                        "gapstag": [1,1,3] }}
       ]
+    }
+  },
+  {
+    "cle-label": "TAG_OKAY",
+    "cle-json": {
+      "level": "purple",
+      "cdf": [
+        {"remotelevel":"purple",
+         "direction": "egress",
+         "guarddirective": { "operation": "allow",
+                        "gapstag": [2,2,2] }}
+      ]
+    }
+  },
+  {
+    "cle-label": "TAG_NEXTRPC",
+    "cle-json": {
+      "level": "purple",
+      "cdf": [
+        {"remotelevel":"orange",
+         "direction": "egress",
+         "guarddirective": { "operation": "allow",
+                        "gapstag": [1,1,1] }}
+      ]
+    }
+  },
+  {
+    "cle-label": "XDLINKAGE_RPC_GET_A",
+    "cle-json": {
+      "level": "purple",
+      "cdf": [
+         {"remotelevel":"orange",
+          "direction": "bidirectional",
+          "guarddirective": { "operation": "allow"},
+          "argtaints": [],
+          "codtaints": ["TAG_REQUEST_GET_A", "TAG_RESPONSE_GET_A"],
+          "rettaints": ["TAG_RESPONSE_GET_A"]
+         }
+       ]
     }
   }
 ]
