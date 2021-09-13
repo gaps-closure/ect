@@ -339,6 +339,23 @@ main = do
     _ -> die ["Error: refactored LLVM cannot be partitioned."]
 
   -- Construct intial proof state
+  -- TODO: proof state should carry which enclave we're in. When following
+  -- references, use the set of globals associated with that enclave. i.e. don't
+  -- ever combine the globals in the first place. If a reference cannot be
+  -- found in the enclave we're in, switch enclaves (should only happen on
+  -- RPC call instr)
+  -- TODO: Assign every global in each set to a unique id with mkGlobalsIds.
+  -- Then increment the ids in rightLl's globals based on the maxId of leftLl's
+  -- globals, so that the full set is entirely unique (and contiguous). Now
+  -- every node has a unique Id.
+  -- TODO: Use findLocalAnnotations and findGlobalAnnotations on
+  -- each set of globals to tie Ids to CLE annotations. So for the lglobals
+  -- and rglobals each, we get a mapping from global name to Id.
+  -- TODO: During ProveEquiv operation, globals pass their Ids to their
+  -- instructions and increment them, so that the proveEquiv for a node X has
+  -- access to its own Id.
+  -- TODO: Globals and instructions check for an annotation associated with
+  -- their Id during ProveEquiv. Annotations must be equal.
   let gc = S.fromList [S.fromList $ map A.name [partitioned, refactored]]
       lrGlobals  = combineGlobals leftLl rightLl entryName
       lrGlobals' = replRpc $ M.insert entryName partitioned lrGlobals

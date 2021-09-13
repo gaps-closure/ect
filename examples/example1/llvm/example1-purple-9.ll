@@ -8,7 +8,15 @@ target triple = "x86_64-unknown-linux-gnu"
 @.str = private unnamed_addr constant [7 x i8] c"PURPLE\00", section "llvm.metadata"
 @.str.1 = private unnamed_addr constant [48 x i8] c"partitioned/multithreaded/purple/example1.mod.c\00", section "llvm.metadata"
 @.str.2 = private unnamed_addr constant [4 x i8] c"%f\0A\00", align 1
-@llvm.global.annotations = appending global [1 x { i8*, i8*, i8*, i32 }] [{ i8*, i8*, i8*, i32 } { i8* bitcast (double* @get_b.b to i8*), i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([48 x i8], [48 x i8]* @.str.1, i32 0, i32 0), i32 36 }], section "llvm.metadata"
+@llvm.global.annotations = appending global [1 x { i8*, i8*, i8*, i32 }]
+[
+  { i8*, i8*, i8*, i32 }
+  { i8* bitcast (double* @get_b.b to i8*),
+    i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str, i32 0, i32 0),
+    i8* getelementptr inbounds ([48 x i8], [48 x i8]* @.str.1, i32 0, i32 0),
+    i32 36
+  }
+], section "llvm.metadata"
 
 ; Function Attrs: noinline nounwind optnone uwtable
 define dso_local double @calc_ewma(double, double) #0 !dbg !2 {
