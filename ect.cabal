@@ -1,10 +1,8 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: b31c98ab6f0528ace7bf685f7cf774c81b2d82f1c366aaeea802bbd1fd881a51
 
 name:           ect
 version:        0.1.0.0

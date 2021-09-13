@@ -94,6 +94,6 @@ executables:
 
 # This cures the problem, but not elegantly
 #
-# LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack build
+# LD_LIBRARY_PATH=z3-4.8.8/lib stack build
 
 # https://ro-che.info/articles/2017-07-26-haskell-library-in-c-project

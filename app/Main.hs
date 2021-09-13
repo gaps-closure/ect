@@ -1,7 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 {-
-LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack build
+LD_LIBRARY_PATH=z3-4.8.8/lib stack build
 
 stack run -- \
   examples/example1/llvm/example1-orange-9.ll \
@@ -11,7 +11,7 @@ stack run -- \
   examples/example1/clemaps/purple.json \
   examples/example1/clemaps/refactored.json
 
-LD_LIBRARY_PATH=z3-4.8.8-x64-ubuntu-16.04/bin stack ghci
+LD_LIBRARY_PATH=z3-4.8.8/lib stack ghci
 :set -XTemplateHaskell
 -}
 
