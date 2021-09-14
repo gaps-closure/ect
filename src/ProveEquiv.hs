@@ -311,14 +311,30 @@ proveCongruence lName rName = do
   if exists then return ()
   else do
     ProofState{..} <- ProofM $ lift get
-    case (M.lookup lName leftGlobals, M.lookup rName rightGlobals) of
-      (Just lGlobal, Just rGlobal) -> do
-        pushMatching
-        liftIO $ putStrLn ";;; Push"
-        _ <- proveEquiv lGlobal rGlobal
-        liftIO $ putStrLn ";;; Pop (globals proven equiv)"
-        popMatching
-      _ -> error "global definition not found in NameReferenceMap"
+    case M.lookup rName refGlobals of
+      Just rGlobal -> case M.lookup lName (toEnclave partGlobals) of
+        Just lGlobal -> recurse lGlobal rGlobal
+        Nothing -> do
+          let nextEnclave = if toEnclave partGlobals == fst partGlobals
+                            then snd
+                            else fst
+          case M.lookup lName (nextEnclave partGlobals) of
+            Just lGlobal -> do
+              ProofM $ lift $ put $ ProofState { toEnclave = nextEnclave, .. }
+              liftIO $ putStrLn ";;; SWITCH ENCLAVE"
+              recurse lGlobal rGlobal
+              liftIO $ putStrLn ";;; SWITCH ENCLAVE"
+              ProofM $ lift $ put $ ProofState { toEnclave = toEnclave, .. }
+            Nothing -> err
+      Nothing -> err
+  where
+    err = error "global definition not found in NameReferenceMap"
+    recurse lg rg = do
+      pushMatching
+      liftIO $ putStrLn ";;; Push"
+      _ <- proveEquiv lg rg
+      liftIO $ putStrLn ";;; Pop (globals proven equiv)"
+      popMatching
 
 ------------------------------------
 -- CFG isomorphism proof machinery

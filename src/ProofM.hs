@@ -114,20 +114,22 @@ type NameCongruence = S.Set (S.Set A.Name)
 type EquivFunctionMap = M.Map Sort FuncDecl
 
 data ProofState = ProofState
-  { currentPID :: !PID                  -- ^ ID for the next proposition
-  , matching :: ![MatchState]           -- ^ Forward and inverse name matching stack with z3 functions
-  , leftGlobals :: !NameReferenceMap    -- ^ top level definitions in left file
-  , rightGlobals :: !NameReferenceMap   -- ^ top level definitions in right file
-  , congruence :: !NameCongruence       -- ^ disjoint-set of equiv names
-  , equivFunctions :: !EquivFunctionMap -- ^ For each Z3 sort, the equivalence function
+  { currentPID :: !PID                                   -- ^ ID for the next proposition
+  , matching :: ![MatchState]                            -- ^ Forward and inverse name matching stack with z3 functions
+  , partGlobals :: !(NameReferenceMap, NameReferenceMap) -- ^ top level definitions in left file
+  , refGlobals :: !NameReferenceMap                      -- ^ top level definitions in right file
+  , toEnclave :: !((NameReferenceMap, NameReferenceMap) -> NameReferenceMap)
+  , congruence :: !NameCongruence                        -- ^ disjoint-set of equiv names
+  , equivFunctions :: !EquivFunctionMap                  -- ^ For each Z3 sort, the equivalence function
   }
 
 -- | Initial proof state: PID is 1; empty maps and sets
 initialState :: ProofState
 initialState = ProofState { currentPID = PID 1
                           , matching = []
-                          , leftGlobals = M.empty
-                          , rightGlobals = M.empty
+                          , partGlobals = (M.empty, M.empty)
+                          , refGlobals = M.empty
+                          , toEnclave = fst
                           , congruence = S.empty
                           , equivFunctions = M.empty
                           }
