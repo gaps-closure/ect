@@ -31,6 +31,7 @@ import qualified LLVM.AST as A
 import Z3.Monad
 
 import ProofEnv
+import Partition
 
 ----------------------------------------------------------------------
 --
@@ -117,7 +118,9 @@ data ProofState = ProofState
   { currentPID :: !PID                                   -- ^ ID for the next proposition
   , matching :: ![MatchState]                            -- ^ Forward and inverse name matching stack with z3 functions
   , partGlobals :: !(NameReferenceMap, NameReferenceMap) -- ^ top level definitions in left file
+  , partAnnos :: !((GlobalsIdTable, [(Int, String)]), (GlobalsIdTable, [(Int, String)]))
   , refGlobals :: !NameReferenceMap                      -- ^ top level definitions in right file
+  , refAnnos :: !(GlobalsIdTable, [(Int, String)])
   , toEnclave :: !((NameReferenceMap, NameReferenceMap) -> NameReferenceMap)
   , congruence :: !NameCongruence                        -- ^ disjoint-set of equiv names
   , equivFunctions :: !EquivFunctionMap                  -- ^ For each Z3 sort, the equivalence function
@@ -128,7 +131,9 @@ initialState :: ProofState
 initialState = ProofState { currentPID = PID 1
                           , matching = []
                           , partGlobals = (M.empty, M.empty)
+                          , partAnnos = ((M.empty, []), (M.empty, []))
                           , refGlobals = M.empty
+                          , refAnnos = (M.empty, [])
                           , toEnclave = fst
                           , congruence = S.empty
                           , equivFunctions = M.empty
