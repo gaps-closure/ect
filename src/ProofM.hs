@@ -121,7 +121,8 @@ data ProofState = ProofState
   , partAnnos :: !((GlobalsIdTable, [(Int, String)]), (GlobalsIdTable, [(Int, String)]))
   , refGlobals :: !NameReferenceMap                      -- ^ top level definitions in right file
   , refAnnos :: !(GlobalsIdTable, [(Int, String)])
-  , toEnclave :: !((NameReferenceMap, NameReferenceMap) -> NameReferenceMap)
+  , toEnclave :: (NameReferenceMap, NameReferenceMap) -> NameReferenceMap
+  , toEnclave2 :: ((GlobalsIdTable, [(Int, String)]), (GlobalsIdTable, [(Int, String)])) -> (GlobalsIdTable, [(Int, String)])
   , congruence :: !NameCongruence                        -- ^ disjoint-set of equiv names
   , equivFunctions :: !EquivFunctionMap                  -- ^ For each Z3 sort, the equivalence function
   }
@@ -135,6 +136,7 @@ initialState = ProofState { currentPID = PID 1
                           , refGlobals = M.empty
                           , refAnnos = (M.empty, [])
                           , toEnclave = fst
+                          , toEnclave2 = fst
                           , congruence = S.empty
                           , equivFunctions = M.empty
                           }

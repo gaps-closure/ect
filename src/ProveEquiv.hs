@@ -53,6 +53,7 @@ import Z3.Monad
 import Z3TypeGenerator
 import ProofM
 import ProofEnv
+import Partition
 
 -- | Typeclass for proving the equivalence of pairs of LLVM (Haskell)
 -- objects.
@@ -110,6 +111,30 @@ assertEquiv getType = do
 assertEquivDefault :: (ProveEquiv a) => a -> ProofM Equiv
 assertEquivDefault x = proveEquiv x x
 
+-- Tying nodes to ids to annotations to labels
+type LabelPair = (Maybe ShortByteString, Maybe ShortByteString)
+
+getIdsLabels :: Int -> Int -> ProofM LabelPair
+getIdsLabels partId refId = do
+  ProofState{..} <- ProofM $ lift get
+  let partLabel = M.lookup partId $ M.fromList (snd $ toEnclave2 partAnnos)
+      refLabel  = M.lookup refId  $ M.fromList (snd refAnnos)
+      toSbs = toShort . C.pack
+  liftIO $ putStrLn $ ";;; ProveEquiv CLE LABEL (" ++ show partLabel ++ ") (" ++ show refLabel ++ ")"
+  -- TODO: replace TAG_* labels with Nothing, since they aren't reflected in
+  -- the refactored code
+  return (fmap toSbs partLabel, fmap toSbs refLabel)
+
+getInstrLabels :: A.Instruction -> A.Instruction -> ProofM LabelPair
+getInstrLabels _ _ = proofFail "Not yet implemented"
+
+getGlobalLabels :: A.Global -> A.Global -> ProofM LabelPair
+getGlobalLabels lG rG = do
+  ProofState{..} <- ProofM $ lift get
+  let partId = lookupGid (A.name lG) $ fst $ toEnclave2 partAnnos
+      refId  = lookupGid (A.name rG) $ fst refAnnos
+  getIdsLabels partId refId
+
 -----------------------------------------------
 -- ProveEquiv instance for global definitions
 
@@ -132,6 +157,7 @@ instance ProveEquiv A.Global where
                        , proveField A.alignment
                        , assertEquivDefault True
                        ]
+    _ <- (uncurry proveEquiv) =<< getGlobalLabels v1 v2
     proveEquivGeneral c_G_GlobalVariable fields $
       "global variables " ++ showName (A.name v1) ++ " and " ++
       showName (A.name v2) ++ " equivalent"
@@ -150,6 +176,7 @@ instance ProveEquiv A.Global where
                        , proveField A.addrSpace
                        , proveField A.aliasee
                        ]
+    _ <- (uncurry proveEquiv) =<< getGlobalLabels a1 a2
     proveEquivGeneral c_G_GlobalAlias fields $
       "global aliases " ++ showName (A.name a1) ++ " and " ++
       showName (A.name a2) ++ " equivalent"
@@ -177,6 +204,8 @@ instance ProveEquiv A.Global where
                        , proveField A.personalityFunction
                        , assertEquivDefault True
                        ]
+    _ <- (uncurry proveEquiv) =<< getGlobalLabels f1 f2
+    -- TODO: send contextual GID for toEnclave and ref to proveEquivCFG
     proveEquivGeneral c_G_Function fields $
       "functions " ++ showName (A.name f1) ++ " and " ++
       showName (A.name f2) ++ " equivalent"
@@ -320,11 +349,11 @@ proveCongruence lName rName = do
                             else fst
           case M.lookup lName (nextEnclave partGlobals) of
             Just lGlobal -> do
-              ProofM $ lift $ put $ ProofState { toEnclave = nextEnclave, .. }
+              ProofM $ lift $ put $ ProofState { toEnclave = nextEnclave, toEnclave2 = nextEnclave, .. }
               liftIO $ putStrLn ";;; SWITCH ENCLAVE"
               recurse lGlobal rGlobal
               liftIO $ putStrLn ";;; SWITCH ENCLAVE"
-              ProofM $ lift $ put $ ProofState { toEnclave = toEnclave, .. }
+              ProofM $ lift $ put $ ProofState { toEnclave = toEnclave, toEnclave2 = toEnclave2, .. }
             Nothing -> err
       Nothing -> err
   where

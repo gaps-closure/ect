@@ -362,6 +362,7 @@ main = do
                             , refGlobals = refGlobals
                             , refAnnos = (refGids, refAnnos')
                             , toEnclave = startEnclave
+                            , toEnclave2 = startEnclave
                             , congruence = gc
                             }
       environmentOptions = stdOpts +? opt "auto-config" False
