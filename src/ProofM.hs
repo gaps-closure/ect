@@ -12,7 +12,7 @@ a proof has failed.
 
 module ProofM where
 
-import Control.Monad.IO.Class ( MonadIO )
+import Control.Monad.IO.Class ( MonadIO, liftIO )
 import Control.Monad.Trans.Writer.CPS ( WriterT, runWriterT, tell )
 import Control.Monad.Trans.State.Strict ( StateT(..), runStateT, evalStateT,
                                           get, put )
@@ -20,18 +20,20 @@ import Control.Monad.Trans.Reader ( ReaderT, runReaderT, withReaderT, asks )
 import Control.Monad.Trans.Class ( lift )
 import Control.Monad.Trans.Maybe
 
-import Data.List (intercalate)
+import Data.List ( intercalate )
+import Data.ByteString.UTF8 ( toString )
+import Data.ByteString.Short ( fromShort )
 
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
 import qualified LLVM.AST as A
+import qualified LLVM.AST.Global as A
 --import qualified LLVM.AST.CallingConvention as A
 
 import Z3.Monad
 
 import ProofEnv
-import Partition
 
 ----------------------------------------------------------------------
 --
@@ -109,34 +111,42 @@ type MatchState = (Z3NameMap, Z3NameMap, VisitSet)
 
 -- | A mapping from names to the top level definitions they refer to
 type NameReferenceMap = M.Map A.Name A.Global
-type NameCongruence = S.Set (S.Set A.Name)
+type SourceLocation = ( Maybe A.Global
+                      , Maybe A.BasicBlock
+                      , Maybe (Either (A.Named A.Instruction)
+                                      (A.Named A.Terminator) )
+                      )
 
 -- | A mapping from Z3 sorts to equivalence functions
 type EquivFunctionMap = M.Map Sort FuncDecl
 
+data MetaModule = MetaModule
+  { name        :: String
+  , globals     :: NameReferenceMap
+  , annotations :: M.Map A.Name String
+  , whereAmI    :: SourceLocation
+  } deriving Eq
+
 data ProofState = ProofState
-  { currentPID :: !PID                                   -- ^ ID for the next proposition
-  , matching :: ![MatchState]                            -- ^ Forward and inverse name matching stack with z3 functions
-  , partGlobals :: !(NameReferenceMap, NameReferenceMap) -- ^ top level definitions in left file
-  , partAnnos :: !((GlobalsIdTable, [(Int, String)]), (GlobalsIdTable, [(Int, String)]))
-  , refGlobals :: !NameReferenceMap                      -- ^ top level definitions in right file
-  , refAnnos :: !(GlobalsIdTable, [(Int, String)])
-  , toEnclave :: (NameReferenceMap, NameReferenceMap) -> NameReferenceMap
-  , toEnclave2 :: ((GlobalsIdTable, [(Int, String)]), (GlobalsIdTable, [(Int, String)])) -> (GlobalsIdTable, [(Int, String)])
-  , congruence :: !NameCongruence                        -- ^ disjoint-set of equiv names
-  , equivFunctions :: !EquivFunctionMap                  -- ^ For each Z3 sort, the equivalence function
+  { currentPID     :: !PID                                      -- ^ ID for the next proposition
+  , partition      :: !(MetaModule, MetaModule)
+  , refactored     :: !MetaModule
+  , toEnclave      :: !((MetaModule, MetaModule) -> MetaModule)
+  , matching       :: ![MatchState]                             -- ^ Forward and inverse name matching stack with z3 functions
+  , congruence     :: !(S.Set (S.Set A.Name))                   -- ^ disjoint-set of equiv names
+  , equivFunctions :: !EquivFunctionMap                         -- ^ For each Z3 sort, the equivalence function
   }
+
+emptyMM :: MetaModule
+emptyMM = MetaModule "" M.empty M.empty (Nothing, Nothing, Nothing)
 
 -- | Initial proof state: PID is 1; empty maps and sets
 initialState :: ProofState
 initialState = ProofState { currentPID = PID 1
-                          , matching = []
-                          , partGlobals = (M.empty, M.empty)
-                          , partAnnos = ((M.empty, []), (M.empty, []))
-                          , refGlobals = M.empty
-                          , refAnnos = (M.empty, [])
+                          , partition = (emptyMM, emptyMM)
+                          , refactored = emptyMM
                           , toEnclave = fst
-                          , toEnclave2 = fst
+                          , matching = []
                           , congruence = S.empty
                           , equivFunctions = M.empty
                           }
@@ -173,8 +183,6 @@ initializeRun :: ProofM ProofEnv -> ProofM a -> ProofM (Maybe a, ProofLog)
 initializeRun initialization actions = do
   env' <- initialization
   state <- ProofM $ lift get
---  logSMTLIB =<< solverToString
---  logString "initialization complete"
   ProofM $ lift $ lift $
             runWriterT $ lift $
             withReaderT (const env') $
@@ -194,10 +202,38 @@ runProofEnvironment options initialSt initializeEnv actions = do
                           Nothing -> Nothing
   return (result, st, l)
 
+getMetaModuleField :: (MetaModule -> a) -> ProofM (a, a)
+getMetaModuleField r = do
+  ProofState{..} <- ProofM $ lift get
+  return (r (toEnclave partition), r refactored)
+
+putMetaModuleField :: (MetaModule -> a -> MetaModule) -> (a, a) -> ProofM ()
+putMetaModuleField setter (a, b) = do
+  ProofState{..} <- ProofM $ lift get
+  let new_partition = if toEnclave partition == fst partition
+                      then (setter (fst partition) a, snd partition)
+                      else (fst partition, setter (snd partition) a)
+  ProofM $ lift $ put $ ProofState { partition = new_partition
+                                   , refactored = setter refactored b
+                                   , .. }
+
+-- | Turn a 'Name' into a reasonable string
+showName :: A.Name -> String
+showName (A.UnName x) = show x
+showName (A.Name s) = toString $ fromShort s
+
+-- | Print a named object with the given show-like function
+showNamed :: (a -> String) -> A.Named a -> String
+showNamed s (nm A.:= x) = "%" ++ showName nm ++ " = " ++ s x
+showNamed s (A.Do x) = s x
+
 -- | Indicate a proof has failed; return Nothing in the Maybe monad
 proofFail :: String -> ProofM a
 proofFail s = do
   logString $ " **** proofFail: " ++ s
+  fnames <- getMetaModuleField name
+  locs   <- getMetaModuleField whereAmI
+  liftIO $ putStrLn $ provenance s fnames locs
   ProofM $ MaybeT $ return Nothing
 
 -- | Return a field from the proof environment (ProofEnv)
@@ -205,7 +241,6 @@ proofFail s = do
 -- e.g., bool <- fromEnv s_Bool
 fromEnv :: (ProofEnv -> a) -> ProofM a
 fromEnv selector = ProofM $ lift $ lift $ asks selector
-
 
 -- | Get the next PID in sequence and update the state
 getNextPID :: ProofM PID
@@ -243,3 +278,24 @@ logSMTLIB s = ProofM $ lift $ lift $ lift $ tell [LogSMTLIB s]
 logInference :: [PID] -> Prop -> String -> ProofM ()
 logInference infPremises infConclusion infComment =
   ProofM $ lift $ lift $ lift $ tell [LogInference{..}]
+
+provenance :: String -> (String, String) -> (SourceLocation, SourceLocation) -> String
+provenance err fnames (l1, l2) =
+  "\nproofFail: " ++ err ++ " \n\
+  \    in " ++ fst fnames ++ "\n\
+  \        " ++ partLoc ++ "  \n\
+  \    in " ++ snd fnames ++ "\n\
+  \        " ++ refLoc
+  where
+    [partLoc, refLoc] = map mkLoc [l1, l2]
+    mkLoc (g, bb, i) = case g of
+      Just g' -> "> in " ++ showG g' ++ case bb of
+        Just bb' -> "\n        > in " ++ showBB bb'  ++ case i of
+          Just i' -> "\n        > at " ++ showI i'
+          Nothing -> ""
+        Nothing -> ""
+      Nothing -> ""
+    showG g = "definition @" ++ showName (A.name g)
+    showBB (A.BasicBlock n _ _) = "basic block %" ++ showName n
+    showI (Left i) = "instruction " ++ showNamed show i
+    showI (Right t) = "terminator " ++ showNamed show t

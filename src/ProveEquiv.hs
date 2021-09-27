@@ -11,7 +11,6 @@ of LLVM objects with the Z3 Theorem Prover
 
 module ProveEquiv where
 
-import Data.ByteString.UTF8 ( toString )
 import Data.ByteString.Short ( ShortByteString, fromShort, toShort )
 import Data.Word ( Word16, Word32, Word64 )
 import Data.List ( intercalate )
@@ -53,7 +52,6 @@ import Z3.Monad
 import Z3TypeGenerator
 import ProofM
 import ProofEnv
-import Partition
 
 -- | Typeclass for proving the equivalence of pairs of LLVM (Haskell)
 -- objects.
@@ -114,26 +112,30 @@ assertEquivDefault x = proveEquiv x x
 -- Tying nodes to ids to annotations to labels
 type LabelPair = (Maybe ShortByteString, Maybe ShortByteString)
 
-getIdsLabels :: Int -> Int -> ProofM LabelPair
-getIdsLabels partId refId = do
-  ProofState{..} <- ProofM $ lift get
-  let partLabel = M.lookup partId $ M.fromList (snd $ toEnclave2 partAnnos)
-      refLabel  = M.lookup refId  $ M.fromList (snd refAnnos)
-      toSbs = toShort . C.pack
-  liftIO $ putStrLn $ ";;; ProveEquiv CLE LABEL (" ++ show partLabel ++ ") (" ++ show refLabel ++ ")"
-  -- TODO: replace TAG_* labels with Nothing, since they aren't reflected in
-  -- the refactored code
-  return (fmap toSbs partLabel, fmap toSbs refLabel)
-
-getInstrLabels :: A.Instruction -> A.Instruction -> ProofM LabelPair
-getInstrLabels _ _ = proofFail "Not yet implemented"
+writeLocation :: (SourceLocation, SourceLocation) -> ProofM ()
+writeLocation ls = do
+  ((gP, bbP, _), (gR, bbR, _)) <- getMetaModuleField whereAmI
+  let newloc = case ls of
+        ((g1@(Just _), _, _), (g2@(Just _), _, _))   ->
+          ((g1, Nothing, Nothing), (g2, Nothing, Nothing))
+        ((_, bb1@(Just _), _), (_, bb2@(Just _), _)) ->
+          ((gP, bb1, Nothing), (gR, bb2, Nothing))
+        ((_, _, i1@(Just _)), (_, _, i2@(Just _)))   ->
+          ((gP, bbP, i1), (gR, bbR, i2))
+        _ -> error "writeLocation: Unreachable"
+  putMetaModuleField (\mm a -> mm { whereAmI = a }) newloc
 
 getGlobalLabels :: A.Global -> A.Global -> ProofM LabelPair
 getGlobalLabels lG rG = do
-  ProofState{..} <- ProofM $ lift get
-  let partId = lookupGid (A.name lG) $ fst $ toEnclave2 partAnnos
-      refId  = lookupGid (A.name rG) $ fst refAnnos
-  getIdsLabels partId refId
+  (pAnnos, rAnnos) <- getMetaModuleField annotations
+  let pLabel = M.lookup (A.name lG) pAnnos
+      rLabel = M.lookup (A.name rG) rAnnos
+      toSbs  = toShort . C.pack
+  liftIO $ putStrLn $
+    ";;; ProveEquiv CLE LABEL (" ++ show pLabel ++ ") (" ++ show rLabel ++ ")"
+  -- TODO: replace TAG_* labels with Nothing, since they aren't reflected in
+  -- the refactored code
+  return (fmap toSbs pLabel, fmap toSbs rLabel)
 
 -----------------------------------------------
 -- ProveEquiv instance for global definitions
@@ -142,6 +144,7 @@ instance ProveEquiv A.Global where
   proveEquiv v1@A.GlobalVariable{} v2@A.GlobalVariable{} = do
     liftIO $ putStrLn $
       ";;; ProveEquiv " ++ showName (A.name v1) ++ " " ++ showName (A.name v2)
+    writeLocation ((Just v1, Nothing, Nothing), (Just v2, Nothing, Nothing))
     fields <- sequence [ assertEquiv t_Name
                        , proveField A.linkage
                        , proveField A.visibility
@@ -166,6 +169,7 @@ instance ProveEquiv A.Global where
   proveEquiv a1@A.GlobalAlias{} a2@A.GlobalAlias{} = do
     liftIO $ putStrLn $
       ";;; ProveEquiv " ++ showName (A.name a1) ++ " " ++ showName (A.name a2)
+    writeLocation ((Just a1, Nothing, Nothing), (Just a2, Nothing, Nothing))
     fields <- sequence [ assertEquiv t_Name
                        , proveField A.linkage
                        , proveField A.visibility
@@ -185,7 +189,7 @@ instance ProveEquiv A.Global where
   proveEquiv f1@A.Function{} f2@A.Function{} = do
     liftIO $ putStrLn $
       ";;; ProveEquiv " ++ showName (A.name f1) ++ " " ++ showName (A.name f2)
-
+    writeLocation ((Just f1, Nothing, Nothing), (Just f2, Nothing, Nothing))
     fields <- sequence [ proveField A.linkage
                        , proveField A.visibility
                        , proveField A.dllStorageClass
@@ -205,7 +209,6 @@ instance ProveEquiv A.Global where
                        , assertEquivDefault True
                        ]
     _ <- (uncurry proveEquiv) =<< getGlobalLabels f1 f2
-    -- TODO: send contextual GID for toEnclave and ref to proveEquivCFG
     proveEquivGeneral c_G_Function fields $
       "functions " ++ showName (A.name f1) ++ " and " ++
       showName (A.name f2) ++ " equivalent"
@@ -232,16 +235,6 @@ unName :: A.Named a -> a
 unName (A.Do x) = x
 unName (_ A.:= x) = x
 
--- | Turn a 'Name' into a reasonable string
-showName :: A.Name -> String
-showName (A.UnName x) = show x
-showName (A.Name s) = toString $ fromShort s
-
--- | Print a named object with the given show-like function
-showNamed :: (a -> String) -> A.Named a -> String
-showNamed s (nm A.:= x) = "%" ++ showName nm ++ " = " ++ s x
-showNamed s (A.Do x) = s x
-
 -- | Retrieve the current match state
 getMatching :: ProofM MatchState
 getMatching = do
@@ -252,9 +245,8 @@ getMatching = do
 
 -- | Update the current match state
 putMatching :: MatchState -> ProofM ()
-putMatching ms = do
-  ProofState{..} <- ProofM $ lift get
-  ProofM $ lift $ put $ ProofState { matching = ms:tail matching, .. }
+putMatching ms =
+  ProofM $ lift $ modify $ \s -> s { matching = ms:(tail $ matching s) }
 
 -- | Push a fresh state onto the matching stack, on entry to a new global
 pushMatching :: ProofM ()
@@ -274,9 +266,7 @@ pushMatching = do
 
 -- | Pop the current state from the matching stack, on exit from a global
 popMatching :: ProofM ()
-popMatching = do
-  ProofState{..} <- ProofM $ lift get
-  ProofM $ lift $ put $ ProofState { matching = tail matching, .. }
+popMatching = ProofM $ lift $ modify $ \s -> s { matching = tail (matching s) }
 
 -- | Add a match to the @matching@ and @inverse@ maps; fail if it contradicts
 -- an existing one
@@ -285,13 +275,13 @@ addMatch n1 n2 = do
   ((fwd_map, ffn), (inv_map, ifn), v) <- getMatching
   case M.lookup n1 fwd_map of
     Just n2' | n2' /= n2 -> proofFail $
-      "tried to match " ++ showName n1 ++ "-" ++
-      showName n2 ++ " but already have " ++ showName n1 ++ "-" ++ showName n2'
+      "tried to match %" ++ showName n1 ++ " = %" ++ showName n2 ++
+      " but already have %" ++ showName n1 ++ " = %" ++ showName n2'
     _ -> return ()
   case M.lookup n2 inv_map of
     Just n1' | n1' /= n1 -> proofFail $
-      "tried to match " ++ showName n1 ++ "-" ++
-      showName n2 ++ " but already have " ++ showName n1' ++ "-" ++ showName n2
+      "tried to match %" ++ showName n1 ++ " = %" ++ showName n2 ++
+      " but already have %" ++ showName n1' ++ " = %" ++ showName n2
     _ -> return ()
   putMatching ((M.insert n1 n2 fwd_map, ffn), (M.insert n2 n1 inv_map, ifn), v)
 
@@ -325,12 +315,10 @@ addCongruence lName rName = do
       | l /= r -> update $ S.insert (S.union l r) . S.delete l . S.delete r
       | otherwise -> return True
   where
+    findMemberSet n = F.find (S.member n) <$> (ProofM $ lift $ gets congruence)
     update op = do
-      ProofM $ lift $ modify $ \p -> p { congruence = op $ congruence p }
+      ProofM $ lift $ modify $ \s -> s { congruence = op $ congruence s }
       return False
-    findMemberSet n = do
-      ProofState{..} <- ProofM $ lift get
-      return $ F.find (S.member n) congruence
 
 -- | Add a new equivalence to the congruence and recurse into both globals to
 -- prove their equivalence.
@@ -340,29 +328,29 @@ proveCongruence lName rName = do
   if exists then return ()
   else do
     ProofState{..} <- ProofM $ lift get
-    case M.lookup rName refGlobals of
-      Just rGlobal -> case M.lookup lName (toEnclave partGlobals) of
+    case M.lookup rName (globals refactored) of
+      Just rGlobal -> case M.lookup lName (globals $ toEnclave partition) of
         Just lGlobal -> recurse lGlobal rGlobal
         Nothing -> do
-          let nextEnclave = if toEnclave partGlobals == fst partGlobals
-                            then snd
-                            else fst
-          case M.lookup lName (nextEnclave partGlobals) of
+          let next = if toEnclave partition == fst partition then snd else fst
+          case M.lookup lName (globals $ next partition) of
             Just lGlobal -> do
-              ProofM $ lift $ put $ ProofState { toEnclave = nextEnclave, toEnclave2 = nextEnclave, .. }
+              ProofM $ lift $ put $ ProofState { toEnclave = next, .. }
               liftIO $ putStrLn ";;; SWITCH ENCLAVE"
               recurse lGlobal rGlobal
               liftIO $ putStrLn ";;; SWITCH ENCLAVE"
-              ProofM $ lift $ put $ ProofState { toEnclave = toEnclave, toEnclave2 = toEnclave2, .. }
+              ProofM $ lift $ put $ ProofState { toEnclave = toEnclave, .. }
             Nothing -> err
       Nothing -> err
   where
     err = error "global definition not found in NameReferenceMap"
     recurse lg rg = do
       pushMatching
+      locs <- getMetaModuleField whereAmI
       liftIO $ putStrLn ";;; Push"
       _ <- proveEquiv lg rg
       liftIO $ putStrLn ";;; Pop (globals proven equiv)"
+      putMetaModuleField (\mm a -> mm { whereAmI = a }) locs
       popMatching
 
 ------------------------------------
@@ -413,7 +401,7 @@ proveEquivCFG cfg1@(A.BasicBlock n1 _ _:_) cfg2@(A.BasicBlock n2 _ _:_) = do
   let getBlock (l, r) = (,) <$> bblookup bbm1 l <*> bblookup bbm2 r
   bbs <- mapM getBlock matchedPairs
 
-  pairedEquivs <- mapM (uncurry proveEquiv) bbs
+  pairedEquivs <- mapM proveEquivBB bbs
   blocksEquiv <- mkAnd (map z3equiv pairedEquivs)
 
   Z3Type{..} <- fromEnv t_List_BasicBlock
@@ -434,6 +422,10 @@ proveEquivCFG cfg1@(A.BasicBlock n1 _ _:_) cfg2@(A.BasicBlock n2 _ _:_) = do
     bblookup m n = case M.lookup n m of
       Just b -> return b
       Nothing -> error $ "lookup of bb " ++ showName n ++ " failed"
+
+    proveEquivBB (bb1, bb2) = do
+      writeLocation ((Nothing, Just bb1, Nothing), (Nothing, Just bb2, Nothing))
+      proveEquiv bb1 bb2
 
     visit nbb1 nbb2 = do
       addMatch nbb1 nbb2
@@ -616,16 +608,18 @@ proveEquivMaybe _ _ n _ _ = proofFail $ "Maybe " ++ n ++ " not equivalent"
 -- (Named) Monomorphic ProveEquiv instances
 
 instance ProveEquiv (A.Named I.Instruction) where
-  proveEquiv = proveEquivNamed
-    c_NI_infix_Instruction
-    c_NI_Do_Instruction
-    "Instruction"
+  proveEquiv i1 i2 = do
+    writeLocation ( (Nothing, Nothing, Just $ Left i1)
+                  , (Nothing, Nothing, Just $ Left i2) )
+    proveEquivNamed c_NI_infix_Instruction c_NI_Do_Instruction
+      "Instruction" i1 i2
 
 instance ProveEquiv (A.Named A.Terminator) where
-  proveEquiv = proveEquivNamed
-    c_NT_infix_Terminator
-    c_NT_Do_Terminator
-    "Terminator"
+  proveEquiv t1 t2 = do
+    writeLocation ( (Nothing, Nothing, Just $ Right t1)
+                  , (Nothing, Nothing, Just $ Right t2) )
+    proveEquivNamed c_NT_infix_Terminator c_NT_Do_Terminator
+      "Terminator" t1 t2
 
 proveEquivNamed :: (ProveEquiv a)
                 => (ProofEnv -> Z3Constructor)

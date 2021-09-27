@@ -224,6 +224,17 @@ rmRpcInit f@A.Function{} = if new == f then Nothing else Just new
 
 rmRpcInit _ = error "rmRpcInit: Expecting A.Function"
 
+toMetaModule :: A.Module -> MetaModule
+toMetaModule ll = MetaModule n gs annos (Nothing, Nothing, Nothing)
+  where
+    n     = (BS.toString . fromShort . A.moduleSourceFileName) ll
+    gs    = (rmDbgCalls . replRpc . findGlobals) ll
+    gs'   = M.elems gs
+    gids  = mkGlobalsIds gs'
+    lbls  = findLocalAnnotations gids gs' ++ findGlobalAnnotations gids gs'
+    annos = M.mapMaybe (\n' -> M.lookup n' $ M.fromList lbls) gids
+
+
 ----------------------------------------------------------------------
 die :: [String] -> IO a
 die errs = do
@@ -319,14 +330,14 @@ main = do
                                 (Nothing, Just r') -> (Just r', snd)
                                 _ -> error "Duplicate _master_rpc_init()"
 
-  partitioned <- unlessJustFail leftOrRightEntry $
+  pEntry <- unlessJustFail leftOrRightEntry $
     "Error: no fxn " ++ entryFunction ++ " with _master_rpc_init() in partition"
 
-  refactored <- unlessJustFail (findFunction refLl entryName) $
+  rEntry <- unlessJustFail (findFunction refLl entryName) $
     "Error: no fxn " ++ entryFunction ++ " in refactored"
 
-  when displayFunctions $ do putStrLn (dumpGlobal partitioned)
-                             putStrLn (dumpGlobal refactored)
+  when displayFunctions $ do putStrLn (dumpGlobal pEntry)
+                             putStrLn (dumpGlobal rEntry)
                              exitSuccess
 
   -- Make sure the refactored file can be partitioned
@@ -335,45 +346,25 @@ main = do
     Just partition' -> do
       comment "Refactored LLVM can be partitioned by:"
       let toStr (A.Name b, s) = (C.unpack $ fromShort b) ++ " -> " ++ s
+          toStr (A.UnName _, _) = error "unreachable"
       mapM_ (comment . toStr) partition'
     _ -> die ["Error: refactored LLVM cannot be partitioned."]
 
   -- Construct intial proof state
-  -- TODO: During ProveEquiv operation, globals pass their Ids to their
-  -- instructions and increment them, so that the proveEquiv for a node X has
-  -- access to its own Id.
-  -- TODO: Globals and instructions check for an annotation associated with
-  -- their Id during ProveEquiv. Annotations must be equal.
-  let gc = S.fromList [S.fromList $ map A.name [partitioned, refactored]]
-      prepare = rmDbgCalls . replRpc . findGlobals
-      getAnnotations gids gs = findLocalAnnotations  gids gs
-                            ++ findGlobalAnnotations gids gs
-      lGlobals   = prepare leftLl
-      rGlobals   = prepare rightLl
-      refGlobals = prepare refLl
-      lGids      = mkGlobalsIds $ M.elems lGlobals
-      rGids      = mkGlobalsIds $ M.elems rGlobals
-      refGids    = mkGlobalsIds $ M.elems refGlobals
-      lAnnos     = getAnnotations lGids $ M.elems lGlobals
-      rAnnos     = getAnnotations rGids $ M.elems rGlobals
-      refAnnos'  = getAnnotations refGids $ M.elems refGlobals
-      stateG = initialState { partGlobals = (lGlobals, rGlobals)
-                            , partAnnos = ((lGids, lAnnos), (rGids, rAnnos))
-                            , refGlobals = refGlobals
-                            , refAnnos = (refGids, refAnnos')
-                            , toEnclave = startEnclave
-                            , toEnclave2 = startEnclave
-                            , congruence = gc
-                            }
-      environmentOptions = stdOpts +? opt "auto-config" False
-      -- ^ See https://hackage.haskell.org/package/z3-408.2/docs/Z3-Opts.html
+  let environmentOptions = stdOpts +? opt "auto-config" False
+      stateG = initialState
+        { partition  = (toMetaModule leftLl, toMetaModule rightLl)
+        , refactored = toMetaModule refLl
+        , toEnclave  = startEnclave
+        , congruence = S.singleton $ S.fromList [A.name pEntry, A.name rEntry]
+        }
 
   -- Begin proof
   (_, _, proofLog) <-
     runProofEnvironment environmentOptions stateG initialEnv $ do
       liftIO $ comment "Encoding constraints..."
       pushMatching
-      r <- proveEquiv partitioned refactored
+      r <- proveEquiv pEntry rEntry
       assert =<< mkNot (z3equiv r)
       logSMTLIB =<< solverToString
       liftIO $ comment "Solving..."
@@ -387,4 +378,3 @@ main = do
   case logFile of
     Just name -> writeFile name $ unlines $ map show proofLog
     _ -> return ()
-  comment "Done"
