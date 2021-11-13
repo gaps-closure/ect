@@ -11,6 +11,7 @@ of LLVM objects with the Z3 Theorem Prover
 
 module ProveEquiv where
 
+import Data.Maybe
 import Data.ByteString.Short ( ShortByteString, fromShort, toShort )
 import Data.Word ( Word16, Word32, Word64 )
 import Data.List ( intercalate )
@@ -329,21 +330,30 @@ proveCongruence lName rName = do
   else do
     ProofState{..} <- ProofM $ lift get
     case M.lookup rName (globals refactored) of
-      Just rGlobal -> case M.lookup lName (globals $ toEnclave partition) of
-        Just lGlobal -> recurse lGlobal rGlobal
-        Nothing -> do
-          let next = if toEnclave partition == fst partition then snd else fst
-          case M.lookup lName (globals $ next partition) of
-            Just lGlobal -> do
-              ProofM $ lift $ put $ ProofState { toEnclave = next, .. }
-              liftIO $ putStrLn ";;; SWITCH ENCLAVE"
-              recurse lGlobal rGlobal
-              liftIO $ putStrLn ";;; SWITCH ENCLAVE"
-              ProofM $ lift $ put $ ProofState { toEnclave = toEnclave, .. }
-            Nothing -> err
+      Just rGlobal -> do
+        mm <- getMetaModule
+        case M.lookup lName (globals mm) of
+          Just lGlobal -> recurse lGlobal rGlobal
+          Nothing -> do
+            (nextEnclave, lGlobal) <- searchPartition lName
+            ProofM $ lift $ put $ ProofState { curEnclave = nextEnclave, .. }
+            liftIO $ putStrLn ";;; SWITCH ENCLAVE"
+            recurse lGlobal rGlobal
+            liftIO $ putStrLn ";;; SWITCH ENCLAVE"
+            ProofM $ lift $ put $ ProofState { curEnclave = curEnclave, .. }
       Nothing -> err
   where
     err = error "global definition not found in NameReferenceMap"
+    searchPartition n = do
+      ProofState{..} <- ProofM $ lift get
+      let found = catMaybes $ map (\(mmn, mm) -> searchMM n mmn mm) $ M.toList partition
+      case found of
+        [x] -> return x
+        _ -> error $ "ambiguous / non-existant rpc call to definition: " ++ show n
+    searchMM n mmn mm = 
+      case M.lookup n (globals mm) of
+        Nothing -> Nothing
+        Just g -> Just (mmn, g)
     recurse lg rg = do
       pushMatching
       locs <- getMetaModuleField whereAmI

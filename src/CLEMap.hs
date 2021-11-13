@@ -134,6 +134,14 @@ tagsMatch ltags rtags = firstError $ map tagError matches
       then Nothing
       else Just $ "Tag in partitioned CLEmaps is inconsistent: " ++ label l
 
+tagsMatchSet :: [S.Set CLE] -> Maybe Error
+tagsMatchSet [] = Nothing
+tagsMatchSet [_] = Nothing
+tagsMatchSet (ts1:tss@(ts2:_)) = 
+  case tagsMatch ts1 ts2 of
+    Nothing -> tagsMatchSet tss
+    e -> e
+
 getTags :: S.Set CLE -> S.Set CLE
 getTags cleset = S.filter hasGapstag cleset
   where
@@ -145,23 +153,24 @@ getTags cleset = S.filter hasGapstag cleset
           Nothing -> False
           Just _  -> True
 
-clemapsAgree :: CLEMap -> CLEMap -> CLEMap -> Maybe Error
-clemapsAgree left right ref = firstError all_errs
+clemapsAgree :: [CLEMap] -> CLEMap -> Maybe Error
+clemapsAgree parts ref = firstError all_errs
   where
-    all_errs = [isSubset, sameTags, tagsMatch ltags rtags]
-    lset = S.fromList left
-    rset = S.fromList right
+    all_errs = [isSubset, sameTags, tagsMatchSet part_tags]
+    part_sets = map S.fromList parts
     refset = S.fromList ref
-    ltags = getTags lset
-    rtags = getTags rset
+    part_tags = map getTags part_sets
     isSubset =
-      if refset `S.isSubsetOf` (S.union lset rset)
+      if refset `S.isSubsetOf` (S.unions part_sets)
       then Nothing
       else Just $ "Refactored CLEmap is not a subset of the union of partitioned CLEmaps"
     sameTags =
-      if (S.map label ltags) == (S.map label rtags)
+      if allSame (map (S.map label) part_tags)
       then Nothing
       else Just $ "Partitioned CLEmaps do not use the same set of tag labels"
+    allSame [] = True
+    allSame [_] = True
+    allSame (x1:xs@(x2:_)) = x1 == x2 && allSame xs
 
 cleOps :: [String]
 cleOps = ["allow", "deny", "redact"]

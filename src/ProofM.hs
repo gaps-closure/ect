@@ -129,9 +129,9 @@ data MetaModule = MetaModule
 
 data ProofState = ProofState
   { currentPID     :: !PID                                      -- ^ ID for the next proposition
-  , partition      :: !(MetaModule, MetaModule)
+  , partition      :: !(M.Map String MetaModule)
   , refactored     :: !MetaModule
-  , toEnclave      :: !((MetaModule, MetaModule) -> MetaModule)
+  , curEnclave     :: !String
   , matching       :: ![MatchState]                             -- ^ Forward and inverse name matching stack with z3 functions
   , congruence     :: !(S.Set (S.Set A.Name))                   -- ^ disjoint-set of equiv names
   , equivFunctions :: !EquivFunctionMap                         -- ^ For each Z3 sort, the equivalence function
@@ -143,9 +143,9 @@ emptyMM = MetaModule "" M.empty M.empty (Nothing, Nothing, Nothing)
 -- | Initial proof state: PID is 1; empty maps and sets
 initialState :: ProofState
 initialState = ProofState { currentPID = PID 1
-                          , partition = (emptyMM, emptyMM)
+                          , partition = M.empty
                           , refactored = emptyMM
-                          , toEnclave = fst
+                          , curEnclave = ""
                           , matching = []
                           , congruence = S.empty
                           , equivFunctions = M.empty
@@ -202,18 +202,24 @@ runProofEnvironment options initialSt initializeEnv actions = do
                           Nothing -> Nothing
   return (result, st, l)
 
+getMetaModule :: ProofM MetaModule
+getMetaModule = do
+  ProofState{..} <- ProofM $ lift get
+  case M.lookup curEnclave partition of
+    Nothing -> error $ "Lookup of MetaModule " ++ curEnclave ++ ", which doesn't exist"
+    Just mm -> return mm
+
 getMetaModuleField :: (MetaModule -> a) -> ProofM (a, a)
 getMetaModuleField r = do
   ProofState{..} <- ProofM $ lift get
-  return (r (toEnclave partition), r refactored)
+  mm <- getMetaModule
+  return $ (r mm, r refactored)
 
 putMetaModuleField :: (MetaModule -> a -> MetaModule) -> (a, a) -> ProofM ()
 putMetaModuleField setter (a, b) = do
   ProofState{..} <- ProofM $ lift get
-  let new_partition = if toEnclave partition == fst partition
-                      then (setter (fst partition) a, snd partition)
-                      else (fst partition, setter (snd partition) a)
-  ProofM $ lift $ put $ ProofState { partition = new_partition
+  mm <- getMetaModule
+  ProofM $ lift $ put $ ProofState { partition = M.insert curEnclave (setter mm a) partition 
                                    , refactored = setter refactored b
                                    , .. }
 

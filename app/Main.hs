@@ -224,10 +224,13 @@ rmRpcInit f@A.Function{} = if new == f then Nothing else Just new
 
 rmRpcInit _ = error "rmRpcInit: Expecting A.Function"
 
+moduleFname :: A.Module -> String
+moduleFname = BS.toString . fromShort . A.moduleSourceFileName
+
 toMetaModule :: A.Module -> MetaModule
 toMetaModule ll = MetaModule n gs annos (Nothing, Nothing, Nothing)
   where
-    n     = (BS.toString . fromShort . A.moduleSourceFileName) ll
+    n     = moduleFname ll
     gs    = (rmDbgCalls . replRpc . findGlobals) ll
     gs'   = M.elems gs
     gids  = mkGlobalsIds gs'
@@ -280,8 +283,8 @@ optionDescriptions =
 
 usageMessage :: IO ()
 usageMessage = do prg <- getProgName
-                  let fs = "orange.ll purple.ll ref.ll"
-                      fs' = fs ++ " orange.json purple.json ref.json"
+                  let fs = "(orange.ll | purple.ll | ..)+ ref.ll"
+                      fs' = fs ++ " (orange.json | purple.json | ..)+ ref.json"
                       header = "Usage: " ++ prg ++ " [options] " ++ fs'
                   hPutStr stderr (usageInfo header optionDescriptions)
 
@@ -291,53 +294,53 @@ main = do
   comment "Parsing arguments..."
   args <- getArgs
   let (actions, filenames, errors) = getOpt RequireOrder optionDescriptions args
+      n_enclaves = ((length filenames) `div` 2) - 1
   options <- foldl (>>=) (return defaultOptions) actions
   unless (null errors) $ die errors
   when (null filenames) $ die ["Error: no source files"]
-  unless (length filenames == 6) $ die ["Error: expecting six filenames"]
+  unless (even $ length filenames) $ die ["Error: expecting an even number of filenames"]
   let Options {..} = options
 
   -- Parse and validate CLE maps
   comment "Valdating CLE maps..."
-  cmaps@[leftCle, rightCle, refCle] <- mapM readCLE $ drop 3 filenames
+  let cmap_files = drop (n_enclaves + 1) filenames
+  cmaps <- mapM readCLE cmap_files
   let checkCmap (cmap, name) = case clemapValidate cmap of
         Right cs -> do
           comment $ name ++ " is a well-formed CLE map."
           return cs
         Left e  -> die ["Error: " ++ name ++ ": " ++ e ++ "."]
-      checkAgreement l r rf = case clemapsAgree l r rf of
+      checkAgreement parts rf = case clemapsAgree parts rf of
         Nothing -> do
           comment "Refactored CLE map is a subset of the union of partitioned CLE maps."
           comment "Tags in the partitioned CLE maps are consistent."
         Just e -> die ["Error: " ++ e ++ "."]
-  cs <- mapM checkCmap $ zip cmaps $ drop 3 filenames
+  cs <- mapM checkCmap $ zip cmaps cmap_files
   let colorSet = nub $ concat cs
-  checkAgreement leftCle rightCle refCle
+      (partCles, refCle) = (init cmaps, last cmaps)
+  checkAgreement partCles refCle
 
   -- Parse and valdiate LLVM files
   comment "Parsing LLVM files..."
-  [leftLl, rightLl, refLl] <- mapM readLL $ take 3 filenames
-  let entryName = llvmName entryFunction
-      leftEntry = findFunction leftLl entryName
-      rightEntry = findFunction rightLl entryName
-      (leftOrRightEntry, startEnclave) = case (leftEntry, rightEntry) of
-        (Nothing, Nothing) -> (Nothing, fst)
-        (Just l, Nothing)  -> (rmRpcInit l, fst)
-        (Nothing, Just r)  -> (rmRpcInit r, snd)
-        (Just l, Just r)   -> case (rmRpcInit l, rmRpcInit r) of
-                                (Nothing, Nothing) -> (Nothing, fst)
-                                (Just l', Nothing) -> (Just l', fst)
-                                (Nothing, Just r') -> (Just r', snd)
-                                _ -> error "Duplicate _master_rpc_init()"
+  lls <- mapM readLL $ take (n_enclaves + 1) filenames
+  let (partLls, refLl) = (init lls, last lls)
+      entryName = llvmName entryFunction
+      entryCandidates = [(n, g) | 
+        (n, Just g) <- map (\ll -> (moduleFname ll, findFunction ll entryName)) partLls]
+      modulesWithRpcInit = [(n, g) | 
+        (n, Just g) <- map (\(n, g) -> (n, rmRpcInit g)) entryCandidates]
 
-  pEntry <- unlessJustFail leftOrRightEntry $
-    "Error: no fxn " ++ entryFunction ++ " with _master_rpc_init() in partition"
+  let init_err = "Missing or duplicate fxn " 
+              ++ entryFunction
+              ++ " containing _master_rpc_init() in partition"
+  unless (length modulesWithRpcInit == 1) $ die [init_err]
+  let (initEnclave, pEntry) = head modulesWithRpcInit
 
   rEntry <- unlessJustFail (findFunction refLl entryName) $
     "Error: no fxn " ++ entryFunction ++ " in refactored"
 
-  when displayFunctions $ do putStrLn (dumpGlobal pEntry)
-                             putStrLn (dumpGlobal rEntry)
+  when displayFunctions $ do putStrLn $ dumpGlobal pEntry
+                             putStrLn $ dumpGlobal rEntry
                              exitSuccess
 
   -- Make sure the refactored file can be partitioned
@@ -352,10 +355,11 @@ main = do
 
   -- Construct intial proof state
   let environmentOptions = stdOpts +? opt "auto-config" False
+      partMms = map toMetaModule partLls
       stateG = initialState
-        { partition  = (toMetaModule leftLl, toMetaModule rightLl)
+        { partition  = M.fromList $ zip (map name partMms) partMms
         , refactored = toMetaModule refLl
-        , toEnclave  = startEnclave
+        , curEnclave = initEnclave
         , congruence = S.singleton $ S.fromList [A.name pEntry, A.name rEntry]
         }
 
