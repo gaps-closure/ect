@@ -27,8 +27,9 @@ import Data.Maybe
 import qualified Data.ByteString.UTF8 as BS
 import qualified Data.ByteString.Lazy.UTF8 as BSL
 import Data.ByteString.Short ( toShort, fromShort )
-import Data.List ( intercalate, isPrefixOf, nub )
+import Data.List ( intercalate, isPrefixOf, nub, findIndex )
 import qualified Data.ByteString.Char8 as C
+import qualified Data.Char as CH
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
@@ -45,7 +46,9 @@ import qualified LLVM.AST as A hiding ( metadata
                                       , alignment
                                       , returnAttributes
                                       , functionAttributes
-                                      , type' )
+                                      , type'
+                                      , GetElementPtr
+                                      , BitCast )
 import qualified LLVM.AST.Global as A
 import qualified LLVM.AST.Constant as A hiding ( type' )
 
@@ -54,7 +57,7 @@ import Z3.Monad
 import ProofM
 import InitialEnv
 import CLEMap
-import Partition
+import qualified Partition as PART
 
 import ProveEquiv
 
@@ -183,25 +186,19 @@ replRpc = M.map replRpcFunc
                     _ -> error "A.GlobalReference has unexpected type"
     replRpcRef r = r
 
-rmDbgCalls :: NameReferenceMap -> NameReferenceMap
-rmDbgCalls = M.map rmDbgCalls'
+rmDbgCalls :: A.Global -> A.Global
+rmDbgCalls f@A.Function{} = f { A.basicBlocks = map 
+  (\(A.BasicBlock n i t) -> A.BasicBlock n (filter (not . isDbgCall) i) t) 
+  (A.basicBlocks f) }
   where
     dbg = [llvmName "llvm.var.annotation", llvmName "printf"]
-
-    rmDbgCalls' f@A.Function{} = f { A.basicBlocks = map
-      (\(A.BasicBlock n i t) -> A.BasicBlock n (filter (not . isDbgCall) i) t)
-      (A.basicBlocks f)
-    }
-    rmDbgCalls' g = g
-
     isDbgCall (_ A.:= a) = isDbgCall' a
     isDbgCall (A.Do a)   = isDbgCall' a
-
     isDbgCall' (A.Call _ _ _ ref _ _ _) = isDbgRef ref
     isDbgCall' _ = False
-
     isDbgRef (Right (A.ConstantOperand (A.GlobalReference _ n))) = n `elem` dbg
     isDbgRef _ = False
+rmDbgCalls g = g
 
 rmRpcInit :: A.Global -> Maybe A.Global
 rmRpcInit f@A.Function{} = if new == f then Nothing else Just new
@@ -224,18 +221,92 @@ rmRpcInit f@A.Function{} = if new == f then Nothing else Just new
 
 rmRpcInit _ = error "rmRpcInit: Expecting A.Function"
 
+getGlobalArr :: A.Name -> NameReferenceMap -> [A.Constant]
+getGlobalArr n gs = case filter (\(n', _) -> n == n') (M.toList gs) of
+  [(_, A.GlobalVariable _ _ _ _ _ _ _ _ _ (Just (A.Array _ ms)) _ _ _ _)] -> ms
+  _ -> error $ "Global name not found: " ++ show n
+
+globalArrToString :: A.Name -> NameReferenceMap -> String
+globalArrToString n gs = init $ map toChar $ getGlobalArr n gs
+  where
+    toChar (A.Int 8 i) = CH.chr $ fromIntegral i
+    toChar _ = error "globalArrToString: expected Int constant"
+
+toName :: String -> A.Name
+toName = A.Name . toShort . BS.fromString
+
+findLocalIdWith :: ((A.Named A.Instruction) -> Bool)
+                -> A.Global
+                -> SourceLocation
+findLocalIdWith f g@A.Function{..} = case found of
+  ((bb, i):_) -> (Just (A.name g), Just bb, Just i)
+  [] -> error $ "findLocalIdWith: No instruction satisfies predicate"
+  where
+    found = mapMaybe findInBb basicBlocks
+    findInBb (A.BasicBlock n is _) = case findIndex f is of
+      Just i -> Just (n, i)
+      _ -> Nothing
+findLocalIdWith _ _ = error "unreachable"
+
+findLocalIdByName :: A.Name -> A.Global -> SourceLocation
+findLocalIdByName n = findLocalIdWith sameName
+  where
+    sameName (n' A.:= _) = n' == n
+    sameName _ = False
+
+findCallInstrs :: A.Global -> [(A.Name, [A.Operand])]
+findCallInstrs A.Function{..} = concatMap bbCallInstrs basicBlocks
+  where
+    bbCallInstrs (A.BasicBlock _ is _) = concatMap isInv is
+    isInv (_ A.:= instr) = isInv' instr
+    isInv (A.Do instr) = isInv' instr
+    isInv' (A.Call _ _ _ (Right (A.ConstantOperand g)) a _ _) = isInv'' g a
+    isInv' _ = []
+    isInv'' (A.GlobalReference _ n) as = [(n, map fst as)]
+    isInv'' _ _ = []
+findCallInstrs _ = []
+
+fxnLocalAnnos :: NameReferenceMap -> A.Global -> [(SourceLocation, String)]
+fxnLocalAnnos gs f@(A.Function{..}) = concatMap (uncurry p) fxnCalls
+  where
+    fxnCalls = findCallInstrs f
+    p n [(A.LocalReference _ u), (A.ConstantOperand g), _, _] = p' n u g
+    p _ _ = []
+    p' lln u (A.GetElementPtr _ (A.GlobalReference _ n) _)
+      | lln == toName s = [(findLocalIdByName u (rmDbgCalls f), globalArrToString n gs)]
+      | otherwise = []
+    p' _ _ _ = []
+    s = "llvm.var.annotation"
+fxnLocalAnnos _ _ = []
+
+findLocalAnnotations :: NameReferenceMap -> LabelMap
+findLocalAnnotations gs = M.fromList $ concatMap (fxnLocalAnnos gs) (M.elems gs)
+
+findGlobalAnnotations :: NameReferenceMap -> LabelMap
+findGlobalAnnotations gs = M.fromList $ map parseAnn $ getGlobalArr n gs
+  where
+    parseAnn (A.Struct _ _ [(A.BitCast a _), (A.GetElementPtr _ b _), _, _]) =
+      parseAnn' a b
+    parseAnn _ = die2
+
+    parseAnn' (A.GlobalReference _ tgtName) (A.GlobalReference _ lblName) =
+      ((Just tgtName, Nothing, Nothing), globalArrToString lblName gs)
+    parseAnn' _ _ = die2
+
+    die2 = error $ "unexpected structure in @" ++ s
+    s = "llvm.global.annotations"
+    n = toName s
+
 moduleFname :: A.Module -> String
 moduleFname = BS.toString . fromShort . A.moduleSourceFileName
 
 toMetaModule :: A.Module -> MetaModule
-toMetaModule ll = MetaModule n gs annos (Nothing, Nothing, Nothing)
+toMetaModule ll = MetaModule n gs' annos (Nothing, Nothing, Nothing)
   where
     n     = moduleFname ll
-    gs    = (rmDbgCalls . replRpc . findGlobals) ll
-    gs'   = M.elems gs
-    gids  = mkGlobalsIds gs'
-    lbls  = findLocalAnnotations gids gs' ++ findGlobalAnnotations gids gs'
-    annos = M.mapMaybe (\n' -> M.lookup n' $ M.fromList lbls) gids
+    gs    = (replRpc . findGlobals) ll
+    gs'   = M.map rmDbgCalls gs
+    annos = M.union (findLocalAnnotations gs) (findGlobalAnnotations gs)
 
 
 ----------------------------------------------------------------------
@@ -344,14 +415,14 @@ main = do
                              exitSuccess
 
   -- Make sure the refactored file can be partitioned
-  partition <- runProvePartitionable refLl refCle colorSet
-  case partition of
-    Just partition' -> do
-      comment "Refactored LLVM can be partitioned by:"
-      let toStr (A.Name b, s) = (C.unpack $ fromShort b) ++ " -> " ++ s
-          toStr (A.UnName _, _) = error "unreachable"
-      mapM_ (comment . toStr) partition'
-    _ -> die ["Error: refactored LLVM cannot be partitioned."]
+  -- partition <- PART.runProvePartitionable refLl refCle colorSet
+  -- case partition of
+  --   Just partition' -> do
+  --     comment "Refactored LLVM can be partitioned by:"
+  --     let toStr (A.Name b, s) = (C.unpack $ fromShort b) ++ " -> " ++ s
+  --         toStr (A.UnName _, _) = error "unreachable"
+  --     mapM_ (comment . toStr) partition'
+  --   _ -> die ["Error: refactored LLVM cannot be partitioned."]
 
   -- Construct intial proof state
   let environmentOptions = stdOpts +? opt "auto-config" False

@@ -115,22 +115,26 @@ type LabelPair = (Maybe ShortByteString, Maybe ShortByteString)
 
 writeLocation :: (SourceLocation, SourceLocation) -> ProofM ()
 writeLocation ls = do
-  ((gP, bbP, _), (gR, bbR, _)) <- getMetaModuleField whereAmI
+  ((gP, bbP, iP), (gR, bbR, iR)) <- getMetaModuleField whereAmI
   let newloc = case ls of
         ((g1@(Just _), _, _), (g2@(Just _), _, _))   ->
           ((g1, Nothing, Nothing), (g2, Nothing, Nothing))
         ((_, bb1@(Just _), _), (_, bb2@(Just _), _)) ->
           ((gP, bb1, Nothing), (gR, bb2, Nothing))
-        ((_, _, i1@(Just _)), (_, _, i2@(Just _)))   ->
-          ((gP, bbP, i1), (gR, bbR, i2))
-        _ -> error "writeLocation: Unreachable"
+        _ -> case (iP, iR) of
+          (Nothing, Nothing) -> 
+            ((gP, bbP, Just 0), (gR, bbR, Just 0))
+          (Just xP, Just xR) -> 
+            ((gP, bbP, Just $ xP + 1), (gR, bbR, Just $ xR + 1))
+          _ -> error "writeLocation: source locations out of sync"
   putMetaModuleField (\mm a -> mm { whereAmI = a }) newloc
 
-getGlobalLabels :: A.Global -> A.Global -> ProofM LabelPair
-getGlobalLabels lG rG = do
+getLabels :: ProofM LabelPair
+getLabels = do
   (pAnnos, rAnnos) <- getMetaModuleField annotations
-  let pLabel = M.lookup (A.name lG) pAnnos
-      rLabel = M.lookup (A.name rG) rAnnos
+  (pLoc, rLoc) <- getMetaModuleField whereAmI
+  let pLabel = M.lookup pLoc pAnnos
+      rLabel = M.lookup rLoc rAnnos
       toSbs  = toShort . C.pack
   liftIO $ putStrLn $
     ";;; ProveEquiv CLE LABEL (" ++ show pLabel ++ ") (" ++ show rLabel ++ ")"
@@ -145,7 +149,8 @@ instance ProveEquiv A.Global where
   proveEquiv v1@A.GlobalVariable{} v2@A.GlobalVariable{} = do
     liftIO $ putStrLn $
       ";;; ProveEquiv " ++ showName (A.name v1) ++ " " ++ showName (A.name v2)
-    writeLocation ((Just v1, Nothing, Nothing), (Just v2, Nothing, Nothing))
+    writeLocation ((Just (A.name v1), Nothing, Nothing), (Just (A.name v2), Nothing, Nothing))
+    _ <- (uncurry proveEquiv) =<< getLabels
     fields <- sequence [ assertEquiv t_Name
                        , proveField A.linkage
                        , proveField A.visibility
@@ -161,7 +166,6 @@ instance ProveEquiv A.Global where
                        , proveField A.alignment
                        , assertEquivDefault True
                        ]
-    _ <- (uncurry proveEquiv) =<< getGlobalLabels v1 v2
     proveEquivGeneral c_G_GlobalVariable fields $
       "global variables " ++ showName (A.name v1) ++ " and " ++
       showName (A.name v2) ++ " equivalent"
@@ -170,7 +174,8 @@ instance ProveEquiv A.Global where
   proveEquiv a1@A.GlobalAlias{} a2@A.GlobalAlias{} = do
     liftIO $ putStrLn $
       ";;; ProveEquiv " ++ showName (A.name a1) ++ " " ++ showName (A.name a2)
-    writeLocation ((Just a1, Nothing, Nothing), (Just a2, Nothing, Nothing))
+    writeLocation ((Just (A.name a1), Nothing, Nothing), (Just (A.name a2), Nothing, Nothing))
+    _ <- (uncurry proveEquiv) =<< getLabels
     fields <- sequence [ assertEquiv t_Name
                        , proveField A.linkage
                        , proveField A.visibility
@@ -181,7 +186,6 @@ instance ProveEquiv A.Global where
                        , proveField A.addrSpace
                        , proveField A.aliasee
                        ]
-    _ <- (uncurry proveEquiv) =<< getGlobalLabels a1 a2
     proveEquivGeneral c_G_GlobalAlias fields $
       "global aliases " ++ showName (A.name a1) ++ " and " ++
       showName (A.name a2) ++ " equivalent"
@@ -190,7 +194,8 @@ instance ProveEquiv A.Global where
   proveEquiv f1@A.Function{} f2@A.Function{} = do
     liftIO $ putStrLn $
       ";;; ProveEquiv " ++ showName (A.name f1) ++ " " ++ showName (A.name f2)
-    writeLocation ((Just f1, Nothing, Nothing), (Just f2, Nothing, Nothing))
+    writeLocation ((Just (A.name f1), Nothing, Nothing), (Just (A.name f2), Nothing, Nothing))
+    _ <- (uncurry proveEquiv) =<< getLabels
     fields <- sequence [ proveField A.linkage
                        , proveField A.visibility
                        , proveField A.dllStorageClass
@@ -209,7 +214,6 @@ instance ProveEquiv A.Global where
                        , proveField A.personalityFunction
                        , assertEquivDefault True
                        ]
-    _ <- (uncurry proveEquiv) =<< getGlobalLabels f1 f2
     proveEquivGeneral c_G_Function fields $
       "functions " ++ showName (A.name f1) ++ " and " ++
       showName (A.name f2) ++ " equivalent"
@@ -433,8 +437,8 @@ proveEquivCFG cfg1@(A.BasicBlock n1 _ _:_) cfg2@(A.BasicBlock n2 _ _:_) = do
       Just b -> return b
       Nothing -> error $ "lookup of bb " ++ showName n ++ " failed"
 
-    proveEquivBB (bb1, bb2) = do
-      writeLocation ((Nothing, Just bb1, Nothing), (Nothing, Just bb2, Nothing))
+    proveEquivBB (bb1@(A.BasicBlock bn1 _ _), bb2@(A.BasicBlock bn2 _ _)) = do
+      writeLocation ((Nothing, Just bn1, Nothing), (Nothing, Just bn2, Nothing))
       proveEquiv bb1 bb2
 
     visit nbb1 nbb2 = do
@@ -619,15 +623,17 @@ proveEquivMaybe _ _ n _ _ = proofFail $ "Maybe " ++ n ++ " not equivalent"
 
 instance ProveEquiv (A.Named I.Instruction) where
   proveEquiv i1 i2 = do
-    writeLocation ( (Nothing, Nothing, Just $ Left i1)
-                  , (Nothing, Nothing, Just $ Left i2) )
+    writeLocation ( (Nothing, Nothing, Nothing)
+                  , (Nothing, Nothing, Nothing) )
+    _ <- (uncurry proveEquiv) =<< getLabels
     proveEquivNamed c_NI_infix_Instruction c_NI_Do_Instruction
       "Instruction" i1 i2
 
 instance ProveEquiv (A.Named A.Terminator) where
   proveEquiv t1 t2 = do
-    writeLocation ( (Nothing, Nothing, Just $ Right t1)
-                  , (Nothing, Nothing, Just $ Right t2) )
+    writeLocation ( (Nothing, Nothing, Nothing)
+                  , (Nothing, Nothing, Nothing) )
+    _ <- (uncurry proveEquiv) =<< getLabels
     proveEquivNamed c_NT_infix_Terminator c_NT_Do_Terminator
       "Terminator" t1 t2
 
@@ -814,8 +820,8 @@ proveEquivList :: (ProveEquiv a)
                -> [a]
                -> ProofM Equiv
 proveEquivList c_Cons c_Nil n (a:as) (b:bs) = do
-  tail_equiv <- proveEquivList c_Cons c_Nil n as bs
   head_equiv <- proveEquiv a b
+  tail_equiv <- proveEquivList c_Cons c_Nil n as bs
   proveEquivGeneral c_Cons [head_equiv, tail_equiv] $
     "Cons " ++ n ++ " equivalent"
 

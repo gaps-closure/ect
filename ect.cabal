@@ -43,8 +43,10 @@ library
     , bytestring
     , containers
     , llvm-hs >=9.0.1
+    , llvm-hs-pretty >=0.9.0.0
     , llvm-hs-pure >=9.0.0
     , template-haskell
+    , text
     , transformers
     , utf8-string
     , z3 >=408.2
@@ -65,7 +67,9 @@ executable ect
     , containers
     , ect
     , llvm-hs >=9.0.1
+    , llvm-hs-pretty >=0.9.0.0
     , llvm-hs-pure >=9.0.0
+    , text
     , transformers
     , utf8-string
     , z3 >=408.2
@@ -86,7 +90,9 @@ executable printTypes
     , containers
     , ect
     , llvm-hs >=9.0.1
+    , llvm-hs-pretty >=0.9.0.0
     , llvm-hs-pure >=9.0.0
+    , text
     , transformers
     , utf8-string
     , z3 >=408.2

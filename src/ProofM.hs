@@ -20,9 +20,10 @@ import Control.Monad.Trans.Reader ( ReaderT, runReaderT, withReaderT, asks )
 import Control.Monad.Trans.Class ( lift )
 import Control.Monad.Trans.Maybe
 
-import Data.List ( intercalate )
+import Data.List ( intercalate, find )
 import Data.ByteString.UTF8 ( toString )
 import Data.ByteString.Short ( fromShort )
+import Data.Text.Lazy ( unpack )
 
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
@@ -30,6 +31,8 @@ import qualified Data.Set as S
 import qualified LLVM.AST as A
 import qualified LLVM.AST.Global as A
 --import qualified LLVM.AST.CallingConvention as A
+
+import LLVM.Pretty
 
 import Z3.Monad
 
@@ -111,11 +114,11 @@ type MatchState = (Z3NameMap, Z3NameMap, VisitSet)
 
 -- | A mapping from names to the top level definitions they refer to
 type NameReferenceMap = M.Map A.Name A.Global
-type SourceLocation = ( Maybe A.Global
-                      , Maybe A.BasicBlock
-                      , Maybe (Either (A.Named A.Instruction)
-                                      (A.Named A.Terminator) )
+type SourceLocation = ( Maybe A.Name
+                      , Maybe A.Name
+                      , Maybe Int
                       )
+type LabelMap = M.Map SourceLocation String
 
 -- | A mapping from Z3 sorts to equivalence functions
 type EquivFunctionMap = M.Map Sort FuncDecl
@@ -123,7 +126,7 @@ type EquivFunctionMap = M.Map Sort FuncDecl
 data MetaModule = MetaModule
   { name        :: String
   , globals     :: NameReferenceMap
-  , annotations :: M.Map A.Name String
+  , annotations :: LabelMap
   , whereAmI    :: SourceLocation
   } deriving Eq
 
@@ -239,7 +242,8 @@ proofFail s = do
   logString $ " **** proofFail: " ++ s
   fnames <- getMetaModuleField name
   locs   <- getMetaModuleField whereAmI
-  liftIO $ putStrLn $ provenance s fnames locs
+  gss    <- getMetaModuleField globals
+  liftIO $ putStrLn $ provenance gss s fnames locs
   ProofM $ MaybeT $ return Nothing
 
 -- | Return a field from the proof environment (ProofEnv)
@@ -285,23 +289,36 @@ logInference :: [PID] -> Prop -> String -> ProofM ()
 logInference infPremises infConclusion infComment =
   ProofM $ lift $ lift $ lift $ tell [LogInference{..}]
 
-provenance :: String -> (String, String) -> (SourceLocation, SourceLocation) -> String
-provenance err fnames (l1, l2) =
+provenance :: (NameReferenceMap, NameReferenceMap) 
+           -> String 
+           -> (String, String) 
+           -> (SourceLocation, SourceLocation) 
+           -> String
+provenance (gs1, gs2) err fnames (l1, l2) =
   "\nproofFail: " ++ err ++ " \n\
   \    in " ++ fst fnames ++ "\n\
   \        " ++ partLoc ++ "  \n\
   \    in " ++ snd fnames ++ "\n\
   \        " ++ refLoc
   where
-    [partLoc, refLoc] = map mkLoc [l1, l2]
-    mkLoc (g, bb, i) = case g of
-      Just g' -> "> in " ++ showG g' ++ case bb of
-        Just bb' -> "\n        > in " ++ showBB bb'  ++ case i of
-          Just i' -> "\n        > at " ++ showI i'
-          Nothing -> ""
-        Nothing -> ""
-      Nothing -> ""
-    showG g = "definition @" ++ showName (A.name g)
-    showBB (A.BasicBlock n _ _) = "basic block %" ++ showName n
-    showI (Left i) = "instruction " ++ showNamed show i
-    showI (Right t) = "terminator " ++ showNamed show t
+    [partLoc, refLoc] = map strLoc [(gs1, l1), (gs2, l2)]
+    strLoc (gs, (Just g, Just bb, Just i)) = 
+      "> in " ++ showG g ++ 
+      "\n        > in " ++ showBB bb ++ "\n        > in " ++
+      (showI $ if i < length is then Left (is !! i) else Right t)
+      where 
+        (A.BasicBlock _ is t) = case find match blocks of
+          Nothing -> e
+          Just b -> b
+        blocks = case M.lookup g gs of
+          Just A.Function{..} -> basicBlocks
+          _ -> e
+        match (A.BasicBlock n _ _) = n == bb
+    strLoc (_, (Just g, _, _)) = "> in " ++ showG g
+    strLoc _ = e
+
+    showG g = "definition @" ++ showName g
+    showBB bbn = "basic block %" ++ showName bbn
+    showI (Left i) = "'" ++ showNamed (unpack . ppll) i ++ "'"
+    showI (Right t) = "'" ++ showNamed (unpack . ppll) t ++ "'"
+    e = error "provenance: invalid SourceLocation"

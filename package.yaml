@@ -31,9 +31,11 @@ library:
   dependencies:
   - template-haskell
   - llvm-hs-pure >= 9.0.0
+  - llvm-hs-pretty >= 0.9.0.0
   - llvm-hs >= 9.0.1
   - z3 >= 408.2
   - transformers
+  - text
   - containers
   - bytestring
   - utf8-string
@@ -53,8 +55,10 @@ executables:
     dependencies:
     - z3 >= 408.2
     - llvm-hs-pure >= 9.0.0
+    - llvm-hs-pretty >= 0.9.0.0
     - llvm-hs >= 9.0.1
     - transformers
+    - text
     - bytestring
     - utf8-string
     - containers
@@ -72,7 +76,9 @@ executables:
     dependencies:
     - z3 >= 408.2
     - llvm-hs-pure >= 9.0.0
+    - llvm-hs-pretty >= 0.9.0.0
     - llvm-hs >= 9.0.1
+    - text
     - bytestring
     - utf8-string
     - containers
