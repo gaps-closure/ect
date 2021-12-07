@@ -21,35 +21,28 @@ if %5 has cle-type level "orange")
 
 {
     "get_a.a": {                      <- top-level global variable definition
-        "cle-type": {                 <- cle-var-type
-            "level": "orange",        <- level of this global variable
-            "var-cdfs": [             <- var CDFs, where a var CDF is just a level
-                <color>,
-                <color>
-            ]
+        "cle-type": {
+            "enclave": "orange",
+            "label-assignment": "ORANGE"
         },
+        "parameters": [],             <- variables have no parameters
         "blocks": {}                  <- global and local variables have no basic blocks
     },
 
     "ewma_main": {                    <- global function definition
-        "cle-type": {                 <- cle-fun-type
-            "level": "purple",        <- level of this function
-            "fun-cdfs": [             <- CDFs for this function definition
-                {
-                    "level": <color>, <- level for this CDF
-                    "taints": []      <- list of CLE types
-                },
-                {
-                    "level": <color>, <- level for this CDF
-                    "taints": []      <- list of CLE types
-                }
-            ]
+        "cle-type": {
+            "enclave": "purple",
+            "label-assignment": "XDLINKAGE_GET_A"
         },
+        "parameters": [               <- capture the type information of fxn params
+            {}, <- cle-type for paramter 1
+            {}  <- cle-type for parameter 2
+        ],
         "blocks": { <- function definitions have basic blocks
             "0": [  <- blocks is a dict keyed by block name. The first block
                        of a definition has the implicit name 0.
                 {}, <- each block has a list of cle-types, corresponding to the
-                       cle-var-type of each instruction in order
+                       cle type of each instruction in order
                 {},
                 {},
                 {},
