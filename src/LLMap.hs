@@ -6,22 +6,25 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeFamilies #-}
 module LLMap where
 import GHC.Generics ( Generic )
-import Data.Aeson 
+import Data.Aeson ( FromJSON, ToJSON ) 
 import qualified Data.Map as M
 import TypeCheck
-    ( Convert(..),
-      Ignore(..),
+    ( LLWrapper,
       Global(..),
       BasicBlock(BasicBlock),
       Instruction(Instruction),
       Terminator(Terminator),
-      globalZipWith )
-import Data.Functor.Identity ( Identity )
+      LLIndex(..),
+      globalZipWith,
+      convertName )
 import Prelude hiding (return)
--- import qualified Data.Text.Lazy.IO as T
--- import qualified Data.Text.Lazy.Encoding as T
+
 data Assignment = Assignment {
     enclave :: String,
     label :: String
@@ -47,23 +50,40 @@ instance ToJSON BasicBlockDesc
 instance FromJSON GlobalDesc
 instance ToJSON GlobalDesc
 
-data AugmentedAssignment
-    = SomeAssignment Assignment   
-    | AssignmentWithExtra Assignment [Assignment] Assignment Assignment -- assignment, params, body, ret
-    deriving Show
+data IndexedAssignment (i :: LLIndex) where 
+    AssignedTerminator :: Assignment -> IndexedAssignment 'Term
+    AssignedInstruction :: Maybe Assignment -> IndexedAssignment 'Inst
+    UnassignedBasicBlock :: IndexedAssignment 'BB
+    AssignedGlobal :: Assignment -> IndexedAssignment 'Glob
+    AssignedGlobalWithExtra :: Assignment -> [Assignment] -> Assignment -> Assignment -> IndexedAssignment 'Glob
 
--- Given Maybe since BasicBlocks and some Instructions don't have an assignment
-instance Convert GlobalDesc (Global Ignore (Maybe AugmentedAssignment)) where
-    convert GlobalDesc { assignment, parameters = Just prms, body = Just bdy, return = Just ret, blocks = Just bl, .. } =
-        Global Ignore (nameBlocks bl) (Just $ AssignmentWithExtra assignment prms bdy ret)
+instance Show (IndexedAssignment i) where
+    show (AssignedTerminator a) = unwords ["(AssignedTerminator", show a, ")"]
+    show (AssignedInstruction a) = unwords ["(AssignedInstruction", show a, ")"]
+    show UnassignedBasicBlock = "UnassignedBasicBlock"
+    show (AssignedGlobal a) = unwords ["(AssignedGlobal", show a, ")"]
+    show (AssignedGlobalWithExtra a ps bdy ret) = unwords ["(AssignedGlobalWithExtra", show a, show ps, show bdy, show ret, ")"]
+
+wrapGlobalDesc :: GlobalDesc -> Global IndexedAssignment
+wrapGlobalDesc GlobalDesc { assignment, parameters = Just prms, body = Just bdy, return = Just ret, blocks = Just bl, .. } =
+    Function (nameBlocks bl) (AssignedGlobalWithExtra assignment prms bdy ret)     
         where
             nameBlocks b = toBB <$> M.toList b
             toBB (name, BasicBlockDesc instrs term) = 
-                -- Assignment -> Instruction Ignore (Maybe AugmentedAssignment)
-                BasicBlock (convert name) Ignore (convert' instrs) (Just . SomeAssignment <$> Terminator Ignore term) Nothing Nothing
-            convert' = fmap (Instruction Ignore . fmap SomeAssignment)
-    convert GlobalDesc { assignment,  .. } = 
-        Global Ignore [] (Just $ SomeAssignment assignment)
+                BasicBlock (convertName name) (wrapInstrs instrs) (Terminator $ AssignedTerminator term) UnassignedBasicBlock
+            wrapInstrs = fmap (Instruction . AssignedInstruction)
+wrapGlobalDesc GlobalDesc { assignment, blocks = Just bl, .. } = 
+    Function (nameBlocks bl) (AssignedGlobal assignment)
+        where
+            nameBlocks b = toBB <$> M.toList b
+            toBB (name, BasicBlockDesc instrs term) = 
+                BasicBlock (convertName name) (wrapInstrs instrs) (Terminator $ AssignedTerminator term) UnassignedBasicBlock
+            wrapInstrs = fmap (Instruction . AssignedInstruction)
+wrapGlobalDesc GlobalDesc { assignment } = Global (AssignedGlobal assignment)    
 
-zipGlobal :: Global Identity () -> Global Ignore (Maybe AugmentedAssignment) -> Global Identity (Maybe AugmentedAssignment)
-zipGlobal = globalZipWith (\_ a -> a)
+
+data IndexedPair (i :: LLIndex) = IndexedPair (LLWrapper i) (IndexedAssignment i)
+    deriving Show
+
+zipGlobal :: Global LLWrapper -> Global IndexedAssignment -> Maybe (Global IndexedPair)
+zipGlobal = globalZipWith IndexedPair  

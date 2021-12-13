@@ -1,91 +1,96 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE RankNTypes #-}
 module TypeCheck where
-import GHC.Generics (Generic)
 import qualified LLVM.AST as LL
-import Data.Functor.Identity ( Identity(Identity) )
 import LLVM.AST.Global ( basicBlocks, parameters )
-import Data.List (sortBy)
 import Text.Read (readMaybe)
-import Data.ByteString.UTF8
+import Data.List (sortBy)
+
+data LLIndex = Term | Inst | BB | Glob deriving Show 
 
 {- Wrapper data structure for LLVM AST used for typechecking.
 The parameter f is used for zipping together lljson and the ll.
 It is also parameterized by type a which will be CLEType during
 type checking
 -}
-data Terminator f a = Terminator (f (LL.Named LL.Terminator)) a
-    deriving (Generic, Functor)
-data Instruction f a = Instruction (f (LL.Named LL.Instruction)) a
-    deriving (Generic, Functor)
-data BasicBlock f a = BasicBlock LL.Name (f LL.BasicBlock) [Instruction f a] (Terminator f a) a a
-    deriving (Generic, Functor)
-data Global f a = Global (f LL.Global) [BasicBlock f a] a
-    deriving (Generic, Functor)
+newtype Terminator f = Terminator (f 'Term)
+newtype Instruction f = Instruction (f 'Inst) 
+data BasicBlock f = BasicBlock LL.Name [Instruction f] (Terminator f) (f 'BB) 
+data Global f
+    = Function [BasicBlock f] (f 'Glob)
+    | Global (f 'Glob) 
 
-data Ignore a = Ignore
-    deriving Show
+instance Show (f 'Term) => Show (Terminator f) where
+    show (Terminator f) = unwords ["(Terminator", show f, ")"]
 
-instance (Show a, Show (f (LL.Named LL.Terminator))) => Show (Terminator f a) where
-    show (Terminator fterm a) = "(Terminator " ++ show fterm ++ " " ++ show a ++ ")"
+instance Show (f 'Inst) => Show (Instruction f) where
+    show (Instruction f) = unwords ["(Instruction", show f, ")"]
 
-instance (Show a, Show (f (LL.Named LL.Instruction))) => Show (Instruction f a) where
-    show (Instruction finst a) = "(Instruction " ++ show finst ++ " " ++ show a ++ ")"
+instance (Show (f 'Term), Show (f 'Inst), Show (f 'BB)) => Show (BasicBlock f) where
+    show (BasicBlock n instrs term f) = unwords ["(BasicBlock ", show n, show instrs, show term, show f, ")"] 
 
-instance (Show a, Show (f LL.BasicBlock), Show (f (LL.Named LL.Instruction)), Show (f (LL.Named LL.Terminator))) => 
-    Show (BasicBlock f a) where
-    show (BasicBlock name fblock blocks term a a') = 
-        "(BasicBlock " ++ show name ++ " " ++ show fblock ++ " " ++ show blocks ++ " " ++ show term ++ " " ++ show a ++ " " ++ show a' ++ ")"
-
-instance (Show a, Show (f LL.BasicBlock), Show (f (LL.Named LL.Instruction)), Show (f (LL.Named LL.Terminator)), Show (f LL.Global)) => 
-    Show (Global f a) where
-    show (Global fglobal bbs a) = "(Global " ++ show fglobal ++ " " ++ show bbs ++ " " ++ show a ++ ")" 
+instance (Show (f 'Term), Show (f 'Inst), Show (f 'BB), Show (f 'Glob)) => Show (Global f) where 
+    show (Global f) = unwords ["(Global", show f, ")"]  
+    show (Function bb f) = unwords ["(Function", show bb, show f, ")"]  
 
 
-class Convert a b | a -> b where
-    convert :: a -> b
+data LLWrapper (i :: LLIndex) where  
+    WrapTerminator :: LL.Named LL.Terminator -> LLWrapper 'Term  
+    WrapInstruction :: LL.Named LL.Instruction -> LLWrapper 'Inst
+    WrapBasicBlock :: LL.BasicBlock -> LLWrapper 'BB
+    WrapGlobal :: LL.Global -> LLWrapper 'Glob
 
-instance Convert (LL.Named LL.Terminator) (Terminator Identity ()) where
-    convert term = Terminator (Identity term) ()  
-instance Convert (LL.Named LL.Instruction) (Instruction Identity ()) where
-    convert instr = Instruction (Identity instr) () 
-instance Convert LL.BasicBlock (BasicBlock Identity ()) where 
-    convert bb@(LL.BasicBlock n instrs term) = BasicBlock n (Identity bb) (fmap convert instrs) (convert term) () ()
-instance Convert LL.Global (Global Identity ()) where
-    convert global@LL.GlobalVariable {..} = Global (Identity global) [] ()  
-    convert global@LL.GlobalAlias {..} = Global (Identity global) [] ()  
-    convert global@LL.Function { basicBlocks, ..} = Global (Identity global) (sortBBs $ fmap convert basicBlocks) ()
-        where
-            sortBBs = sortBy compBB 
-            compBB (BasicBlock n _ _ _ _ _) (BasicBlock n' _ _ _ _ _) = compare n n'
+instance Show (LLWrapper i) where
+    show (WrapTerminator t) = show t 
+    show (WrapInstruction i) = show i
+    show (WrapBasicBlock b) = show b
+    show (WrapGlobal g) = show g
 
-instance Convert String LL.Name where 
-    convert s = 
-        case readMaybe s of
-            Just i -> LL.UnName i 
-            Nothing -> LL.mkName s
+wrapTerminator :: LL.Named LL.Terminator -> Terminator LLWrapper
+wrapTerminator = Terminator . WrapTerminator  
 
-terminatorZipWith :: (a -> b -> c) -> Terminator Identity a -> Terminator Ignore b -> Terminator Identity c
-terminatorZipWith f (Terminator fi a) (Terminator _ a') = Terminator fi (f a a') 
+wrapInstruction :: LL.Named LL.Instruction -> Instruction LLWrapper
+wrapInstruction = Instruction . WrapInstruction
 
-instructionZipWith :: (a -> b -> c) -> Instruction Identity a -> Instruction Ignore b -> Instruction Identity c
-instructionZipWith f (Instruction fi a) (Instruction _ a') = Instruction fi (f a a') 
+wrapBasicBlock :: LL.BasicBlock -> BasicBlock LLWrapper
+wrapBasicBlock bb@(LL.BasicBlock n instrs term) = BasicBlock n (fmap wrapInstruction instrs) (wrapTerminator term) (WrapBasicBlock bb) 
 
-basicBlocksZipWith :: (a -> b -> c) -> BasicBlock Identity a -> BasicBlock Ignore b -> Maybe (BasicBlock Identity c)
-basicBlocksZipWith f (BasicBlock n bb instrs term a a') (BasicBlock n' _ instrs' term' b b') =
-    if n == n' then 
-        Just $ BasicBlock n bb (instructionZipWith f <$> instrs <*> instrs') (terminatorZipWith f term term') (f a b) (f a' b') 
-    else Nothing
+wrapGlobal :: LL.Global -> Global LLWrapper  
+wrapGlobal global@LL.GlobalVariable {..} = Global $ WrapGlobal global
+wrapGlobal global@LL.GlobalAlias {..} = Global $ WrapGlobal global
+wrapGlobal global@LL.Function {basicBlocks, ..} = Function (wrapBasicBlock <$> sortBBs basicBlocks) (WrapGlobal global)
+    where
+        sortBBs = sortBy compBB 
+        compBB (LL.BasicBlock n _ _) (LL.BasicBlock n' _ _) = compare n n'
 
-globalZipWith :: (a -> b -> c) -> Global Identity a -> Global Ignore b -> Global Identity c
-globalZipWith f (Global global bbs a) (Global _ bbs' b) = 
-    Global global (concatMap toList (basicBlocksZipWith f <$> bbs <*> bbs')) (f a b)
+terminatorZipWith :: (forall i. f i -> g i -> h i) -> Terminator f -> Terminator g -> Terminator h
+terminatorZipWith f (Terminator fi) (Terminator gi) = Terminator $ f fi gi
+
+instructionZipWith :: (forall i. f i -> g i -> h i) -> Instruction f -> Instruction g -> Instruction h
+instructionZipWith f (Instruction fi) (Instruction gi) = Instruction $ f fi gi
+
+
+basicBlockZipWith :: (forall i. f i -> g i -> h i) -> BasicBlock f -> BasicBlock g -> Maybe (BasicBlock h)
+basicBlockZipWith f (BasicBlock n instrs term fbb) (BasicBlock n' instrs' term' gbb) 
+    | n == n' = Just $ BasicBlock n (instructionZipWith f <$> instrs <*> instrs') (terminatorZipWith f term term') (f fbb gbb)
+    | otherwise = Nothing  
+
+globalZipWith :: (forall i. f i -> g i -> h i) -> Global f -> Global g -> Maybe (Global h)
+globalZipWith f (Global fg) (Global gg) = Just $ Global (f fg gg)
+globalZipWith f (Function bbs fg) (Function bbs' gg) = Just $ Function (concatMap toList $ basicBlockZipWith f <$> bbs <*> bbs')(f fg gg)
     where
         toList (Just x) = [x]
         toList Nothing = []
+globalZipWith _ _ _ = Nothing 
+
+convertName :: String -> LL.Name  
+convertName s = 
+    case readMaybe s of
+        Just i -> LL.UnName i 
+        Nothing -> LL.mkName s
