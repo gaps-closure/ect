@@ -1,6 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 module Main where
 
 import System.Environment (getArgs)
@@ -8,7 +9,7 @@ import LLVM ( moduleAST, withModuleFromBitcode, File(File) )
 import LLVM.Context (withContext)
 import qualified LLVM.AST as LL
 import TypeCheck
-    ( convertName, wrapGlobal, Global(..), LLWrapper(WrapGlobal) )
+    ( convertName, wrapGlobal, Global(..), LLWrapper(WrapGlobal), (&) )
 import Data.Aeson ( decode )
 import Data.ByteString ( readFile )
 import qualified Data.ByteString as BS
@@ -43,17 +44,23 @@ nameOf (Function _ (WrapGlobal LL.GlobalAlias {name, ..})) = name
 nameOf (Function _ (WrapGlobal LL.Function {name, ..})) = name
 
 
-main :: IO ()
-main = do
-    (bc, json) <- fmap matchArgs getArgs
+run :: FilePath -> FilePath -> IO ()
+run bc json = do
     globs <- globals <$> ast bc
     let wrapped = fmap wrapGlobal globs
     let named = M.fromList $ zip (fmap nameOf wrapped) wrapped
     llmap <- fromJust . llmapJson <$> readFile json
     let zipped = filterMaybe $ M.intersectionWith zipGlobal named llmap
-    print zipped
+    print $ M.lookup (LL.mkName "get_b") zipped
+    where
+        filterMaybe = fmap fromJust . M.filter isJust 
+
+main :: IO ()
+main = do
+    (bc, json) <- fmap matchArgs getArgs
+    run bc json
     where
         matchArgs [bc, json] = (bc, json)
         matchArgs _ = error "Wrong number of arguments"
 
-        filterMaybe = fmap fromJust . M.filter isJust 
+

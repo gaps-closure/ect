@@ -98,6 +98,7 @@ executables:
     - containers
     - bytestring
     - ect 
+    - transformers
 
 
 # stack build -v --ghc-options="-v" --cabal-verbose > log 2>&1

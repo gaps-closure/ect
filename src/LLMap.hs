@@ -10,6 +10,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 module LLMap where
 import GHC.Generics ( Generic )
 import Data.Aeson ( FromJSON, ToJSON ) 
@@ -22,7 +23,8 @@ import TypeCheck
       Terminator(Terminator),
       LLIndex(..),
       globalZipWith,
-      convertName )
+      convertName,
+      IndexedPair (IndexedPair), type (&) )
 import Prelude hiding (return)
 
 data Assignment = Assignment {
@@ -82,8 +84,5 @@ wrapGlobalDesc GlobalDesc { assignment, blocks = Just bl, .. } =
 wrapGlobalDesc GlobalDesc { assignment } = Global (AssignedGlobal assignment)    
 
 
-data IndexedPair (i :: LLIndex) = IndexedPair (LLWrapper i) (IndexedAssignment i)
-    deriving Show
-
-zipGlobal :: Global LLWrapper -> Global IndexedAssignment -> Maybe (Global IndexedPair)
+zipGlobal :: Global LLWrapper -> Global IndexedAssignment -> Maybe (Global (LLWrapper & IndexedAssignment))
 zipGlobal = globalZipWith IndexedPair  

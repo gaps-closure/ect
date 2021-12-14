@@ -116,4 +116,5 @@ executable typechecker
     , llvm-hs >=9.0.1
     , llvm-hs-pretty >=0.9.0.0
     , llvm-hs-pure >=9.0.0
+    , transformers
   default-language: Haskell2010
