@@ -96,7 +96,6 @@ executables:
     - -dynamic
     - -Wall
     source-dirs:         app
-
     dependencies:
     - z3 >= 408.2
     - llvm-hs-pure == 9.0.1.1
@@ -110,6 +109,27 @@ executables:
     - transformers
     - ect
     - aeson
+
+  typechecker:
+    main:                Main.hs
+    source-dirs:         typecheck
+    ghc-options:
+    - -Wall
+    dependencies:
+    - z3 >= 408.2
+    - llvm-hs-pure == 9.0.1.1
+    #- llvm-hs-pretty >= 0.9.0.0
+    - llvm-hs == 9.0.1.1
+    - text
+    - bytestring
+    - directory
+    - utf8-string
+    - containers
+    - transformers
+    - ect
+    - aeson
+
+    
 
 # stack build -v --ghc-options="-v" --cabal-verbose > log 2>&1
 # shows the sausage being made

@@ -1,0 +1,91 @@
+Receiving this JSON file, along with the original and partitioned LLVM, should
+be sufficient for the ECT to perform a CLE type check. If we decide we need more
+information from the solver, it should be part of the 'cle-type' for each node
+below.
+
+BASED ON example1-refactored-9.ll. In general, the expectation is that the same
+concatenated llvm file used to construct the PDG and model given to minizinc,
+is also given as input to the ECT. so function names, basic block names, etc, will
+all stay the same.
+
+The 'cle-type's used are from Ben's type system draft. For documentation of
+cle-var-type, cle-fun-type, see
+https://www.overleaf.com/project/6112dbed891751e9b0b3d432
+
+Note that none of the edge data from the PDG is carried over to the ECT, only
+the cle types assigned to each node. Thus the ECT has no knowledge of the PDG,
+and will define cle type consistency over LLVM instruction types and not PDG
+edges (e.g. a "store %5" instruction with cle-type level "orange" only type-checks
+if %5 has cle-type level "orange")
+
+
+{
+    "get_a.a": {                      <- top-level global variable definition
+        "cle-type": {
+            "enclave": "orange",
+            "label-assignment": "ORANGE"
+        },
+        "parameters": [],             <- variables have no parameters
+        "blocks": {}                  <- global and local variables have no basic blocks
+    },
+
+    "ewma_main": {                    <- global function definition
+        "cle-type": {
+            "enclave": "purple",
+            "label-assignment": "XDLINKAGE_GET_A"
+        },
+        "parameters": [               <- capture the type information of fxn params
+            {}, <- cle-type for paramter 1
+            {}  <- cle-type for parameter 2
+        ],
+        "blocks": { <- function definitions have basic blocks
+            "0": [  <- blocks is a dict keyed by block name. The first block
+                       of a definition has the implicit name 0.
+                {}, <- each block has a list of cle-types, corresponding to the
+                       cle type of each instruction in order
+                {},
+                {},
+                {},
+                {}, <- instructions which are calls to @llvm.dbg.declare or
+                       @llvm.var.annotation, or other debugging calls, are thrown
+                       out by the ECT, so in the JSON they can be either omitted
+                       (as if those instructions did not exist) or take on
+                       garbage values, but this choice should be documented
+                {}, <- dbg
+                {}, <- dbg
+                {},
+                {}, <- annotation
+                {}, <- dbg
+                {},
+                {}
+            ],
+            "6": [
+                {},
+                {},
+                {}
+            ],
+            "9": [
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {}
+            ],
+            "17": [
+                {},
+                {},
+                {},
+                {}
+            ],
+            "20": [
+                {}
+            ]
+        }
+    }
+}
