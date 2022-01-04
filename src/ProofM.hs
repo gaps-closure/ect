@@ -23,7 +23,6 @@ import Control.Monad.Trans.Maybe
 import Data.List ( intercalate, find )
 import Data.ByteString.UTF8 ( toString )
 import Data.ByteString.Short ( fromShort )
-import Data.Text.Lazy ( unpack )
 
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
@@ -32,7 +31,8 @@ import qualified LLVM.AST as A
 import qualified LLVM.AST.Global as A
 --import qualified LLVM.AST.CallingConvention as A
 
-import LLVM.Pretty
+--import Data.Text.Lazy ( unpack )
+--import LLVM.Pretty
 
 import Z3.Monad
 
@@ -111,9 +111,12 @@ type NameMap = M.Map A.Name A.Name
 type Z3NameMap = (NameMap, FuncDecl)
 type VisitSet = S.Set A.Name
 type MatchState = (Z3NameMap, Z3NameMap, VisitSet)
+data LLDef = GlobalDef A.Global
+           | TypeDef (Maybe A.Type)
+           deriving (Eq, Show)
 
 -- | A mapping from names to the top level definitions they refer to
-type NameReferenceMap = M.Map A.Name A.Global
+type NameReferenceMap = M.Map A.Name LLDef
 type SourceLocation = ( Maybe A.Name
                       , Maybe A.Name
                       , Maybe Int
@@ -123,31 +126,37 @@ type LabelMap = M.Map SourceLocation String
 -- | A mapping from Z3 sorts to equivalence functions
 type EquivFunctionMap = M.Map Sort FuncDecl
 
-data MetaModule = MetaModule
-  { name        :: String
-  , globals     :: NameReferenceMap
-  , annotations :: LabelMap
-  , whereAmI    :: SourceLocation
-  } deriving Eq
+data LLModule = LLModule
+  { mname    :: String
+  , globals  :: NameReferenceMap
+  , labels   :: LabelMap
+  , whereAmI :: SourceLocation
+  } deriving (Eq, Show)
+
+data LLEnclave = LLEnclave
+  { ename     :: String
+  , modules   :: M.Map String LLModule
+  , curModule :: String
+  } deriving (Eq, Show)
 
 data ProofState = ProofState
   { currentPID     :: !PID                                      -- ^ ID for the next proposition
-  , partition      :: !(M.Map String MetaModule)
-  , refactored     :: !MetaModule
+  , partition      :: !(M.Map String LLEnclave)
+  , refactored     :: !LLEnclave
   , curEnclave     :: !String
   , matching       :: ![MatchState]                             -- ^ Forward and inverse name matching stack with z3 functions
   , congruence     :: !(S.Set (S.Set A.Name))                   -- ^ disjoint-set of equiv names
   , equivFunctions :: !EquivFunctionMap                         -- ^ For each Z3 sort, the equivalence function
   }
 
-emptyMM :: MetaModule
-emptyMM = MetaModule "" M.empty M.empty (Nothing, Nothing, Nothing)
+emptyEnclave :: LLEnclave
+emptyEnclave = LLEnclave "" M.empty ""
 
 -- | Initial proof state: PID is 1; empty maps and sets
 initialState :: ProofState
 initialState = ProofState { currentPID = PID 1
                           , partition = M.empty
-                          , refactored = emptyMM
+                          , refactored = emptyEnclave
                           , curEnclave = ""
                           , matching = []
                           , congruence = S.empty
@@ -205,25 +214,60 @@ runProofEnvironment options initialSt initializeEnv actions = do
                           Nothing -> Nothing
   return (result, st, l)
 
-getMetaModule :: ProofM MetaModule
-getMetaModule = do
+getLLModules :: ProofM (LLModule, LLModule)
+getLLModules = do
   ProofState{..} <- ProofM $ lift get
-  case M.lookup curEnclave partition of
-    Nothing -> error $ "Lookup of MetaModule " ++ curEnclave ++ ", which doesn't exist"
-    Just mm -> return mm
+  let
+    pM = case M.lookup curEnclave partition of
+      Nothing -> error $ "Lookup of LLEnclave " ++ curEnclave ++ ", which doesn't exist"
+      Just en -> case M.lookup (curModule en) (modules en) of
+        Nothing -> error $ "Lookup of LLModule " ++ curModule en ++ ", which doesn't exist"
+        Just pM' -> pM'
+    rM = case M.lookup (curModule refactored) (modules refactored) of
+      Nothing -> error $ "Lookup of LLModule " ++ curModule refactored ++ ", which doesn't exist"
+      Just rM' -> rM'
+  return (pM, rM)
 
-getMetaModuleField :: (MetaModule -> a) -> ProofM (a, a)
-getMetaModuleField r = do
-  ProofState{..} <- ProofM $ lift get
-  mm <- getMetaModule
-  return $ (r mm, r refactored)
+fromEnclave :: (LLModule -> a) -> ProofM (a, a)
+fromEnclave f = do
+  (pM, rM) <- getLLModules
+  return $ (f pM, f rM)
 
-putMetaModuleField :: (MetaModule -> a -> MetaModule) -> (a, a) -> ProofM ()
-putMetaModuleField setter (a, b) = do
+getModules :: ProofM (String, String)
+getModules = do
   ProofState{..} <- ProofM $ lift get
-  mm <- getMetaModule
-  ProofM $ lift $ put $ ProofState { partition = M.insert curEnclave (setter mm a) partition 
-                                   , refactored = setter refactored b
+  let 
+    pM = case M.lookup curEnclave partition of
+      Nothing -> error $ "Lookup of LLEnclave " ++ curEnclave ++ ", which doesn't exist"
+      Just en -> curModule en
+    rM = curModule refactored
+  return (pM, rM)
+
+setModules :: (String, String) -> ProofM ()
+setModules (pMN, rMN) = do
+  ProofState{..} <- ProofM $ lift get
+  let en = case M.lookup curEnclave partition of
+        Nothing -> error $ "Bad lookup of LLEnclave " ++ curEnclave
+        Just en' -> en'
+      newP = M.insert curEnclave (en {curModule = pMN}) partition
+      newR = refactored {curModule = rMN}
+  ProofM $ lift $ put $ ProofState { partition = newP
+                                   , refactored = newR
+                                   , .. }
+
+putEnclave :: (LLModule -> a -> LLModule) -> (a, a) -> ProofM ()
+putEnclave set (a, b) = do
+  ProofState{..} <- ProofM $ lift get
+  (pM, rM) <- getLLModules
+  let newPM = set pM a
+      newRM = set rM b
+      en = case M.lookup curEnclave partition of
+        Nothing -> error $ "Bad lookup of LLEnclave " ++ curEnclave
+        Just en' -> en' 
+      newP = M.insert curEnclave (en { modules = M.insert (curModule en) newPM (modules en)}) partition
+      newR = refactored { modules = M.insert (curModule refactored) newRM (modules refactored) }
+  ProofM $ lift $ put $ ProofState { partition = newP
+                                   , refactored = newR
                                    , .. }
 
 -- | Turn a 'Name' into a reasonable string
@@ -240,9 +284,9 @@ showNamed s (A.Do x) = s x
 proofFail :: String -> ProofM a
 proofFail s = do
   logString $ " **** proofFail: " ++ s
-  fnames <- getMetaModuleField name
-  locs   <- getMetaModuleField whereAmI
-  gss    <- getMetaModuleField globals
+  fnames <- fromEnclave mname
+  locs   <- fromEnclave whereAmI
+  gss    <- fromEnclave globals
   liftIO $ putStrLn $ provenance gss s fnames locs
   ProofM $ MaybeT $ return Nothing
 
@@ -311,7 +355,7 @@ provenance (gs1, gs2) err fnames (l1, l2) =
           Nothing -> e
           Just b -> b
         blocks = case M.lookup g gs of
-          Just A.Function{..} -> basicBlocks
+          Just (GlobalDef A.Function{..}) -> basicBlocks
           _ -> e
         match (A.BasicBlock n _ _) = n == bb
     strLoc (_, (Just g, _, _)) = "> in " ++ showG g
@@ -319,6 +363,8 @@ provenance (gs1, gs2) err fnames (l1, l2) =
 
     showG g = "definition @" ++ showName g
     showBB bbn = "basic block %" ++ showName bbn
-    showI (Left i) = "'" ++ showNamed (unpack . ppll) i ++ "'"
-    showI (Right t) = "'" ++ showNamed (unpack . ppll) t ++ "'"
+    --showI (Left i) = "'" ++ showNamed (unpack . ppll) i ++ "'"
+    --showI (Right t) = "'" ++ showNamed (unpack . ppll) t ++ "'"
+    showI (Left i) = "'" ++ showNamed show i ++ "'"
+    showI (Right t) = "'" ++ showNamed show t ++ "'"
     e = error "provenance: invalid SourceLocation"

@@ -30,13 +30,14 @@ library:
   - -ddump-to-file  # more $(find . -name "*splices")
   dependencies:
   - template-haskell
-  - llvm-hs-pure >= 9.0.0
-  - llvm-hs-pretty >= 0.9.0.0
-  - llvm-hs >= 9.0.1
+  - llvm-hs-pure == 9.0.1.1
+  #- llvm-hs-pretty >= 0.9.0.0
+  - llvm-hs == 9.0.1.1
   - z3 >= 408.2
   - transformers
   - text
   - containers
+  - directory
   - bytestring
   - utf8-string
   - aeson
@@ -54,12 +55,13 @@ executables:
 
     dependencies:
     - z3 >= 408.2
-    - llvm-hs-pure >= 9.0.0
-    - llvm-hs-pretty >= 0.9.0.0
-    - llvm-hs >= 9.0.1
+    - llvm-hs-pure == 9.0.1.1
+    #- llvm-hs-pretty >= 0.9.0.0
+    - llvm-hs == 9.0.1.1
     - transformers
     - text
     - bytestring
+    - directory
     - utf8-string
     - containers
     - ect
@@ -75,17 +77,39 @@ executables:
 
     dependencies:
     - z3 >= 408.2
-    - llvm-hs-pure >= 9.0.0
-    - llvm-hs-pretty >= 0.9.0.0
-    - llvm-hs >= 9.0.1
+    - llvm-hs-pure == 9.0.1.1
+    #- llvm-hs-pretty >= 0.9.0.0
+    - llvm-hs == 9.0.1.1
     - text
     - bytestring
+    - directory
     - utf8-string
     - containers
     - transformers
     - ect
     - aeson
+  
+  mergeClemaps:
+    main:                MergeClemaps.hs
+    ghc-options:
+    - -main-is MergeClemaps
+    - -dynamic
+    - -Wall
+    source-dirs:         app
 
+    dependencies:
+    - z3 >= 408.2
+    - llvm-hs-pure == 9.0.1.1
+    #- llvm-hs-pretty >= 0.9.0.0
+    - llvm-hs == 9.0.1.1
+    - text
+    - bytestring
+    - directory
+    - utf8-string
+    - containers
+    - transformers
+    - ect
+    - aeson
 
 # stack build -v --ghc-options="-v" --cabal-verbose > log 2>&1
 # shows the sausage being made

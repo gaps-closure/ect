@@ -42,9 +42,9 @@ library
     , base >=4.7 && <5
     , bytestring
     , containers
-    , llvm-hs >=9.0.1
-    , llvm-hs-pretty >=0.9.0.0
-    , llvm-hs-pure >=9.0.0
+    , directory
+    , llvm-hs ==9.0.1.1
+    , llvm-hs-pure ==9.0.1.1
     , template-haskell
     , text
     , transformers
@@ -55,6 +55,7 @@ library
 executable ect
   main-is: Main.hs
   other-modules:
+      MergeClemaps
       PrintTypes
       Paths_ect
   hs-source-dirs:
@@ -65,10 +66,34 @@ executable ect
     , base >=4.7 && <5
     , bytestring
     , containers
+    , directory
     , ect
-    , llvm-hs >=9.0.1
-    , llvm-hs-pretty >=0.9.0.0
-    , llvm-hs-pure >=9.0.0
+    , llvm-hs ==9.0.1.1
+    , llvm-hs-pure ==9.0.1.1
+    , text
+    , transformers
+    , utf8-string
+    , z3 >=408.2
+  default-language: Haskell2010
+
+executable mergeClemaps
+  main-is: MergeClemaps.hs
+  other-modules:
+      Main
+      PrintTypes
+      Paths_ect
+  hs-source-dirs:
+      app
+  ghc-options: -main-is MergeClemaps -dynamic -Wall
+  build-depends:
+      aeson
+    , base >=4.7 && <5
+    , bytestring
+    , containers
+    , directory
+    , ect
+    , llvm-hs ==9.0.1.1
+    , llvm-hs-pure ==9.0.1.1
     , text
     , transformers
     , utf8-string
@@ -79,6 +104,7 @@ executable printTypes
   main-is: PrintTypes.hs
   other-modules:
       Main
+      MergeClemaps
       Paths_ect
   hs-source-dirs:
       app
@@ -88,10 +114,10 @@ executable printTypes
     , base >=4.7 && <5
     , bytestring
     , containers
+    , directory
     , ect
-    , llvm-hs >=9.0.1
-    , llvm-hs-pretty >=0.9.0.0
-    , llvm-hs-pure >=9.0.0
+    , llvm-hs ==9.0.1.1
+    , llvm-hs-pure ==9.0.1.1
     , text
     , transformers
     , utf8-string

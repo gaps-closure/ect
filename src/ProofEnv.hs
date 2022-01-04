@@ -99,6 +99,7 @@ genProofEnvDecl "ProofEnv"
    , [t| NonEmpty A.Name |]
    , [t| Maybe Word32 |]
    , [t| Maybe ShortByteString |]
+   , [t| Maybe A.Type |]
    , [t| Maybe A.Constant |]
    , [t| Maybe A.StorageClass |]
    , [t| Maybe A.UnnamedAddr |]

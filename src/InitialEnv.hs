@@ -281,6 +281,7 @@ initialEnv = do
                                       , [t| Maybe A.Constant |]
                                       , [t| Maybe ShortByteString |]
                                       , [t| Maybe Word32 |]
+                                      , [t| Maybe A.Type |]
                                       , [t| A.FunctionAttribute |]
                                       , [t| NonEmpty A.Name |]
                                       , [t| (A.Operand, A.Name) |]

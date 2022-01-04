@@ -2,7 +2,7 @@
 
 module CLEMap where
 
-import Data.Aeson hiding (json)
+import Data.Aeson hiding ( json )
 import GHC.Generics
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
@@ -48,6 +48,16 @@ instance FromJSON CLE where
 instance FromJSON CLEJSON where
 instance FromJSON CDF where
 instance FromJSON GD where
+
+instance ToJSON CLE where
+  toJSON = genericToJSON o
+    where
+      f = M.fromList [("label", "cle-label"), ("json", "cle-json")]
+      o = defaultOptions { fieldLabelModifier = \s -> M.findWithDefault s s f }
+
+instance ToJSON CLEJSON where
+instance ToJSON CDF where
+instance ToJSON GD where
 
 firstError :: [Maybe Error] -> Maybe Error
 firstError [] = Nothing
@@ -171,6 +181,13 @@ clemapsAgree parts ref = firstError all_errs
     allSame [] = True
     allSame [_] = True
     allSame (x1:xs@(x2:_)) = x1 == x2 && allSame xs
+
+mergeClemaps :: [CLEMap] -> CLEMap
+mergeClemaps clemaps = case clemapValidate merged of
+  Left e -> error e
+  Right _ -> merged
+  where
+    merged = (L.nub . concat) clemaps
 
 cleOps :: [String]
 cleOps = ["allow", "deny", "redact"]

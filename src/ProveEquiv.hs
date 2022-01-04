@@ -21,7 +21,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified GHC.Base as G
 
-import Control.Monad ( unless, zipWithM )
+import Control.Monad ( unless, zipWithM, msum )
 import Control.Monad.IO.Class ( liftIO )
 import Control.Monad.Trans.State.Strict ( get, gets, put, modify )
 import Control.Monad.Trans.Class ( lift )
@@ -115,7 +115,7 @@ type LabelPair = (Maybe ShortByteString, Maybe ShortByteString)
 
 writeLocation :: (SourceLocation, SourceLocation) -> ProofM ()
 writeLocation ls = do
-  ((gP, bbP, iP), (gR, bbR, iR)) <- getMetaModuleField whereAmI
+  ((gP, bbP, iP), (gR, bbR, iR)) <- fromEnclave whereAmI
   let newloc = case ls of
         ((g1@(Just _), _, _), (g2@(Just _), _, _))   ->
           ((g1, Nothing, Nothing), (g2, Nothing, Nothing))
@@ -127,17 +127,19 @@ writeLocation ls = do
           (Just xP, Just xR) -> 
             ((gP, bbP, Just $ xP + 1), (gR, bbR, Just $ xR + 1))
           _ -> error "writeLocation: source locations out of sync"
-  putMetaModuleField (\mm a -> mm { whereAmI = a }) newloc
+  putEnclave (\m a -> m { whereAmI = a }) newloc
 
 getLabels :: ProofM LabelPair
 getLabels = do
-  (pAnnos, rAnnos) <- getMetaModuleField annotations
-  (pLoc, rLoc) <- getMetaModuleField whereAmI
+  (pAnnos, rAnnos) <- fromEnclave labels
+  (pLoc, rLoc) <- fromEnclave whereAmI
   let pLabel = M.lookup pLoc pAnnos
       rLabel = M.lookup rLoc rAnnos
       toSbs  = toShort . C.pack
-  liftIO $ putStrLn $
-    ";;; ProveEquiv CLE LABEL (" ++ show pLabel ++ ") (" ++ show rLabel ++ ")"
+  case (pLabel, rLabel) of
+    (Nothing, Nothing) -> return ()
+    _ -> liftIO $ putStrLn $
+      ";;; ProveEquiv CLE LABEL (" ++ show pLabel ++ ") (" ++ show rLabel ++ ")"
   -- TODO: replace TAG_* labels with Nothing, since they aren't reflected in
   -- the refactored code
   return (fmap toSbs pLabel, fmap toSbs rLabel)
@@ -333,39 +335,65 @@ proveCongruence lName rName = do
   if exists then return ()
   else do
     ProofState{..} <- ProofM $ lift get
-    case M.lookup rName (globals refactored) of
-      Just rGlobal -> do
-        mm <- getMetaModule
-        case M.lookup lName (globals mm) of
-          Just lGlobal -> recurse lGlobal rGlobal
+    case searchEnclave rName refactored of
+      Just (rMN, rGlobal) -> do
+        case searchEnclave lName (forceLookup curEnclave partition) of
+          Just (lMN, lGlobal) -> recurse lMN lGlobal rMN rGlobal
           Nothing -> do
-            (nextEnclave, lGlobal) <- searchPartition lName
+            (nextEnclave, lMN, lGlobal) <- searchPartition lName
             ProofM $ lift $ put $ ProofState { curEnclave = nextEnclave, .. }
-            liftIO $ putStrLn ";;; SWITCH ENCLAVE"
-            recurse lGlobal rGlobal
-            liftIO $ putStrLn ";;; SWITCH ENCLAVE"
+            recurse lMN lGlobal rMN rGlobal
             ProofM $ lift $ put $ ProofState { curEnclave = curEnclave, .. }
-      Nothing -> err
+      Nothing -> err "proveCongruence" rName
   where
-    err = error "global definition not found in NameReferenceMap"
+    err s n = error $ s ++ ": global definition " ++ show n ++ " not found in NameReferenceMap"
+    
     searchPartition n = do
       ProofState{..} <- ProofM $ lift get
-      let found = catMaybes $ map (\(mmn, mm) -> searchMM n mmn mm) $ M.toList partition
+      let searchEnclave' (en, e) = case searchEnclave2 n e of
+            Nothing -> Nothing
+            Just (mn, g) -> Just (en, mn, g)
+          found = catMaybes $ map searchEnclave' $ M.toList partition
       case found of
         [x] -> return x
         _ -> error $ "ambiguous / non-existant rpc call to definition: " ++ show n
-    searchMM n mmn mm = 
-      case M.lookup n (globals mm) of
+    
+    searchEnclave n en = case M.lookup (curModule en) (modules en) of
+      Nothing -> error $ "module '" ++ (curModule en) ++ "' not found in the modules of " ++ ename en 
+      Just m -> case searchModule n (mname m) m of
+        Nothing -> searchEnclave2 n en
+        x -> x
+
+    searchEnclave2 n en = msum $ M.elems $ 
+      M.map (\m -> searchModule n (mname m) m) (modules en)
+    
+    searchModule n mn m = 
+      case M.lookup n (globals m) of
         Nothing -> Nothing
-        Just g -> Just (mmn, g)
-    recurse lg rg = do
+        Just g -> Just (mn, g)
+    
+    recurse ln lg rn rg = do
       pushMatching
-      locs <- getMetaModuleField whereAmI
-      liftIO $ putStrLn ";;; Push"
-      _ <- proveEquiv lg rg
-      liftIO $ putStrLn ";;; Pop (globals proven equiv)"
-      putMetaModuleField (\mm a -> mm { whereAmI = a }) locs
+      locs <- fromEnclave whereAmI
+      (ln_old, rn_old) <- getModules
+      setModules (ln, rn)
+      _ <- case (lg, rg) of
+        (GlobalDef lg', GlobalDef rg') -> do
+          _ <- proveEquiv lg' rg'
+          liftIO $ putStrLn $ ";;;            " 
+                               ++ showName lName ++ " == " 
+                               ++ showName rName
+        (TypeDef lg', TypeDef rg') -> do
+          _ <- proveEquiv lg' rg'
+          return ()
+        (_, _) -> proofFail $ "Global definition cannot be equivalent to type definition"
+      setModules (ln_old, rn_old)
+      putEnclave (\mm a -> mm { whereAmI = a }) locs
       popMatching
+
+    forceLookup k m = case M.lookup k m of
+      Nothing -> err "forceLookup" k
+      Just x -> x
 
 ------------------------------------
 -- CFG isomorphism proof machinery
@@ -383,7 +411,7 @@ bbSuccessors (A.BasicBlock _ _ term) = case unName term of
   A.Br {..}         -> [ dest ]
   A.Switch {..}     -> defaultDest : map snd dests -- FIXME: assumes eq consts
   A.IndirectBr {..} -> possibleDests
-  t                 -> error $ "unsupported terminator " ++ show t
+  _                 -> [] -- FIXME: support more terminators
 
 -- | Check whether the given name is in the @visiting@ set
 testVisiting :: A.Name -> ProofM Bool
@@ -566,6 +594,12 @@ instance ProveEquiv (Maybe A.Atomicity) where
     c_MA_Just_Atomicity
     c_MA_Nothing_Atomicity
     "Atomicity"
+
+instance ProveEquiv (Maybe A.Type) where
+  proveEquiv = proveEquivMaybe
+    c_MT_Just_Type
+    c_MT_Nothing_Type
+    "Type"
 
 instance ProveEquiv (Maybe A.Name) where
   proveEquiv = proveEquivMaybe

@@ -22,6 +22,7 @@ import System.Console.GetOpt ( getOpt, usageInfo, OptDescr(..),
                               ArgDescr(NoArg, ReqArg), ArgOrder(RequireOrder) )
 import System.IO
 import System.Exit( exitSuccess, exitFailure )
+import System.Directory
 
 import Data.Maybe
 import qualified Data.ByteString.UTF8 as BS
@@ -57,7 +58,7 @@ import Z3.Monad
 import ProofM
 import InitialEnv
 import CLEMap
-import qualified Partition as PART
+--import qualified Partition as PART
 
 import ProveEquiv
 
@@ -116,6 +117,7 @@ showBBIso m = unwords $
 -- | Read a .ll file to produce an LLVM.AST.Module
 readLL :: String -> IO A.Module
 readLL filename = do
+  comment $ "Reading '" ++ filename ++ "'..."
   str <- readFile filename
   withContext $ \ctx ->
     LM.withModuleFromLLVMAssembly ctx str $ \llvmMod ->
@@ -142,7 +144,8 @@ findFunction A.Module{..} funcName = case mapMaybe ffh moduleDefinitions of
 findGlobals :: A.Module -> NameReferenceMap
 findGlobals A.Module{..} = M.fromList $ concatMap nameGlobals moduleDefinitions
   where
-    nameGlobals (A.GlobalDefinition g) = [(A.name g, g)]
+    nameGlobals (A.GlobalDefinition g) = [(A.name g, GlobalDef g)]
+    nameGlobals (A.TypeDefinition n t) = [(n, TypeDef t)]
     nameGlobals _ = []
 
 combineGlobals :: A.Module -> A.Module -> A.Name -> NameReferenceMap
@@ -158,7 +161,7 @@ combineGlobals l r entry = M.unionWithKey dupHandler lGlobals rGlobals
 replRpc :: NameReferenceMap -> NameReferenceMap
 replRpc = M.map replRpcFunc
   where
-    replRpcFunc f@A.Function{} = f { A.basicBlocks = map
+    replRpcFunc (GlobalDef f@A.Function{}) = GlobalDef $ f { A.basicBlocks = map
       (\(A.BasicBlock n i t) -> A.BasicBlock n (map replRpcNamed i) t)
       (A.basicBlocks f)
     }
@@ -223,8 +226,8 @@ rmRpcInit _ = error "rmRpcInit: Expecting A.Function"
 
 getGlobalArr :: A.Name -> NameReferenceMap -> [A.Constant]
 getGlobalArr n gs = case filter (\(n', _) -> n == n') (M.toList gs) of
-  [(_, A.GlobalVariable _ _ _ _ _ _ _ _ _ (Just (A.Array _ ms)) _ _ _ _)] -> ms
-  _ -> error $ "Global name not found: " ++ show n
+  [(_, GlobalDef (A.GlobalVariable _ _ _ _ _ _ _ _ _ (Just (A.Array _ ms)) _ _ _ _))] -> ms
+  _ -> []
 
 globalArrToString :: A.Name -> NameReferenceMap -> String
 globalArrToString n gs = init $ map toChar $ getGlobalArr n gs
@@ -266,8 +269,8 @@ findCallInstrs A.Function{..} = concatMap bbCallInstrs basicBlocks
     isInv'' _ _ = []
 findCallInstrs _ = []
 
-fxnLocalAnnos :: NameReferenceMap -> A.Global -> [(SourceLocation, String)]
-fxnLocalAnnos gs f@(A.Function{..}) = concatMap (uncurry p) fxnCalls
+fxnLocalAnnos :: NameReferenceMap -> LLDef -> [(SourceLocation, String)]
+fxnLocalAnnos gs (GlobalDef f@(A.Function{..})) = concatMap (uncurry p) fxnCalls
   where
     fxnCalls = findCallInstrs f
     p n [(A.LocalReference _ u), (A.ConstantOperand g), _, _] = p' n u g
@@ -300,14 +303,20 @@ findGlobalAnnotations gs = M.fromList $ map parseAnn $ getGlobalArr n gs
 moduleFname :: A.Module -> String
 moduleFname = BS.toString . fromShort . A.moduleSourceFileName
 
-toMetaModule :: A.Module -> MetaModule
-toMetaModule ll = MetaModule n gs' annos (Nothing, Nothing, Nothing)
+toLLModule :: A.Module -> LLModule
+toLLModule ll = LLModule n gs' annos (Nothing, Nothing, Nothing)
   where
     n     = moduleFname ll
     gs    = (replRpc . findGlobals) ll
-    gs'   = M.map rmDbgCalls gs
+    gs'   = M.map rmDbg gs
     annos = M.union (findLocalAnnotations gs) (findGlobalAnnotations gs)
+    rmDbg (GlobalDef g) = GlobalDef $ rmDbgCalls g
+    rmDbg td = td
 
+toLLEnclave :: (String, [A.Module]) -> String -> LLEnclave
+toLLEnclave (n, lls) st = LLEnclave n (M.fromList (zip (map mname mods) mods)) st
+  where
+    mods = map toLLModule lls
 
 ----------------------------------------------------------------------
 die :: [String] -> IO a
@@ -393,23 +402,40 @@ main = do
 
   -- Parse and valdiate LLVM files
   comment "Parsing LLVM files..."
-  lls <- mapM readLL $ take (n_enclaves + 1) filenames
-  let (partLls, refLl) = (init lls, last lls)
+  let dirnames = take (n_enclaves + 1) filenames
+  fnames <- mapM getDirectoryContents dirnames
+  let fnames' = map (\fs -> filter (\f -> f /= "." && f /= "..") fs) fnames
+      pathnames = zipWith (\d fs -> map ((d ++ "/")++) fs) dirnames fnames'
+  lls <- mapM (mapM readLL) pathnames
+  let enlls = zip dirnames lls
+      (partModules, refModules) = (init enlls, last enlls)
       entryName = llvmName entryFunction
-      entryCandidates = [(n, g) | 
-        (n, Just g) <- map (\ll -> (moduleFname ll, findFunction ll entryName)) partLls]
-      modulesWithRpcInit = [(n, g) | 
-        (n, Just g) <- map (\(n, g) -> (n, rmRpcInit g)) entryCandidates]
+      entryCandidates = [ (en, mn, g) | (en, mn, Just g) <- 
+        concatMap
+        (\(en', lls') -> map (\ll -> (en', moduleFname ll, findFunction ll entryName)) lls')
+        partModules ]
+      modulesWithRpcInit = [(en, mn, g) | (en, mn, Just g) <- 
+        map 
+        (\(en, mn, g) -> (en, mn, rmRpcInit g)) 
+        entryCandidates ]
 
   let init_err = "Missing or duplicate fxn " 
               ++ entryFunction
               ++ " containing _master_rpc_init() in partition"
+      ref_err  = "Error: no fxn " 
+              ++ entryFunction 
+              ++ " in refactored"
   unless (length modulesWithRpcInit == 1) $ die [init_err]
-  let (initEnclave, pEntry) = head modulesWithRpcInit
+  let (pEnclave, pModule, pEntry) = head modulesWithRpcInit
 
-  rEntry <- unlessJustFail (findFunction refLl entryName) $
-    "Error: no fxn " ++ entryFunction ++ " in refactored"
-
+  let mvMb (_, Nothing) = Nothing
+      mvMb (a, Just b) = Just (a, b)
+      refCandidates = mapMaybe mvMb $ map 
+        (\ll -> (ll, findFunction ll entryName)) 
+        (snd refModules)
+  unless (length refCandidates == 1) $ die [ref_err]
+  let (rModule, rEntry) = head refCandidates 
+    
   when displayFunctions $ do putStrLn $ dumpGlobal pEntry
                              putStrLn $ dumpGlobal rEntry
                              exitSuccess
@@ -426,14 +452,15 @@ main = do
 
   -- Construct intial proof state
   let environmentOptions = stdOpts +? opt "auto-config" False
-      partMms = map toMetaModule partLls
+      curMod = map (\(_, ms) -> if elem pModule (map moduleFname ms) then pModule else "") partModules
+      enclaves = map (uncurry toLLEnclave) (zip partModules curMod)
       stateG = initialState
-        { partition  = M.fromList $ zip (map name partMms) partMms
-        , refactored = toMetaModule refLl
-        , curEnclave = initEnclave
+        { partition  = M.fromList $ zip (map ename enclaves) enclaves
+        , refactored = toLLEnclave refModules (moduleFname rModule)
+        , curEnclave = pEnclave
         , congruence = S.singleton $ S.fromList [A.name pEntry, A.name rEntry]
         }
-
+        
   -- Begin proof
   (_, _, proofLog) <-
     runProofEnvironment environmentOptions stateG initialEnv $ do

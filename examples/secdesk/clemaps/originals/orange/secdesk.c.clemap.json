@@ -1,0 +1,53 @@
+[
+  {
+    "cle-label": "ORANGE",
+    "cle-json": {
+      "level": "orange"
+    }
+  },
+  {
+    "cle-label": "EMBEDDING_SHAREABLE",
+    "cle-json": {
+      "level": "orange",
+      "cdf": [
+        {
+          "remotelevel": "purple",
+          "direction": "egress",
+          "guarddirective": {
+            "operation": "allow"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "cle-label": "PROCESS_SECINPUT",
+    "cle-json": {
+      "level": "orange",
+      "cdf": [
+        {
+          "remotelevel": "orange",
+          "direction": "egress",
+          "guarddirective": {
+            "operation": "allow"
+          },
+          "argtaints": [
+            [
+              "ORANGE"
+            ],
+            [
+              "ORANGE"
+            ]
+          ],
+          "codtaints": [
+            "EMBEDDING_SHAREABLE",
+            "ORANGE"
+          ],
+          "rettaints": [
+            "ORANGE"
+          ]
+        }
+      ]
+    }
+  }
+]
