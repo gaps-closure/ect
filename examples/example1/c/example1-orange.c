@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include "example1_orange_rpc.h"
 
 #pragma cle def ORANGE {"level":"orange",\
   "cdf": [\
