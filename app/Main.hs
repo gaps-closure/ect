@@ -4,12 +4,20 @@
 LD_LIBRARY_PATH=z3-4.8.8/lib stack build
 
 stack run -- \
-  examples/example1/llvm/example1-orange-9.ll \
-  examples/example1/llvm/example1-purple-9.ll \
-  examples/example1/llvm/example1-refactored-9.ll \
+  examples/example1/llvm/orange \
+  examples/example1/llvm/purple \
+  examples/example1/llvm/refactored \
   examples/example1/clemaps/orange.json \
   examples/example1/clemaps/purple.json \
   examples/example1/clemaps/refactored.json
+
+stack run -- \
+  examples/secdesk/llvm/uncombined/orange \
+  examples/secdesk/llvm/uncombined/purple \
+  examples/secdesk/llvm/uncombined/refactored_mod \
+  examples/secdesk/clemaps/orange.json \
+  examples/secdesk/clemaps/purple.json \
+  examples/secdesk/clemaps/refactored.json
 
 LD_LIBRARY_PATH=z3-4.8.8/lib stack ghci
 :set -XTemplateHaskell
