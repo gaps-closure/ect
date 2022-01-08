@@ -521,23 +521,65 @@ requiredTypes leaves ty = do
 
 {-| Generate an instance of proveEquiv for a particular type
 
+e.g.,
+
+@
+$(genProveEquiv [t| A.FloatingPointType |] )
+@
+
+produces
+
+@
+instance ProveEquiv A.FloatingPointType where
+   proveEquiv A.HalfFP A.HalfFP
+     = (sequence []) >>= (proveEquivAlgebraic c_FPT_HalfFP) "FPT_HalfFP"
+   proveEquiv A.FloatFP A.FloatFP
+     = (sequence [])
+         >>= (proveEquivAlgebraic c_FPT_FloatFP) "FPT_FloatFP"
+   proveEquiv a b = (proveEquivFail a) b
+
+@
+
+For objects with payloads, e.g.,
+
+@
+$(genProveEquiv [t| A.Constant |] )
+@
+
+produces
+
+@
+instance ProveEquiv A.Constant where
+   proveEquiv (A.Int a1 a2) (A.Int b1 b2)
+     = (sequence [(proveEquiv a1) b1, (proveEquiv a2) b2])
+         >>= (proveEquivAlgebraic c_C_Int) "C_Int"
+   proveEquiv (A.Float a1) (A.Float b1)
+     = (sequence [(proveEquiv a1) b1])
+         >>= (proveEquivAlgebraic c_C_Float) "C_Float"
+   proveEquiv a b = (proveEquivFail a) b
+@
 -}
-genProveEquiv :: Q Type -- ^ The type for which to generated the proveEquiv instances
+genProveEquiv :: Q Type -- ^ The type for which to generate the proveEquiv instances
               -> Q [Dec]
 genProveEquiv typ' = do
   typ <- typ'
-  (_, stringConstructors) <- monoType [] typ
-  Just proveEquivN <- lookupValueName "proveEquiv"
-  Just proveEquivClass <- lookupTypeName "ProveEquiv"
-  Just bindN <- lookupValueName ">>="
---  Just z3dconN <- lookupValueName "c_C_Int"
-  Just sequenceN <- lookupValueName "sequence"
-  Just proveEquivAlgN <- lookupValueName "proveEquivAlgebraic"
+  (_, stringConstructors) <- monoType [] typ -- The type's constructors
+
+  -- Gather named functions, etc. that we will use in the generated code
+  Just proveEquivN     <- lookupValueName "proveEquiv"
+  Just proveEquivClass <- lookupTypeName  "ProveEquiv"
+  Just proveEquivFailN <- lookupValueName "proveEquivFail"
+  Just bindN           <- lookupValueName ">>="
+  Just sequenceN       <- lookupValueName "sequence"
+  Just proveEquivAlgN  <- lookupValueName "proveEquivAlgebraic"
+  
   let bindE = VarE bindN
       sequenceE = VarE sequenceN
       proveEquivAlgE = VarE proveEquivAlgN
       proveEquivE = VarE proveEquivN
+      proveEquivFailE = VarE proveEquivFailN
 
+      -- Generate the arguments and body of a proveEquiv function
   let genClause dconName z3dcon ctorArgs comment =
         Clause [ConP dconName (map (VarP . fst) ctorArgs)
                ,ConP dconName (map (VarP . snd) ctorArgs)]
@@ -550,20 +592,25 @@ genProveEquiv typ' = do
           equivs = ListE $ map (\(a, b) -> foldl1 AppE [proveEquivE
                                                        ,VarE a
                                                        ,VarE b]) ctorArgs
-      toClause (dconName, z3dcon, fields) =
-        genClause dconName (VarE (mkName (constructorPrefix ++ z3dcon))) fields' z3dcon
+                   
+      -- Generate a function clause with arguments a1 a2 ..., b1 b2 ...
+      toClause (dconName, z3dcon, fields) = genClause dconName
+          (VarE (mkName (constructorPrefix ++ z3dcon))) fields' z3dcon
         where
-          fields' = zipWith (\_ n -> (mkName ("a" ++ show n)
-                                     ,mkName ("b" ++ show n))) fields [(1::Int)..]
-               
-  
-  let clauses = map toClause stringConstructors
+          fields' = zipWith mkFieldArgs fields [(1::Int)..]
+          mkFieldArgs _ n = (mkName ("a" ++ show n), mkName ("b" ++ show n))
 
-  {- [genClause (mkName "A.Int"
-                           ,VarE z3dconN
-                           ,[(mkName "a1", mkName "b1"),
-                             (mkName "a2", mkName "b2")]
-                           ,"Int")
-                ] -}
-  let decs = [FunD proveEquivN clauses]
+      -- Generate one clause per data constructor
+      clauses = map toClause stringConstructors
+
+      -- The default case: invoke proveEquivFail on the two arguments
+      defaultClause = Clause [VarP defaultArgA
+                             ,VarP defaultArgB] (NormalB defaultBody) []
+      defaultArgA = mkName "a"
+      defaultArgB = mkName "b"
+      defaultBody = AppE (AppE proveEquivFailE (VarE defaultArgA))
+                                               (VarE defaultArgB)
+      
+      decs = [FunD proveEquivN (clauses ++ [defaultClause]) ]
+      
   return [InstanceD Nothing [] (AppT (ConT proveEquivClass) typ) decs]
