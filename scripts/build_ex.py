@@ -33,7 +33,7 @@ def main():
     args = getArgs()
     enclaves = ['orange', 'purple', 'refactored']
     ect = path.expanduser(args.ect)
-    pre = ect + "/../C/preprocessor"
+    pre = ect + "/../preprocessor"
     root = ect + '/' + 'examples/{}/'.format(args.ex)
 
     # Clean out old directories, with permission
