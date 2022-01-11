@@ -1,14 +1,14 @@
-; ModuleID = './examples/example1/c/purple/example1.mod.c'
-source_filename = "./examples/example1/c/purple/example1.mod.c"
+; ModuleID = '../examples/example1/c/purple/example1.mod.c'
+source_filename = "../examples/example1/c/purple/example1.mod.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
 @calc_ewma.c = internal global double 0.000000e+00, align 8
 @get_b.b = internal global double 1.000000e+00, align 8
 @.str = private unnamed_addr constant [7 x i8] c"PURPLE\00", section "llvm.metadata"
-@.str.1 = private unnamed_addr constant [44 x i8] c"./examples/example1/c/purple/example1.mod.c\00", section "llvm.metadata"
+@.str.1 = private unnamed_addr constant [45 x i8] c"../examples/example1/c/purple/example1.mod.c\00", section "llvm.metadata"
 @.str.2 = private unnamed_addr constant [4 x i8] c"%f\0A\00", align 1
-@llvm.global.annotations = appending global [1 x { i8*, i8*, i8*, i32 }] [{ i8*, i8*, i8*, i32 } { i8* bitcast (double* @get_b.b to i8*), i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str.1, i32 0, i32 0), i32 36 }], section "llvm.metadata"
+@llvm.global.annotations = appending global [1 x { i8*, i8*, i8*, i32 }] [{ i8*, i8*, i8*, i32 } { i8* bitcast (double* @get_b.b to i8*), i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str.1, i32 0, i32 0), i32 36 }], section "llvm.metadata"
 
 ; Function Attrs: noinline nounwind optnone uwtable
 define dso_local double @calc_ewma(double, double) #0 {
@@ -47,7 +47,7 @@ define dso_local i32 @ewma_main() #0 {
   %3 = alloca double, align 8
   %4 = alloca i32, align 4
   %5 = bitcast double* %3 to i8*
-  call void @llvm.var.annotation(i8* %5, i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str.1, i32 0, i32 0), i32 50)
+  call void @llvm.var.annotation(i8* %5, i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str.1, i32 0, i32 0), i32 50)
   store i32 0, i32* %4, align 4
   br label %6
 
