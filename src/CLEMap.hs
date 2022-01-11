@@ -23,7 +23,8 @@ data CLEJSON = CLEJSON {
 data CDF = CDF {
   remotelevel :: String
 , direction :: String
-, guarddirective :: GD
+, guarddirective :: Maybe GD
+, guardhint :: Maybe GD
 , argtaints :: Maybe [[String]]
 , codtaints :: Maybe [String]
 , rettaints :: Maybe [String]
@@ -42,7 +43,8 @@ type Error = String
 instance FromJSON CLE where
   parseJSON = genericParseJSON o
     where
-      f = M.fromList [("label", "cle-label"), ("json", "cle-json")]
+      f = M.fromList [ ("label", "cle-label")
+                     , ("json", "cle-json") ]
       o = defaultOptions { fieldLabelModifier = \s -> M.findWithDefault s s f }
 
 instance FromJSON CLEJSON where
@@ -90,12 +92,16 @@ taintsValidate tbl (Just tss) = firstError $ map (taintValidate tbl) tss
     --   else Just $ "taint label does not exist: '" ++ t ++ "'"
 
 cdfValidate :: StringTable -> CDF -> Either Error ColorSet
-cdfValidate tbl (CDF lvl dir gd argt _ _) = case firstError all_errs of
+cdfValidate tbl (CDF lvl dir gd gh argt _ _) = case firstError all_errs of
   Nothing -> Right [lvl]
   Just e -> Left e
   where
     all_errs = [dir_err, gd_err, argt_err, codt_err, rett_err]
-    gd_err = gdValidate tbl gd
+    gd_err = case (gd, gh) of
+      (Nothing, Nothing) -> Just $ "CDF has no guarddirective or guardhint" 
+      (Just _, Just _) -> Just $ "CDF has both guarddirective and guardhint"
+      (Just gd', _) -> gdValidate tbl gd'
+      (_, Just gd') -> gdValidate tbl gd'
     argt_err = taintsValidate tbl argt
     codt_err = Nothing -- taintsValidate tbl codt
     rett_err = Nothing -- taintsValidate tbl rett
@@ -159,9 +165,14 @@ getTags cleset = S.filter hasGapstag cleset
       Nothing    -> False
       Just []    -> False
       Just (x:_) ->
-        case (gapstag . guarddirective) x of
-          Nothing -> False
-          Just _  -> True
+        case (guarddirective x, guardhint x) of
+          (Just gd, Nothing) -> case gapstag gd of
+            Nothing -> False
+            _ -> True
+          (Nothing, Just gh) -> case gapstag gh of
+            Nothing -> False
+            _ -> True
+          _ -> False
 
 clemapsAgree :: [CLEMap] -> CLEMap -> Maybe Error
 clemapsAgree parts ref = firstError all_errs

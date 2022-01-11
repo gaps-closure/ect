@@ -1,11 +1,5 @@
 [
   {
-    "cle-label": "PURPLE",
-    "cle-json": {
-      "level": "purple"
-    }
-  },
-  {
     "cle-label": "TAG_RESPONSE_GET_A",
     "cle-json": {
       "level": "purple",
@@ -13,9 +7,13 @@
         {
           "remotelevel": "purple",
           "direction": "egress",
-          "guarddirective": {
+          "guardhint": {
             "operation": "allow",
-            "gapstag": [2,2,4]
+            "gapstag": [
+              2,
+              2,
+              4
+            ]
           }
         }
       ]
@@ -26,10 +24,18 @@
     "cle-json": {
       "level": "purple",
       "cdf": [
-        {"remotelevel":"orange",
-         "direction": "egress",
-         "guarddirective": { "operation": "allow",
-                        "gapstag": [1,1,3] }}
+        {
+          "remotelevel": "orange",
+          "direction": "egress",
+          "guardhint": {
+            "operation": "allow",
+            "gapstag": [
+              1,
+              1,
+              3
+            ]
+          }
+        }
       ]
     }
   },
@@ -38,10 +44,18 @@
     "cle-json": {
       "level": "purple",
       "cdf": [
-        {"remotelevel":"purple",
-         "direction": "egress",
-         "guarddirective": { "operation": "allow",
-                        "gapstag": [2,2,2] }}
+        {
+          "remotelevel": "purple",
+          "direction": "egress",
+          "guardhint": {
+            "operation": "allow",
+            "gapstag": [
+              2,
+              2,
+              2
+            ]
+          }
+        }
       ]
     }
   },
@@ -50,26 +64,62 @@
     "cle-json": {
       "level": "purple",
       "cdf": [
-        {"remotelevel":"orange",
-         "direction": "egress",
-         "guarddirective": { "operation": "allow",
-                        "gapstag": [1,1,1] }}
+        {
+          "remotelevel": "orange",
+          "direction": "egress",
+          "guardhint": {
+            "operation": "allow",
+            "gapstag": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
       ]
     }
   },
   {
-    "cle-label": "XDLINKAGE_RPC_GET_A",
+    "cle-label": "PURPLE",
     "cle-json": {
-      "level": "purple",
+      "level": "purple"
+    }
+  },
+  {
+    "cle-label": "ORANGE",
+    "cle-json": {
+      "level": "orange",
       "cdf": [
-         {"remotelevel":"orange",
+        {
+          "remotelevel": "purple",
+          "direction": "egress",
+          "guarddirective": {
+            "operation": "allow"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "cle-label": "XDLINKAGE_GET_A",
+    "cle-json": {
+      "level": "orange",
+      "cdf": [
+        {
+          "remotelevel": "purple",
           "direction": "bidirectional",
-          "guarddirective": { "operation": "allow"},
+          "guarddirective": {
+            "operation": "allow"
+          },
           "argtaints": [],
-          "codtaints": ["TAG_REQUEST_GET_A", "TAG_RESPONSE_GET_A"],
-          "rettaints": ["TAG_RESPONSE_GET_A"]
-         }
-       ]
+          "codtaints": [
+            "ORANGE"
+          ],
+          "rettaints": [
+            "TAG_RESPONSE_GET_A"
+          ]
+        }
+      ]
     }
   }
 ]
