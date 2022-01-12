@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -10,19 +11,20 @@
 
 module TypeCheck where
 
-import Control.Monad.Trans.Except ( throwE, ExceptT, Except, runExcept )
-import Control.Monad.Trans.Reader ( Reader, local, ReaderT (ReaderT, runReaderT), ask )
-import Data.List (sortBy, find)
-import Data.Set (Set)
-import qualified LLVM.AST as LL
-import qualified LLVM.AST.Global as LL
-import LLVM.AST.Global (basicBlocks, parameters)
-import Text.Read (readMaybe)
-import Data.Map ( Map )
-import qualified Data.Map as M
 import Control.Monad.Trans.Class
+import Control.Monad.Trans.Except (Except, ExceptT, runExcept, throwE)
+import Control.Monad.Trans.Reader (Reader, ReaderT (ReaderT, runReaderT), ask, local)
+import Data.List (find, sortBy)
+import Data.Map (Map)
+import qualified Data.Map as M
+import Data.Set (Set)
 import qualified Data.Set as S
+import qualified LLVM.AST as LL
 import qualified LLVM.AST.Constant as LC
+import LLVM.AST.Global (basicBlocks, parameters)
+import qualified LLVM.AST.Global as LL
+import Text.Read (readMaybe)
+import Debug.Trace
 
 data LLIndex = Term | Inst | BB | Glob deriving (Show)
 
@@ -102,68 +104,78 @@ globalZipWith f (Function bbs fg) (Function bbs' gg) = Just $ Function (concatMa
     toList Nothing = []
 globalZipWith _ _ _ = Nothing
 
-convertName :: String -> LL.Name
-convertName s =
+nameFromString :: String -> LL.Name
+nameFromString s =
   case readMaybe s of
     Just i -> LL.UnName i
     Nothing -> LL.mkName s
 
-data IndexedPair f g (i :: LLIndex) = IndexedPair (f i) (g i)
-  deriving (Show)
-type (&) = IndexedPair
+nameOf :: Global LLWrapper -> LL.Name
+nameOf (Global (WrapGlobal LL.GlobalVariable {name, ..})) = name
+nameOf (Global (WrapGlobal LL.GlobalAlias {name, ..})) = name
+nameOf (Global (WrapGlobal LL.Function {name, ..})) = name
+nameOf (Function _ (WrapGlobal LL.GlobalVariable {name, ..})) = name
+nameOf (Function _ (WrapGlobal LL.GlobalAlias {name, ..})) = name
+nameOf (Function _ (WrapGlobal LL.Function {name, ..})) = name
 
-(&) :: f i -> g i -> IndexedPair f g i
-(&) = IndexedPair
+data IndexedPair f g (i :: LLIndex) = (f i) :& (g i)
+  deriving (Show)
+
+type (&) = IndexedPair
 
 type Enclave = String
 
 type RemoteEnclaves = Set Enclave
 
-data Flow
-  = Flow {
-      remoteEnclave :: Enclave,
-      args :: [RemoteEnclaves],
-      body :: RemoteEnclaves,
-      ret :: RemoteEnclaves
-    }
-  deriving (Show, Eq)
+type Taint = Set RemoteEnclaves
 
+data Flow = Flow
+    { remoteEnclave :: Enclave,
+      args :: [Taint],
+      body :: Taint,
+      ret :: Taint
+    }
+    deriving (Show, Eq)
 
 data CLEType
-  = VarType Enclave RemoteEnclaves
-  | FunctionType Enclave [Flow]
-  deriving (Show, Eq)
+    = VarType Enclave RemoteEnclaves
+    | FunctionType Enclave [Flow]
+    deriving (Show, Eq)
 
 data Annotated (i :: LLIndex) where
-  AnnotatedTerm :: CLEType -> CLEType -> Annotated 'Term
-  AnnotatedInstr :: CLEType -> Annotated 'Inst
-  UnAnnotatedBasicBlock :: Annotated 'BB
-  AnnotatedGlobal :: CLEType -> Annotated 'Glob
+    AnnotatedTerm :: CLEType -> Annotated 'Term
+    AnnotatedInstr :: CLEType -> Annotated 'Inst
+    UnAnnotatedBasicBlock :: Annotated 'BB
+    AnnotatedGlobal :: CLEType -> Annotated 'Glob
 
 instance Show (Annotated i) where
-  show (AnnotatedTerm c d) = show c ++ " " ++ show d
-  show (AnnotatedInstr c) = show c
-  show UnAnnotatedBasicBlock = "UnAnnotatedBasicBlock"
-  show (AnnotatedGlobal g) = show g 
+    show (AnnotatedTerm d) = show d
+    show (AnnotatedInstr c) = show c
+    show UnAnnotatedBasicBlock = "UnAnnotatedBasicBlock"
+    show (AnnotatedGlobal g) = show g
 
 -- newtype IndexedMaybe f (i :: LLIndex) = IndexedMaybe (Maybe (f i))
 
 data Err
-  = TypeMismatch CLEType CLEType -- actual, expected
-  | ExpectedVarType CLEType
-  | ExpectedFunType CLEType
-  | ExpectedFun LL.Global
-  | ExpectedVar LL.Global
-  | WrongFuncArgs Int Int
-  | UnsupportedVarArgs
-  | LookupFailure LL.Name
-  | MissingRemoteEnclave Enclave 
-  | EnclaveMismatch Enclave Enclave -- actual, expected
-  | UnsupportedInstruction LL.Instruction
-  | UnsupportedInlineASM
-  | UnsupportedLocalFunction
-  | ArgumentTypeMismatch [CLEType] [CLEType]
-  deriving Show
+    = TypeMismatch CLEType CLEType -- actual, expected
+    | ExpectedVarType CLEType
+    | ExpectedFunType CLEType
+    | ExpectedFun LL.Global
+    | ExpectedVar LL.Global
+    | NoTaintFound RemoteEnclaves Taint
+    | NoTaintFoundArgs [RemoteEnclaves] [Taint]
+    | NoTaintMatch Taint Taint
+    | WrongFuncArgs Int Int
+    | LookupFailure LL.Name
+    | MissingRemoteEnclave Enclave
+    | EnclaveMismatch Enclave Enclave -- actual, expected
+    | UnsupportedInstruction LL.Instruction
+    | UnsupportedVarArgs
+    | UnsupportedInlineASM
+    | UnsupportedMetadataCall
+    | UnsupportedMetadataOp
+    | UnsupportedLocalFunction
+    deriving (Show)
 
 -- Map from names to type
 -- for basic blocks the type refers to the return type
@@ -171,221 +183,200 @@ type Context = Map LL.Name CLEType
 
 type Tc = ReaderT Context (Except Err)
 
+throw :: Err -> Tc a
+throw = lift . throwE
+
 assert :: Err -> Bool -> Tc ()
 assert _ True = pure ()
-assert e _ = lift $ throwE e
+assert e _ = throw e
 
-(<:) :: CLEType -> CLEType -> Bool  
-VarType enc renc <: VarType enc' renc' = enc == enc' && S.isSubsetOf renc renc'  
-FunctionType enc _flows <: VarType enc' _flows' = enc == enc' && False -- TODO: rest of subtype impl  
-_ <: _ = False 
+lookup' :: LL.Name -> Tc CLEType
+lookup' name = do
+    ctx <- ask
+    case M.lookup name ctx of
+        Just t -> return t
+        _ -> throw $ LookupFailure name
 
-look :: LL.Name -> Tc CLEType
-look name = do
-  ctx <- ask
-  case M.lookup name ctx of
-    Just t -> return t
-    _ -> lift $ throwE $ LookupFailure name
+runTc :: Context -> Tc a -> Either Err a
+runTc ctx tc = runExcept $ runReaderT tc ctx
 
-fromOperand :: LL.Operand -> CLEType -> Tc CLEType 
-fromOperand (LL.LocalReference _ name) = const $ look name
-fromOperand (LL.ConstantOperand (LC.GlobalReference _ name)) = const $ look name
--- TODO: recurse on constant operand variants       
-fromOperand _ = return
-
-
-fromOperands :: [LL.Operand] -> CLEType -> Tc CLEType 
-fromOperands ops vty@(VarType l _) = do
-  tys <- mapM (`fromOperand` vty) ops
-  rencs <- go tys 
-  return (VarType l rencs)
-  where
-    go [] = return S.empty 
-    go ((VarType l' renc) : tys) = do  
-      assert (EnclaveMismatch l' l) (l' == l) 
-      rencs <- go tys 
-      return $ renc `S.union` rencs
-    go (ty : _) = lift $ throwE $ ExpectedVarType ty
-fromOperands _ ty = lift $ throwE $ ExpectedVarType ty
-
-
-
--- LL.Name is the name of the basic block to which the terminator belongs 
-checkTerminator :: 
-  LL.Name -> 
-  Terminator (LLWrapper & Annotated) -> 
-  CLEType -> 
-  CLEType -> 
-  Tc ()
-checkTerminator _ (Terminator (IndexedPair (WrapTerminator (LL.Do (LL.Ret op _))) (AnnotatedTerm _ assignedRetTy))) _ retTy = do
-  inferredRetTy <- maybe (return retTy) (`fromOperand` retTy) op 
-  assert (TypeMismatch inferredRetTy assignedRetTy) (inferredRetTy <: assignedRetTy) 
-  assert (TypeMismatch assignedRetTy retTy) (assignedRetTy <: retTy) 
-
-checkTerminator _ _ _ _ = error "not implemented"  
-
-instrTy :: LL.Instruction -> CLEType -> Tc CLEType  
-instrTy (LL.Add _ _ op0 op1 _) = fromOperands [op0, op1]
-instrTy (LL.FAdd _ op0 op1 _) = fromOperands [op0, op1]
-instrTy (LL.Sub _ _ op0 op1 _) = fromOperands [op0, op1]
-instrTy (LL.FSub _ op0 op1 _) = fromOperands [op0, op1]
-instrTy (LL.Mul _ _ op0 op1 _) = fromOperands [op0, op1]
-instrTy (LL.FMul _ op0 op1 _) = fromOperands [op0, op1]
-instrTy (LL.UDiv _ op0 op1 _) = fromOperands [op0, op1]
-instrTy (LL.SDiv _ op0 op1 _) = fromOperands [op0, op1]
-instrTy (LL.FDiv _ op0 op1 _) = fromOperands [op0, op1]
-instrTy (LL.URem op0 op1 _) = fromOperands [op0, op1]
-instrTy (LL.SRem op0 op1 _) = fromOperands [op0, op1]
-instrTy (LL.FRem _ op0 op1 _) = fromOperands [op0, op1]
-instrTy (LL.Shl _ _ op0 op1 _) = fromOperands [op0, op1]
-instrTy (LL.LShr _ op0 op1 _) = fromOperands [op0, op1]
-instrTy (LL.AShr _ op0 op1 _) = fromOperands [op0, op1]
-instrTy (LL.And op0 op1 _) = fromOperands [op0, op1]
-instrTy (LL.Or op0 op1 _) = fromOperands [op0, op1]
-instrTy (LL.Xor op0 op1 _) = fromOperands [op0, op1]
-instrTy (LL.Alloca _ (Just op) _ _) = fromOperand op
-instrTy LL.Alloca {} = return
-instrTy (LL.Load _ op _ _ _) = fromOperand op
-instrTy (LL.Store _ op0 op1 _ _ _) =  fromOperands [op0, op1]
-instrTy (LL.GetElementPtr _ op ops _) = fromOperands (op : ops)
-instrTy (LL.CmpXchg _ op0 op1 op2 _ _ _) = fromOperands [op0, op1, op2]
-instrTy (LL.AtomicRMW _ _ op0 op1 _ _) = fromOperands [op0, op1]
-instrTy (LL.Trunc op0 _ _) = fromOperand op0
-instrTy (LL.ZExt op0 _ _) = fromOperand op0
-instrTy (LL.SExt op0 _ _) = fromOperand op0
-instrTy (LL.FPToUI op0 _ _) = fromOperand op0
-instrTy (LL.FPToSI op0 _ _) = fromOperand op0
-instrTy (LL.UIToFP op0 _ _) = fromOperand op0
-instrTy (LL.SIToFP op0 _ _) = fromOperand op0
-instrTy (LL.FPTrunc op0 _ _) = fromOperand op0
-instrTy (LL.FPExt op0 _ _) = fromOperand op0
-instrTy (LL.PtrToInt op0 _ _) = fromOperand op0
-instrTy (LL.IntToPtr op0 _ _) = fromOperand op0
-instrTy (LL.BitCast op0 _ _) = fromOperand op0
-instrTy (LL.AddrSpaceCast op0 _ _) = fromOperand op0
-instrTy (LL.ICmp _ op0 op1 _) = fromOperands [op0, op1]
-instrTy (LL.FCmp _ op0 op1 _) = fromOperands [op0, op1]
-instrTy LL.Call {function, arguments} = \vty -> do
-  (enc, _) <- varTyComps vty 
-  (renc, flows) <- funTyComps  
-  case find (\Flow {remoteEnclave} -> remoteEnclave == renc) flows of
-    Just Flow {args, ret} -> do 
-      argTys <- mapM (flip fromOperand vty . fst) arguments
-      let expTys = VarType enc <$> args
-      assert (ArgumentTypeMismatch argTys expTys) (and $ zipWith (<:) expTys argTys)
-      return (VarType enc ret)   
-    Nothing -> lift $ throwE $ MissingRemoteEnclave renc   
-  where
-    varTyComps ty =
-      case ty of
-        VarType e renc -> return (e, renc) 
-        _ -> lift $ throwE $ ExpectedVarType ty
-    lookupFunTy = 
-      case function of 
-        Right (LL.ConstantOperand (LC.GlobalReference _ name)) -> look name
-        Right LL.LocalReference {} -> lift $ throwE UnsupportedLocalFunction
-        Right _ -> error "not implemented" 
-        Left _ -> lift $ throwE UnsupportedInlineASM 
-    funTyComps = do  
-      ty <- lookupFunTy
-      case ty of
-        VarType _ _ -> lift $ throwE $ ExpectedFunType ty 
-        FunctionType e f -> return (e, f) 
-
-
-instrTy _ = error "not implemented" 
-
-checkInstruction :: Instruction (LLWrapper & Annotated) -> CLEType -> Tc Context
-checkInstruction (Instruction (IndexedPair (WrapInstruction (LL.Do instr)) (AnnotatedInstr assignedTy))) bodyTy = do
-  inferredTy <- instrTy instr bodyTy
-  assert (TypeMismatch inferredTy assignedTy) $ inferredTy <: assignedTy 
-  assert (TypeMismatch assignedTy bodyTy) $ assignedTy <: bodyTy 
-  pure M.empty
-checkInstruction (Instruction (IndexedPair (WrapInstruction (name LL.:= instr)) (AnnotatedInstr assignedTy))) bodyTy = do
-  inferredTy <- instrTy instr bodyTy
-  assert (TypeMismatch inferredTy assignedTy) $ inferredTy <: assignedTy 
-  assert (TypeMismatch assignedTy bodyTy) $ assignedTy <: bodyTy 
-  pure $ M.singleton name inferredTy 
-
--- checkInstruction (Instruction (WrapInstruction (LL.Do instr))) expTy = do
-
---   checkLLInstruction instr expTy
---   pure M.empty
---   checkLLInstruction instr expTy
---   return $ M.singleton name expTy
-checkBasicBlock :: 
-  BasicBlock (LLWrapper & Annotated) -> 
-  CLEType -> -- body type   
-  CLEType -> -- ret type
-  Tc Context 
-checkBasicBlock (BasicBlock name instrs term _) bodyTy retTy = do
-  -- Check all instruction types.
-  -- Instructions return a new context which may include
-  -- newly bounded variables
-  ctx' <- foldl (folder bodyTy) ask instrs
-  -- check terminator using new context   
-  local (const ctx') $ checkTerminator name term bodyTy retTy
-  return ctx'
-  where
-    folder ty tcctx instr = do
-      ctx <- tcctx
-      ctx' <- local (M.union ctx) $ checkInstruction instr ty
-      return $ ctx `M.union` ctx'
-
-checkBasicBlocks :: 
-  [BasicBlock (LLWrapper & Annotated)] -> 
-  CLEType -> -- body type   
-  CLEType -> -- ret type
-  Tc ()
-checkBasicBlocks bbs bodyTy retTy = do
-  _ <- foldl folder ask bbs 
-  return ()
-  where
-    folder tcctx bb = do
-      ctx <- tcctx 
-      local (const ctx) $ checkBasicBlock bb bodyTy retTy
-
-checkGlobal :: Global (LLWrapper & Annotated) -> Tc Context
-checkGlobal (Global (IndexedPair (WrapGlobal gb@LL.GlobalVariable {}) (AnnotatedGlobal ty@(VarType _ _)))) = do
-  ctx <- ask
-  return $ ctx `M.union` M.singleton (LL.name gb) ty
-checkGlobal (Global (IndexedPair (WrapGlobal gb@LL.GlobalAlias {}) (AnnotatedGlobal ty@(VarType _ _)))) = do
-  ctx <- ask
-  return $ ctx `M.union` M.singleton (LL.name gb) ty
-checkGlobal (Function bbs (IndexedPair (WrapGlobal LL.Function {parameters, ..}) (AnnotatedGlobal (FunctionType enc flows)))) = do 
-  -- check for unsupported variable arguments
+checkGlobal :: Global (LLWrapper & Annotated) -> Tc ()
+checkGlobal (Global (_ :& AnnotatedGlobal (VarType _ _))) = return ()
+checkGlobal (Global (_ :& AnnotatedGlobal ty@(FunctionType _ _))) = throw $ ExpectedVarType ty
+checkGlobal (Function _ (_ :& AnnotatedGlobal ty@(VarType _ _))) = throw $ ExpectedFunType ty
+checkGlobal (Function bbs (WrapGlobal LL.Function {parameters} :& AnnotatedGlobal (FunctionType enc flows))) = do
   assert UnsupportedVarArgs (not $ snd parameters)
-  -- check to make sure # of arguments in type match up 
-  -- with # of arguments in function 
-  mapM_ (checkArgLengths . args) flows
-  let paramNames = name' <$> fst parameters
-  let flowArgs = fmap (zip paramNames . fmap argTys . args) flows
-  let expectedBodyTys = fmap (VarType enc . body) flows
-  let expectedRetTys = fmap (VarType enc . ret) flows
-  let expectedTys = zip expectedBodyTys expectedRetTys
-  -- Note: basic blocks are assumed to be in depth first order
-  -- i.e., no variables bound in kth basic block can appear in any blocks earlier 
-  mapM_ (\((body, ret), args) -> withArgs args $ checkBasicBlocks bbs body ret) (zip expectedTys flowArgs)
-  ask
+  mapM_ checkBasicBlocks flows
   where
-    name' (LL.Parameter _ n _) = n
+    checkBasicBlocks flow = mapM_ (checkBasicBlock enc flow) bbs
+checkGlobal (Function _ (WrapGlobal ll :& _)) = throw $ ExpectedFun ll
 
-    withArgs args tca = 
-      local (\ctx -> M.fromList args `M.union` ctx) tca
+checkBasicBlock :: Enclave -> Flow -> BasicBlock (LLWrapper & Annotated) -> Tc Context 
+checkBasicBlock enc flow (BasicBlock _ instrs term _) = do
+  ctx <- checkInstrs
+  local (M.union ctx) (checkTerm enc flow term)
+  M.union ctx <$> ask
+  where
+    checkInstrs = foldl fold ask instrs
+    fold tcctx instr = do
+      ctx <- tcctx  
+      local (M.union ctx) (checkInstr enc flow instr) 
 
-    argTys args = VarType enc args
-    checkArgLengths args =
-        let lp = length $ fst parameters
-            la = length args in
-        assert (WrongFuncArgs lp la) $ lp == la
+nameOfOperand :: LL.Operand -> Tc LL.Name
+nameOfOperand (LL.LocalReference _ n) = return n 
+nameOfOperand (LL.ConstantOperand (LC.GlobalReference _ n)) = return n 
+nameOfOperand (LL.ConstantOperand _) = error "not implemented" 
+nameOfOperand (LL.MetadataOperand _) = throw UnsupportedMetadataOp
 
-checkGlobal _ = error "invalid input"  -- TODO: write error cases
--- checkGlobal (Global _) (VarType _enc _renc) = error "not implemented"
--- checkGlobal (Global _) t@(FunctionType _ _) = lift $ throwE $ ExpectedVarType t
--- checkGlobal (Function _ _) t@(VarType _ _) = lift $ throwE $ ExpectedFunType t
--- checkGlobal (Function bbs (WrapGlobal LL.Function {parameters, ..})) (FunctionType enc flows) = do
+remoteEnclavesFromTy :: CLEType -> RemoteEnclaves
+remoteEnclavesFromTy (VarType _ r) = r
+remoteEnclavesFromTy (FunctionType _ flows) = S.fromList $ remoteEnclave <$> flows 
 
--- checkGlobal (Function _ (WrapGlobal global)) _ = lift $ throwE $ ExpectedFun global
+checkInstr :: Enclave -> Flow -> Instruction (LLWrapper & Annotated) -> Tc Context
+checkInstr enc (Flow _ _ body _) (Instruction (WrapInstruction ll :& AnnotatedInstr ty@(VarType enc' rencs))) = do
+  assert (EnclaveMismatch enc' enc) (enc' == enc)
+  assert (NoTaintFound rencs body) (S.member rencs body)
+  case ll of
+    name LL.:= instr -> do
+      checkInstr' instr
+      return (M.singleton name ty) 
+    LL.Do instr -> do
+      checkInstr' instr
+      return M.empty 
 
-runTc :: Context -> Tc a -> Either Err a 
-runTc ctx tc = runExcept $ runReaderT tc ctx  
+  where
+    checkInstr' (LL.Add _ _ op0 op1 _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.Sub _ _ op0 op1 _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.Mul _ _ op0 op1 _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.UDiv _ op0 op1 _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.SDiv _ op0 op1 _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.FAdd _ op0 op1 _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.FSub _ op0 op1 _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.FMul _ op0 op1 _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.FDiv _ op0 op1 _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.URem op0 op1 _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.SRem op0 op1 _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.FRem _ op0 op1 _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.Shl _ _ op0 op1 _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.LShr _ op0 op1 _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.AShr _ op0 op1 _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.And op0 op1 _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.Or op0 op1 _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.Xor op0 op1 _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.Alloca _ (Just op) _ _) = checkOp op
+    checkInstr' LL.Alloca {} = return ()
+    checkInstr' (LL.Load _ op _ _ _) = checkOp op 
+    checkInstr' (LL.Store _ op0 op1 _ _ _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.GetElementPtr _ op ops _) = mapM_ checkOp (op : ops)
+    checkInstr' (LL.CmpXchg _ op0 op1 op2 _ _ _) = mapM_ checkOp [op0, op1, op2]
+    checkInstr' (LL.AtomicRMW _ _ op0 op1 _ _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.Trunc op0 _ _) = checkOp op0 
+    checkInstr' (LL.ZExt op0 _ _) = checkOp op0 
+    checkInstr' (LL.SExt op0 _ _) = checkOp op0 
+    checkInstr' (LL.FPToUI op0 _ _) = checkOp op0 
+    checkInstr' (LL.FPToSI op0 _ _) = checkOp op0 
+    checkInstr' (LL.UIToFP op0 _ _) = checkOp op0 
+    checkInstr' (LL.SIToFP op0 _ _) = checkOp op0 
+    checkInstr' (LL.FPTrunc op0 _ _) = checkOp op0 
+    checkInstr' (LL.FPExt op0 _ _) = checkOp op0 
+    checkInstr' (LL.PtrToInt op0 _ _) = checkOp op0 
+    checkInstr' (LL.IntToPtr op0 _ _) = checkOp op0 
+    checkInstr' (LL.BitCast op0 _ _) = checkOp op0 
+    checkInstr' (LL.AddrSpaceCast op0 _ _) = checkOp op0 
+    checkInstr' (LL.ICmp _ op0 op1 _) = mapM_ checkOp [op0, op1]
+    checkInstr' (LL.Select op0 op1 op2 _) = mapM_ checkOp [op0, op1, op2]  
+    checkInstr' (LL.ExtractElement op0 op1 _) = mapM_ checkOp [op0, op1]  
+    checkInstr' (LL.InsertElement op0 op1 op2 _) = mapM_ checkOp [op0, op1, op2]  
+    checkInstr' (LL.ShuffleVector op0 op1 c _) = do
+      mapM_ checkOp [op0, op1]  
+      checkConst c 
+    checkInstr' (LL.ExtractValue op _ _) = checkOp op
+    checkInstr' (LL.InsertValue op0 op1 _ _) = mapM_ checkOp [op0, op1]
+    checkInstr' LL.Call {function, arguments} = do
+      name <- nameOfCallable function
+      funTy <- lookup' name 
+      case funTy of  
+        FunctionType _ flows -> do
+          argNames <- mapM nameOfOperand (fst <$> arguments)
+          argTys <- mapM lookup' argNames  
+          (Flow _ args' _ ret') <- 
+            case find ((== enc) . remoteEnclave) flows of
+              Just f -> return f 
+              Nothing -> throw $ MissingRemoteEnclave enc  
+          let rencs' = remoteEnclavesFromTy <$> argTys
+          assert (NoTaintFoundArgs rencs' args') (and $ zipWith S.member rencs' args')
+          assert (NoTaintMatch body ret') (S.size (S.intersection body ret') > 0)
+        _ -> throw $ ExpectedFunType funTy
+        
+    checkInstr' i = throw $ UnsupportedInstruction i
+
+    checkOp (LL.ConstantOperand c) = checkConst c
+    checkOp _ = return ()
+
+    checkConst (LC.GlobalReference _ name) = do
+      ty' <- lookup' name
+      case ty' of
+        VarType enc'' rencs'' -> do
+          assert (EnclaveMismatch enc'' enc) (enc'' == enc)
+          assert (NoTaintFound rencs'' body) (S.member rencs'' body)
+        _ -> throw $ ExpectedVarType ty'
+    checkConst (LC.Struct _ _ members) = mapM_ checkConst members
+    checkConst (LC.Array _ members) = mapM_ checkConst members
+    checkConst (LC.Vector members) = mapM_ checkConst members
+    checkConst (LC.Add _ _ c c') = mapM_ checkConst [c, c']
+    checkConst (LC.Sub _ _ c c') = mapM_ checkConst [c, c']
+    checkConst (LC.Mul _ _ c c') = mapM_ checkConst [c, c']
+    checkConst (LC.UDiv _ c c') = mapM_ checkConst [c, c']
+    checkConst (LC.SDiv _ c c') = mapM_ checkConst [c, c']
+    checkConst (LC.FAdd c c') = mapM_ checkConst [c, c']
+    checkConst (LC.FSub c c') = mapM_ checkConst [c, c']
+    checkConst (LC.FMul c c') = mapM_ checkConst [c, c']
+    checkConst (LC.FDiv c c') = mapM_ checkConst [c, c']
+    checkConst (LC.URem c c') = mapM_ checkConst [c, c']
+    checkConst (LC.SRem c c') = mapM_ checkConst [c, c']
+    checkConst (LC.FRem c c') = mapM_ checkConst [c, c']
+    checkConst (LC.Shl _ _ c c') = mapM_ checkConst [c, c']
+    checkConst (LC.LShr _ c c') = mapM_ checkConst [c, c']
+    checkConst (LC.AShr _ c c') = mapM_ checkConst [c, c']
+    checkConst (LC.And c c') = mapM_ checkConst [c, c']
+    checkConst (LC.Or c c') = mapM_ checkConst [c, c']
+    checkConst (LC.Xor c c') = mapM_ checkConst [c, c']
+    checkConst (LC.GetElementPtr _ c cs) = mapM_ checkConst (c : cs)
+    checkConst (LC.Trunc c _) = checkConst c
+    checkConst (LC.ZExt c _) = checkConst c
+    checkConst (LC.SExt c _) = checkConst c
+    checkConst (LC.FPToUI c _) = checkConst c
+    checkConst (LC.FPToSI c _) = checkConst c
+    checkConst (LC.UIToFP c _) = checkConst c
+    checkConst (LC.SIToFP c _) = checkConst c
+    checkConst (LC.FPTrunc c _) = checkConst c
+    checkConst (LC.PtrToInt c _) = checkConst c
+    checkConst (LC.IntToPtr c _) = checkConst c
+    checkConst (LC.BitCast c _) = checkConst c
+    checkConst (LC.AddrSpaceCast c _) = checkConst c
+    checkConst (LC.ICmp _ c c') = mapM_ checkConst [c, c']
+    checkConst (LC.FCmp _ c c') = mapM_ checkConst [c, c']
+    checkConst (LC.Select c c' c'') = mapM_ checkConst [c, c', c'']
+    checkConst (LC.ExtractElement c c') = mapM_ checkConst [c, c']
+    checkConst (LC.InsertElement c c' c'') = mapM_ checkConst [c, c', c'']
+    checkConst (LC.ShuffleVector c c' c'') = mapM_ checkConst [c, c', c'']
+    checkConst (LC.ExtractValue c _) = checkConst c
+    checkConst (LC.InsertValue c c' _) = mapM_ checkConst [c, c']
+    checkConst _ = return ()
+
+    nameOfCallable (Right (LL.ConstantOperand (LC.GlobalReference _ n))) = return n 
+    nameOfCallable (Right (LL.LocalReference _ _)) = throw UnsupportedLocalFunction  
+    nameOfCallable (Right _) = throw UnsupportedMetadataCall  
+    nameOfCallable (Left _) = throw UnsupportedInlineASM
+checkInstr _ _ (Instruction (_ :& AnnotatedInstr ty)) = throw $ ExpectedVarType ty
+
+checkTerm :: Enclave -> Flow -> Terminator (LLWrapper & Annotated) -> Tc ()
+checkTerm _ (Flow _ _ _ ret) (Terminator ((WrapTerminator term) :& (AnnotatedTerm ty))) = 
+  case term of
+    LL.Do (LL.Ret (Just op) _) -> do
+      name <- nameOfOperand op
+      ty' <- lookup' name
+      let renc = remoteEnclavesFromTy ty'
+      assert (NoTaintFound renc ret) (S.member renc ret) 
+      assert (TypeMismatch ty' ty) (ty' == ty)
+    _ -> pure ()
