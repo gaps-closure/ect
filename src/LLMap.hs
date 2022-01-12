@@ -23,8 +23,8 @@ import TypeCheck
       Terminator(Terminator),
       LLIndex(..),
       globalZipWith,
-      convertName,
-      IndexedPair (IndexedPair), type (&) )
+      nameFromString,
+      IndexedPair ((:&)), type (&) )
 import Prelude hiding (return)
 
 data Assignment = Assignment {
@@ -39,9 +39,6 @@ data BasicBlockDesc = BasicBlockDesc {
 
 data GlobalDesc = GlobalDesc {
     assignment :: Assignment,
-    parameters :: Maybe [Assignment],
-    body :: Maybe Assignment,
-    return :: Maybe Assignment,
     blocks :: Maybe (M.Map String BasicBlockDesc)
 } deriving (Generic, Show, Eq, Ord)
 
@@ -57,32 +54,26 @@ data IndexedAssignment (i :: LLIndex) where
     AssignedInstruction :: Maybe Assignment -> IndexedAssignment 'Inst
     UnassignedBasicBlock :: IndexedAssignment 'BB
     AssignedGlobal :: Assignment -> IndexedAssignment 'Glob
-    AssignedGlobalWithExtra :: Assignment -> [Assignment] -> Assignment -> Assignment -> IndexedAssignment 'Glob
 
 instance Show (IndexedAssignment i) where
     show (AssignedTerminator a) = unwords ["(AssignedTerminator", show a, ")"]
     show (AssignedInstruction a) = unwords ["(AssignedInstruction", show a, ")"]
     show UnassignedBasicBlock = "UnassignedBasicBlock"
     show (AssignedGlobal a) = unwords ["(AssignedGlobal", show a, ")"]
-    show (AssignedGlobalWithExtra a ps bdy ret) = unwords ["(AssignedGlobalWithExtra", show a, show ps, show bdy, show ret, ")"]
+
+consBB :: String -> BasicBlockDesc -> BasicBlock IndexedAssignment    
+consBB name (BasicBlockDesc instrs term) = 
+    BasicBlock (nameFromString name) (toInstructions instrs) (Terminator $ AssignedTerminator term) UnassignedBasicBlock    
+    where
+        toInstructions = fmap (Instruction . AssignedInstruction) 
+
+fromBBMap :: M.Map String BasicBlockDesc -> [BasicBlock IndexedAssignment]
+fromBBMap = fmap (uncurry consBB) . M.toList
 
 wrapGlobalDesc :: GlobalDesc -> Global IndexedAssignment
-wrapGlobalDesc GlobalDesc { assignment, parameters = Just prms, body = Just bdy, return = Just ret, blocks = Just bl, .. } =
-    Function (nameBlocks bl) (AssignedGlobalWithExtra assignment prms bdy ret)     
-        where
-            nameBlocks b = toBB <$> M.toList b
-            toBB (name, BasicBlockDesc instrs term) = 
-                BasicBlock (convertName name) (wrapInstrs instrs) (Terminator $ AssignedTerminator term) UnassignedBasicBlock
-            wrapInstrs = fmap (Instruction . AssignedInstruction)
 wrapGlobalDesc GlobalDesc { assignment, blocks = Just bl, .. } = 
-    Function (nameBlocks bl) (AssignedGlobal assignment)
-        where
-            nameBlocks b = toBB <$> M.toList b
-            toBB (name, BasicBlockDesc instrs term) = 
-                BasicBlock (convertName name) (wrapInstrs instrs) (Terminator $ AssignedTerminator term) UnassignedBasicBlock
-            wrapInstrs = fmap (Instruction . AssignedInstruction)
+    Function (fromBBMap bl) (AssignedGlobal assignment)
 wrapGlobalDesc GlobalDesc { assignment } = Global (AssignedGlobal assignment)    
 
-
 zipGlobal :: Global LLWrapper -> Global IndexedAssignment -> Maybe (Global (LLWrapper & IndexedAssignment))
-zipGlobal = globalZipWith IndexedPair  
+zipGlobal = globalZipWith (:&)  
