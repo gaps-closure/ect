@@ -3,14 +3,14 @@ source_filename = "./examples/secdesk/c/orange/secdesk.mod.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
-%struct._IO_FILE = type { i32, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, %struct._IO_marker*, %struct._IO_FILE*, i32, i32, i64, i16, i8, [1 x i8], i8*, i64, %struct._IO_codecvt*, %struct._IO_wide_data*, %struct._IO_FILE*, i8*, i64, i32, [20 x i8] }
+%struct._IO_FILE = type <{ i32, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, %struct._IO_marker*, %struct._IO_FILE*, i32, i32, i64, i16, i8, [1 x i8], i8*, i64, %struct._IO_codecvt*, %struct._IO_wide_data*, %struct._IO_FILE*, i8*, i64, i32, [20 x i8] }>
 %struct._IO_marker = type opaque
 %struct._IO_codecvt = type opaque
 %struct._IO_wide_data = type opaque
 %struct.fio_str_info_s = type { i64, i64, i8* }
 %struct.fiobj_object_vtable_s = type { i8*, void (i64, void (i64, i8*)*, i8*)*, i64 (i64)*, i64 (i64)*, i64 (i64, i64)*, i64 (i64, i64, i32 (i64, i8*)*, i8*)*, void (%struct.fio_str_info_s*, i64)*, i64 (i64)*, double (i64)* }
 %struct.__va_list_tag = type { i32, i32, i8*, i8* }
-%struct.http_settings_s = type { void (%struct.http_s*)*, void (%struct.http_s*, i8*, i64)*, void (%struct.http_s*)*, void (%struct.http_settings_s*)*, i8*, i8*, i64, i64, i64, i64, i8*, i64, i64, i64, i64, i8, i8, i8, i8 }
+%struct.http_settings_s = type <{ void (%struct.http_s*)*, void (%struct.http_s*, i8*, i64)*, void (%struct.http_s*)*, void (%struct.http_settings_s*)*, i8*, i8*, i64, i64, i64, i64, i8*, i64, i64, i64, i64, i8, i8, i8, i8 }>
 %struct.http_s = type { %struct.anon, %struct.timespec, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i8* }
 %struct.anon = type { i8*, i64, i64 }
 %struct.timespec = type { i64, i64 }
@@ -64,18 +64,18 @@ target triple = "x86_64-pc-linux-gnu"
 @.str.38 = private unnamed_addr constant [9 x i8] c"ALLOWED!\00", align 1
 @.str.39 = private unnamed_addr constant [8 x i8] c"DENIED!\00", align 1
 @.str.40 = private unnamed_addr constant [5 x i8] c"null\00", align 1
-@__const.fiobj_obj2cstr.ret = private unnamed_addr constant %struct.fio_str_info_s { i64 0, i64 4, i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str.40, i32 0, i32 0) }, align 8
-@__const.fiobj_obj2cstr.ret.41 = private unnamed_addr constant %struct.fio_str_info_s { i64 0, i64 4, i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str.40, i32 0, i32 0) }, align 8
+@__const.fiobj_obj2cstr.ret = private unnamed_addr constant %struct.fio_str_info_s { i64 0, i64 4, i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str.40, i32 0, i32 0) }, align 1
+@__const.fiobj_obj2cstr.ret.41 = private unnamed_addr constant %struct.fio_str_info_s { i64 0, i64 4, i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str.40, i32 0, i32 0) }, align 1
 @.str.42 = private unnamed_addr constant [6 x i8] c"false\00", align 1
-@__const.fiobj_obj2cstr.ret.43 = private unnamed_addr constant %struct.fio_str_info_s { i64 0, i64 5, i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str.42, i32 0, i32 0) }, align 8
+@__const.fiobj_obj2cstr.ret.43 = private unnamed_addr constant %struct.fio_str_info_s { i64 0, i64 5, i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str.42, i32 0, i32 0) }, align 1
 @.str.44 = private unnamed_addr constant [5 x i8] c"true\00", align 1
-@__const.fiobj_obj2cstr.ret.45 = private unnamed_addr constant %struct.fio_str_info_s { i64 0, i64 4, i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str.44, i32 0, i32 0) }, align 8
-@FIOBJECT_VTABLE_NUMBER = external dso_local constant %struct.fiobj_object_vtable_s, align 8
-@FIOBJECT_VTABLE_FLOAT = external dso_local constant %struct.fiobj_object_vtable_s, align 8
-@FIOBJECT_VTABLE_STRING = external dso_local constant %struct.fiobj_object_vtable_s, align 8
-@FIOBJECT_VTABLE_ARRAY = external dso_local constant %struct.fiobj_object_vtable_s, align 8
-@FIOBJECT_VTABLE_HASH = external dso_local constant %struct.fiobj_object_vtable_s, align 8
-@FIOBJECT_VTABLE_DATA = external dso_local constant %struct.fiobj_object_vtable_s, align 8
+@__const.fiobj_obj2cstr.ret.45 = private unnamed_addr constant %struct.fio_str_info_s { i64 0, i64 4, i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str.44, i32 0, i32 0) }, align 1
+@FIOBJECT_VTABLE_NUMBER = external dso_local constant %struct.fiobj_object_vtable_s, align 1
+@FIOBJECT_VTABLE_FLOAT = external dso_local constant %struct.fiobj_object_vtable_s, align 1
+@FIOBJECT_VTABLE_STRING = external dso_local constant %struct.fiobj_object_vtable_s, align 1
+@FIOBJECT_VTABLE_ARRAY = external dso_local constant %struct.fiobj_object_vtable_s, align 1
+@FIOBJECT_VTABLE_HASH = external dso_local constant %struct.fiobj_object_vtable_s, align 1
+@FIOBJECT_VTABLE_DATA = external dso_local constant %struct.fiobj_object_vtable_s, align 1
 @.str.46 = private unnamed_addr constant [10 x i8] c"imageFile\00", align 1
 @.str.47 = private unnamed_addr constant [6 x i8] c"fname\00", align 1
 @.str.48 = private unnamed_addr constant [3 x i8] c"mi\00", align 1
@@ -185,7 +185,7 @@ define dso_local void @run_secdesk_service(i32, i8**) #0 {
   %4 = alloca i8**, align 8
   %5 = alloca %struct.http_settings_s, align 8
   %6 = alloca i8*, align 8
-  %7 = alloca %struct.fio_start_args, align 2
+  %7 = alloca %struct.fio_start_args, align 1
   store i32 %0, i32* %3, align 4
   store i8** %1, i8*** %4, align 8
   %8 = load i32, i32* %3, align 4
@@ -194,28 +194,28 @@ define dso_local void @run_secdesk_service(i32, i8**) #0 {
   %10 = call i8* @fio_cli_get(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str.2, i64 0, i64 0))
   %11 = call i8* @fio_cli_get(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str.3, i64 0, i64 0))
   %12 = bitcast %struct.http_settings_s* %5 to i8*
-  call void @llvm.memset.p0i8.i64(i8* align 8 %12, i8 0, i64 128, i1 false)
+  call void @llvm.memset.p0i8.i64(i8* align 1 %12, i8 0, i64 124, i1 false)
   %13 = getelementptr inbounds %struct.http_settings_s, %struct.http_settings_s* %5, i32 0, i32 0
-  store void (%struct.http_s*)* @on_http_request, void (%struct.http_s*)** %13, align 8
+  store void (%struct.http_s*)* @on_http_request, void (%struct.http_s*)** %13, align 1
   %14 = getelementptr inbounds %struct.http_settings_s, %struct.http_settings_s* %5, i32 0, i32 5
   %15 = call i8* @fio_cli_get(i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str.4, i64 0, i64 0))
-  store i8* %15, i8** %14, align 8
+  store i8* %15, i8** %14, align 1
   %16 = getelementptr inbounds %struct.http_settings_s, %struct.http_settings_s* %5, i32 0, i32 8
   %17 = call i32 @fio_cli_get_i(i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str.5, i64 0, i64 0))
   %18 = mul nsw i32 %17, 1024
   %19 = mul nsw i32 %18, 1024
   %20 = sext i32 %19 to i64
-  store i64 %20, i64* %16, align 8
+  store i64 %20, i64* %16, align 1
   %21 = getelementptr inbounds %struct.http_settings_s, %struct.http_settings_s* %5, i32 0, i32 15
   %22 = call i32 @fio_cli_get_i(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str.6, i64 0, i64 0))
   %23 = trunc i32 %22 to i8
-  store i8 %23, i8* %21, align 8
+  store i8 %23, i8* %21, align 1
   %24 = getelementptr inbounds %struct.http_settings_s, %struct.http_settings_s* %5, i32 0, i32 17
   %25 = call i8* @fio_cli_get(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str.7, i64 0, i64 0))
   %26 = icmp ne i8* %25, null
   %27 = zext i1 %26 to i32
   %28 = trunc i32 %27 to i8
-  store i8 %28, i8* %24, align 2
+  store i8 %28, i8* %24, align 1
   %29 = call i64 @http_listen(i8* %10, i8* %11, %struct.http_settings_s* byval(%struct.http_settings_s) align 8 %5)
   %30 = icmp eq i64 %29, -1
   br i1 %30, label %31, label %32
@@ -235,13 +235,13 @@ define dso_local void @run_secdesk_service(i32, i8**) #0 {
   %37 = getelementptr inbounds %struct.fio_start_args, %struct.fio_start_args* %7, i32 0, i32 0
   %38 = call i32 @fio_cli_get_i(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str.10, i64 0, i64 0))
   %39 = trunc i32 %38 to i16
-  store i16 %39, i16* %37, align 2
+  store i16 %39, i16* %37, align 1
   %40 = getelementptr inbounds %struct.fio_start_args, %struct.fio_start_args* %7, i32 0, i32 1
   %41 = call i32 @fio_cli_get_i(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str.11, i64 0, i64 0))
   %42 = trunc i32 %41 to i16
-  store i16 %42, i16* %40, align 2
+  store i16 %42, i16* %40, align 1
   %43 = bitcast %struct.fio_start_args* %7 to i32*
-  %44 = load i32, i32* %43, align 2
+  %44 = load i32, i32* %43, align 1
   call void @fio_start(i32 %44)
   %45 = call i32 (...) @_rpc_stop_recognizer()
   %46 = call i32 @stop_imageprocessor()
@@ -376,9 +376,9 @@ declare void @llvm.memset.p0i8.i64(i8* nocapture writeonly, i8, i64, i1 immarg) 
 ; Function Attrs: noinline nounwind optnone uwtable
 define internal void @on_http_request(%struct.http_s*) #0 {
   %2 = alloca %struct.http_s*, align 8
-  %3 = alloca %struct.fio_str_info_s, align 8
-  %4 = alloca %struct.fio_str_info_s, align 8
-  %5 = alloca %struct.secinput, align 8
+  %3 = alloca %struct.fio_str_info_s, align 1
+  %4 = alloca %struct.fio_str_info_s, align 1
+  %5 = alloca %struct.secinput, align 1
   %6 = alloca [512 x i8], align 16
   %7 = alloca i32, align 4
   %8 = alloca [1024 x i8], align 16
@@ -387,10 +387,10 @@ define internal void @on_http_request(%struct.http_s*) #0 {
   call void @http_parse_query(%struct.http_s* %9)
   %10 = load %struct.http_s*, %struct.http_s** %2, align 8
   %11 = getelementptr inbounds %struct.http_s, %struct.http_s* %10, i32 0, i32 6
-  %12 = load i64, i64* %11, align 8
+  %12 = load i64, i64* %11, align 1
   call void @fiobj_obj2cstr(%struct.fio_str_info_s* sret %3, i64 %12)
   %13 = getelementptr inbounds %struct.fio_str_info_s, %struct.fio_str_info_s* %3, i32 0, i32 2
-  %14 = load i8*, i8** %13, align 8
+  %14 = load i8*, i8** %13, align 1
   %15 = call i32 @strcmp(i8* %14, i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str.35, i64 0, i64 0)) #8
   %16 = icmp ne i32 %15, 0
   br i1 %16, label %29, label %17
@@ -398,10 +398,10 @@ define internal void @on_http_request(%struct.http_s*) #0 {
 17:                                               ; preds = %1
   %18 = load %struct.http_s*, %struct.http_s** %2, align 8
   %19 = getelementptr inbounds %struct.http_s, %struct.http_s* %18, i32 0, i32 2
-  %20 = load i64, i64* %19, align 8
+  %20 = load i64, i64* %19, align 1
   call void @fiobj_obj2cstr(%struct.fio_str_info_s* sret %4, i64 %20)
   %21 = getelementptr inbounds %struct.fio_str_info_s, %struct.fio_str_info_s* %4, i32 0, i32 2
-  %22 = load i8*, i8** %21, align 8
+  %22 = load i8*, i8** %21, align 1
   %23 = call i32 @strcmp(i8* %22, i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str.36, i64 0, i64 0)) #8
   %24 = icmp ne i32 %23, 0
   br i1 %24, label %29, label %25
@@ -427,7 +427,7 @@ define internal void @on_http_request(%struct.http_s*) #0 {
 34:                                               ; preds = %25
   %35 = load %struct.http_s*, %struct.http_s** %2, align 8
   %36 = getelementptr inbounds %struct.http_s, %struct.http_s* %35, i32 0, i32 10
-  %37 = load i64, i64* %36, align 8
+  %37 = load i64, i64* %36, align 1
   %38 = bitcast %struct.secinput* %5 to i8*
   %39 = call i64 @fiobj_each1(i64 %37, i64 0, i32 (i64, i8*)* @get_fields, i8* %38)
   %40 = getelementptr inbounds [512 x i8], [512 x i8]* %6, i64 0, i64 0
@@ -516,7 +516,7 @@ define internal void @fiobj_obj2cstr(%struct.fio_str_info_s* noalias sret, i64) 
 
 6:                                                ; preds = %2
   %7 = bitcast %struct.fio_str_info_s* %0 to i8*
-  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %7, i8* align 8 bitcast (%struct.fio_str_info_s* @__const.fiobj_obj2cstr.ret to i8*), i64 24, i1 false)
+  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 1 %7, i8* align 1 bitcast (%struct.fio_str_info_s* @__const.fiobj_obj2cstr.ret to i8*), i64 24, i1 false)
   br label %37
 
 8:                                                ; preds = %2
@@ -549,17 +549,17 @@ define internal void @fiobj_obj2cstr(%struct.fio_str_info_s* noalias sret, i64) 
 
 23:                                               ; preds = %19
   %24 = bitcast %struct.fio_str_info_s* %0 to i8*
-  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %24, i8* align 8 bitcast (%struct.fio_str_info_s* @__const.fiobj_obj2cstr.ret.41 to i8*), i64 24, i1 false)
+  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 1 %24, i8* align 1 bitcast (%struct.fio_str_info_s* @__const.fiobj_obj2cstr.ret.41 to i8*), i64 24, i1 false)
   br label %37
 
 25:                                               ; preds = %19
   %26 = bitcast %struct.fio_str_info_s* %0 to i8*
-  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %26, i8* align 8 bitcast (%struct.fio_str_info_s* @__const.fiobj_obj2cstr.ret.43 to i8*), i64 24, i1 false)
+  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 1 %26, i8* align 1 bitcast (%struct.fio_str_info_s* @__const.fiobj_obj2cstr.ret.43 to i8*), i64 24, i1 false)
   br label %37
 
 27:                                               ; preds = %19
   %28 = bitcast %struct.fio_str_info_s* %0 to i8*
-  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %28, i8* align 8 bitcast (%struct.fio_str_info_s* @__const.fiobj_obj2cstr.ret.45 to i8*), i64 24, i1 false)
+  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 1 %28, i8* align 1 bitcast (%struct.fio_str_info_s* @__const.fiobj_obj2cstr.ret.45 to i8*), i64 24, i1 false)
   br label %37
 
 29:                                               ; preds = %19
@@ -572,7 +572,7 @@ define internal void @fiobj_obj2cstr(%struct.fio_str_info_s* noalias sret, i64) 
   %32 = load i64, i64* %3, align 8
   %33 = call %struct.fiobj_object_vtable_s* @fiobj_type_vtable(i64 %32)
   %34 = getelementptr inbounds %struct.fiobj_object_vtable_s, %struct.fiobj_object_vtable_s* %33, i32 0, i32 6
-  %35 = load void (%struct.fio_str_info_s*, i64)*, void (%struct.fio_str_info_s*, i64)** %34, align 8
+  %35 = load void (%struct.fio_str_info_s*, i64)*, void (%struct.fio_str_info_s*, i64)** %34, align 1
   %36 = load i64, i64* %3, align 8
   call void %35(%struct.fio_str_info_s* sret %0, i64 %36)
   br label %37
@@ -616,7 +616,7 @@ define internal i64 @fiobj_each1(i64, i64, i32 (i64, i8*)*, i8*) #0 {
   %21 = load i64, i64* %6, align 8
   %22 = call %struct.fiobj_object_vtable_s* @fiobj_type_vtable(i64 %21)
   %23 = getelementptr inbounds %struct.fiobj_object_vtable_s, %struct.fiobj_object_vtable_s* %22, i32 0, i32 5
-  %24 = load i64 (i64, i64, i32 (i64, i8*)*, i8*)*, i64 (i64, i64, i32 (i64, i8*)*, i8*)** %23, align 8
+  %24 = load i64 (i64, i64, i32 (i64, i8*)*, i8*)*, i64 (i64, i64, i32 (i64, i8*)*, i8*)** %23, align 1
   %25 = icmp ne i64 (i64, i64, i32 (i64, i8*)*, i8*)* %24, null
   br i1 %25, label %26, label %36
 
@@ -624,7 +624,7 @@ define internal i64 @fiobj_each1(i64, i64, i32 (i64, i8*)*, i8*) #0 {
   %27 = load i64, i64* %6, align 8
   %28 = call %struct.fiobj_object_vtable_s* @fiobj_type_vtable(i64 %27)
   %29 = getelementptr inbounds %struct.fiobj_object_vtable_s, %struct.fiobj_object_vtable_s* %28, i32 0, i32 5
-  %30 = load i64 (i64, i64, i32 (i64, i8*)*, i8*)*, i64 (i64, i64, i32 (i64, i8*)*, i8*)** %29, align 8
+  %30 = load i64 (i64, i64, i32 (i64, i8*)*, i8*)*, i64 (i64, i64, i32 (i64, i8*)*, i8*)** %29, align 1
   %31 = load i64, i64* %6, align 8
   %32 = load i64, i64* %7, align 8
   %33 = load i32 (i64, i8*)*, i32 (i64, i8*)** %8, align 8
@@ -648,7 +648,7 @@ define internal i32 @get_fields(i64, i8*) #0 {
   %4 = alloca i8*, align 8
   %5 = alloca %struct.secinput*, align 8
   %6 = alloca i8*, align 8
-  %7 = alloca %struct.fio_str_info_s, align 8
+  %7 = alloca %struct.fio_str_info_s, align 1
   store i64 %0, i64* %3, align 8
   store i8* %1, i8** %4, align 8
   %8 = load i8*, i8** %4, align 8
@@ -662,7 +662,7 @@ define internal i32 @get_fields(i64, i8*) #0 {
   %13 = call i64 @fiobj_hash_key_in_loop()
   call void @fiobj_obj2cstr(%struct.fio_str_info_s* sret %7, i64 %13)
   %14 = getelementptr inbounds %struct.fio_str_info_s, %struct.fio_str_info_s* %7, i32 0, i32 2
-  %15 = load i8*, i8** %14, align 8
+  %15 = load i8*, i8** %14, align 1
   store i8* %15, i8** %6, align 8
   %16 = load i8*, i8** %6, align 8
   %17 = call i32 @strcmp(i8* %16, i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str.46, i64 0, i64 0)) #8
@@ -685,7 +685,7 @@ define internal i32 @get_fields(i64, i8*) #0 {
   %28 = load i64, i64* %3, align 8
   %29 = load %struct.secinput*, %struct.secinput** %5, align 8
   %30 = getelementptr inbounds %struct.secinput, %struct.secinput* %29, i32 0, i32 0
-  store i64 %28, i64* %30, align 8
+  store i64 %28, i64* %30, align 1
   br label %49
 
 31:                                               ; preds = %23
@@ -698,7 +698,7 @@ define internal i32 @get_fields(i64, i8*) #0 {
   %36 = load i64, i64* %3, align 8
   %37 = load %struct.secinput*, %struct.secinput** %5, align 8
   %38 = getelementptr inbounds %struct.secinput, %struct.secinput* %37, i32 0, i32 1
-  store i64 %36, i64* %38, align 8
+  store i64 %36, i64* %38, align 1
   br label %48
 
 39:                                               ; preds = %31
@@ -711,7 +711,7 @@ define internal i32 @get_fields(i64, i8*) #0 {
   %44 = load i64, i64* %3, align 8
   %45 = load %struct.secinput*, %struct.secinput** %5, align 8
   %46 = getelementptr inbounds %struct.secinput, %struct.secinput* %45, i32 0, i32 2
-  store i64 %44, i64* %46, align 8
+  store i64 %44, i64* %46, align 1
   br label %47
 
 47:                                               ; preds = %43, %39
@@ -734,9 +734,9 @@ define internal i32 @get_fields(i64, i8*) #0 {
 define internal i32 @process_secinput(%struct.secinput*, i8*) #0 {
   %3 = alloca %struct.secinput*, align 8
   %4 = alloca i8*, align 8
-  %5 = alloca %struct.fio_str_info_s, align 8
+  %5 = alloca %struct.fio_str_info_s, align 1
   %6 = alloca i8*, align 8
-  %7 = alloca %struct.fio_str_info_s, align 8
+  %7 = alloca %struct.fio_str_info_s, align 1
   %8 = alloca [256 x i8], align 16
   %9 = alloca [512 x i8], align 16
   %10 = alloca %struct._IO_FILE*, align 8
@@ -744,9 +744,9 @@ define internal i32 @process_secinput(%struct.secinput*, i8*) #0 {
   %12 = alloca i8*, align 8
   %13 = alloca i8*, align 8
   %14 = alloca i8*, align 8
-  %15 = alloca %struct.fio_str_info_s, align 8
-  %16 = alloca %struct.fio_str_info_s, align 8
-  %17 = alloca %struct.fio_str_info_s, align 8
+  %15 = alloca %struct.fio_str_info_s, align 1
+  %16 = alloca %struct.fio_str_info_s, align 1
+  %17 = alloca %struct.fio_str_info_s, align 1
   %18 = alloca [128 x double], align 16
   %19 = alloca i32, align 4
   %20 = alloca i32, align 4
@@ -756,14 +756,14 @@ define internal i32 @process_secinput(%struct.secinput*, i8*) #0 {
   store i8* %1, i8** %4, align 8
   %23 = load %struct.secinput*, %struct.secinput** %3, align 8
   %24 = getelementptr inbounds %struct.secinput, %struct.secinput* %23, i32 0, i32 4
-  %25 = load i64, i64* %24, align 8
+  %25 = load i64, i64* %24, align 1
   call void @fiobj_obj2cstr(%struct.fio_str_info_s* sret %5, i64 %25)
   %26 = load %struct.secinput*, %struct.secinput** %3, align 8
   %27 = getelementptr inbounds %struct.secinput, %struct.secinput* %26, i32 0, i32 3
-  %28 = load i64, i64* %27, align 8
+  %28 = load i64, i64* %27, align 1
   call void @fiobj_obj2cstr(%struct.fio_str_info_s* sret %7, i64 %28)
   %29 = getelementptr inbounds %struct.fio_str_info_s, %struct.fio_str_info_s* %7, i32 0, i32 2
-  %30 = load i8*, i8** %29, align 8
+  %30 = load i8*, i8** %29, align 1
   store i8* %30, i8** %6, align 8
   %31 = bitcast [256 x i8]* %8 to i8*
   call void @llvm.var.annotation(i8* %31, i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str.52, i32 0, i32 0), i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.53, i32 0, i32 0), i32 104)
@@ -791,9 +791,9 @@ define internal i32 @process_secinput(%struct.secinput*, i8*) #0 {
 
 47:                                               ; preds = %46, %2
   %48 = getelementptr inbounds %struct.fio_str_info_s, %struct.fio_str_info_s* %5, i32 0, i32 2
-  %49 = load i8*, i8** %48, align 8
+  %49 = load i8*, i8** %48, align 1
   %50 = getelementptr inbounds %struct.fio_str_info_s, %struct.fio_str_info_s* %5, i32 0, i32 1
-  %51 = load i64, i64* %50, align 8
+  %51 = load i64, i64* %50, align 1
   %52 = load %struct._IO_FILE*, %struct._IO_FILE** %10, align 8
   %53 = call i64 @fwrite(i8* %49, i64 %51, i64 1, %struct._IO_FILE* %52)
   %54 = icmp ne i64 %53, 1
@@ -822,26 +822,26 @@ define internal i32 @process_secinput(%struct.secinput*, i8*) #0 {
   %72 = call i32 (i8*, i8*, ...) @sprintf(i8* %69, i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str.59, i64 0, i64 0), i8* %70, i8* %71) #1
   %73 = load %struct.secinput*, %struct.secinput** %3, align 8
   %74 = getelementptr inbounds %struct.secinput, %struct.secinput* %73, i32 0, i32 0
-  %75 = load i64, i64* %74, align 8
+  %75 = load i64, i64* %74, align 1
   call void @fiobj_obj2cstr(%struct.fio_str_info_s* sret %15, i64 %75)
   %76 = getelementptr inbounds %struct.fio_str_info_s, %struct.fio_str_info_s* %15, i32 0, i32 2
-  %77 = load i8*, i8** %76, align 8
+  %77 = load i8*, i8** %76, align 1
   %78 = call noalias i8* @strdup(i8* %77) #1
   store i8* %78, i8** %12, align 8
   %79 = load %struct.secinput*, %struct.secinput** %3, align 8
   %80 = getelementptr inbounds %struct.secinput, %struct.secinput* %79, i32 0, i32 1
-  %81 = load i64, i64* %80, align 8
+  %81 = load i64, i64* %80, align 1
   call void @fiobj_obj2cstr(%struct.fio_str_info_s* sret %16, i64 %81)
   %82 = getelementptr inbounds %struct.fio_str_info_s, %struct.fio_str_info_s* %16, i32 0, i32 2
-  %83 = load i8*, i8** %82, align 8
+  %83 = load i8*, i8** %82, align 1
   %84 = call noalias i8* @strdup(i8* %83) #1
   store i8* %84, i8** %13, align 8
   %85 = load %struct.secinput*, %struct.secinput** %3, align 8
   %86 = getelementptr inbounds %struct.secinput, %struct.secinput* %85, i32 0, i32 2
-  %87 = load i64, i64* %86, align 8
+  %87 = load i64, i64* %86, align 1
   call void @fiobj_obj2cstr(%struct.fio_str_info_s* sret %17, i64 %87)
   %88 = getelementptr inbounds %struct.fio_str_info_s, %struct.fio_str_info_s* %17, i32 0, i32 2
-  %89 = load i8*, i8** %88, align 8
+  %89 = load i8*, i8** %88, align 1
   %90 = call noalias i8* @strdup(i8* %89) #1
   store i8* %90, i8** %14, align 8
   %91 = bitcast [128 x double]* %18 to i8*
@@ -1060,7 +1060,7 @@ define internal i32 @get_file(i64, i8*) #0 {
   %4 = alloca i8*, align 8
   %5 = alloca %struct.secinput*, align 8
   %6 = alloca i8*, align 8
-  %7 = alloca %struct.fio_str_info_s, align 8
+  %7 = alloca %struct.fio_str_info_s, align 1
   store i64 %0, i64* %3, align 8
   store i8* %1, i8** %4, align 8
   %8 = load i8*, i8** %4, align 8
@@ -1074,7 +1074,7 @@ define internal i32 @get_file(i64, i8*) #0 {
   %13 = call i64 @fiobj_hash_key_in_loop()
   call void @fiobj_obj2cstr(%struct.fio_str_info_s* sret %7, i64 %13)
   %14 = getelementptr inbounds %struct.fio_str_info_s, %struct.fio_str_info_s* %7, i32 0, i32 2
-  %15 = load i8*, i8** %14, align 8
+  %15 = load i8*, i8** %14, align 1
   store i8* %15, i8** %6, align 8
   %16 = load i8*, i8** %6, align 8
   %17 = call i32 @strcmp(i8* %16, i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str.50, i64 0, i64 0)) #8
@@ -1085,7 +1085,7 @@ define internal i32 @get_file(i64, i8*) #0 {
   %20 = load i64, i64* %3, align 8
   %21 = load %struct.secinput*, %struct.secinput** %5, align 8
   %22 = getelementptr inbounds %struct.secinput, %struct.secinput* %21, i32 0, i32 3
-  store i64 %20, i64* %22, align 8
+  store i64 %20, i64* %22, align 1
   br label %32
 
 23:                                               ; preds = %12
@@ -1098,7 +1098,7 @@ define internal i32 @get_file(i64, i8*) #0 {
   %28 = load i64, i64* %3, align 8
   %29 = load %struct.secinput*, %struct.secinput** %5, align 8
   %30 = getelementptr inbounds %struct.secinput, %struct.secinput* %29, i32 0, i32 4
-  store i64 %28, i64* %30, align 8
+  store i64 %28, i64* %30, align 1
   br label %31
 
 31:                                               ; preds = %27, %23

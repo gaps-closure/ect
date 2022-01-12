@@ -1,38 +1,18 @@
 [
   {
-    "cle-label": "TAG_RESPONSE_GET_A",
-    "cle-json": {
-      "level": "orange",
-      "cdf": [
-        {
-          "remotelevel": "purple",
-          "direction": "egress",
-          "guardhint": {
-            "operation": "allow",
-            "gapstag": [
-              2,
-              2,
-              4
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "cle-label": "TAG_REQUEST_GET_A",
+    "cle-label": "TAG_NEXTRPC",
     "cle-json": {
       "level": "orange",
       "cdf": [
         {
           "remotelevel": "orange",
           "direction": "egress",
-          "guardhint": {
+          "guarddirective": {
             "operation": "allow",
             "gapstag": [
-              1,
-              1,
-              3
+              2,
+              2,
+              1
             ]
           }
         }
@@ -47,11 +27,11 @@
         {
           "remotelevel": "purple",
           "direction": "egress",
-          "guardhint": {
+          "guarddirective": {
             "operation": "allow",
             "gapstag": [
-              2,
-              2,
+              1,
+              1,
               2
             ]
           }
@@ -60,19 +40,39 @@
     }
   },
   {
-    "cle-label": "TAG_NEXTRPC",
+    "cle-label": "TAG_REQUEST_GET_A",
     "cle-json": {
       "level": "orange",
       "cdf": [
         {
           "remotelevel": "orange",
           "direction": "egress",
-          "guardhint": {
+          "guarddirective": {
+            "operation": "allow",
+            "gapstag": [
+              2,
+              2,
+              3
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "cle-label": "TAG_RESPONSE_GET_A",
+    "cle-json": {
+      "level": "orange",
+      "cdf": [
+        {
+          "remotelevel": "purple",
+          "direction": "egress",
+          "guarddirective": {
             "operation": "allow",
             "gapstag": [
               1,
               1,
-              1
+              4
             ]
           }
         }
@@ -107,6 +107,20 @@
       "cdf": [
         {
           "remotelevel": "purple",
+          "direction": "bidirectional",
+          "guarddirective": {
+            "operation": "allow"
+          },
+          "argtaints": [],
+          "codtaints": [
+            "ORANGE"
+          ],
+          "rettaints": [
+            "TAG_RESPONSE_GET_A"
+          ]
+        },
+        {
+          "remotelevel": "orange",
           "direction": "bidirectional",
           "guarddirective": {
             "operation": "allow"
