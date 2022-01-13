@@ -1,5 +1,5 @@
-; ModuleID = './examples/secdesk/c/refactored/fio.mod.c'
-source_filename = "./examples/secdesk/c/refactored/fio.mod.c"
+; ModuleID = './examples/secdesk/c/fio.mod.c'
+source_filename = "./examples/secdesk/c/fio.mod.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
@@ -117,12 +117,12 @@ target triple = "x86_64-pc-linux-gnu"
 @FIO_LOG_LEVEL = weak dso_local global i32 4, align 4
 @fio_data = internal global %struct.fio_data_s* null, align 8
 @.str.2 = private unnamed_addr constant [5 x i8] c"http\00", align 1
-@.str.3 = private unnamed_addr constant [77 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.mod.c:598\00", align 1
+@.str.3 = private unnamed_addr constant [66 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.mod.c:598\00", align 1
 @fio_thread_queue = dso_local global %struct.fio_ls_embd_s { %struct.fio_ls_embd_s* @fio_thread_queue, %struct.fio_ls_embd_s* @fio_thread_queue }, align 8
 @fio_thread_lock = dso_local global i8 0, align 1
 @task_queue_normal = internal global %struct.fio_task_queue_s { i8 0, %struct.fio_defer_queue_block_s* bitcast (i8* getelementptr (i8, i8* getelementptr inbounds (%struct.fio_task_queue_s, %struct.fio_task_queue_s* @task_queue_normal, i32 0, i32 0), i64 24) to %struct.fio_defer_queue_block_s*), %struct.fio_defer_queue_block_s* bitcast (i8* getelementptr (i8, i8* getelementptr inbounds (%struct.fio_task_queue_s, %struct.fio_task_queue_s* @task_queue_normal, i32 0, i32 0), i64 24) to %struct.fio_defer_queue_block_s*), %struct.fio_defer_queue_block_s zeroinitializer }, align 8
 @task_queue_urgent = internal global %struct.fio_task_queue_s { i8 0, %struct.fio_defer_queue_block_s* bitcast (i8* getelementptr (i8, i8* getelementptr inbounds (%struct.fio_task_queue_s, %struct.fio_task_queue_s* @task_queue_urgent, i32 0, i32 0), i64 24) to %struct.fio_defer_queue_block_s*), %struct.fio_defer_queue_block_s* bitcast (i8* getelementptr (i8, i8* getelementptr inbounds (%struct.fio_task_queue_s, %struct.fio_task_queue_s* @task_queue_urgent, i32 0, i32 0), i64 24) to %struct.fio_defer_queue_block_s*), %struct.fio_defer_queue_block_s zeroinitializer }, align 8
-@.str.4 = private unnamed_addr constant [78 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.mod.c:1307\00", align 1
+@.str.4 = private unnamed_addr constant [67 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.mod.c:1307\00", align 1
 @fio_signal_children_flag = dso_local global i8 0, align 1
 @fio_signal_set_flag = dso_local global i8 0, align 1
 @fio_old_sig_chld = internal global %struct.sigaction zeroinitializer, align 8
@@ -142,17 +142,17 @@ target triple = "x86_64-pc-linux-gnu"
 @.str.12 = private unnamed_addr constant [21 x i8] c"UUID error: %p (%d)\0A\00", align 1
 @.str.13 = private unnamed_addr constant [17 x i8] c"No errno handler\00", align 1
 @.str.14 = private unnamed_addr constant [56 x i8] c"WARNING: (facil.io) possible Slowloris attack from %.*s\00", align 1
-@.str.15 = private unnamed_addr constant [99 x i8] c"DEBUG (./examples/secdesk/c/refactored/fio.mod.c:3288): Called fio_timeout_set for invalid uuid %p\00", align 1
+@.str.15 = private unnamed_addr constant [88 x i8] c"DEBUG (./examples/secdesk/c/fio.mod.c:3288): Called fio_timeout_set for invalid uuid %p\00", align 1
 @callback_collection = internal global [14 x %struct.callback_collection_s] zeroinitializer, align 16
-@.str.16 = private unnamed_addr constant [78 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.mod.c:3334\00", align 1
-@.str.17 = private unnamed_addr constant [78 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.mod.c:3379\00", align 1
-@.str.18 = private unnamed_addr constant [78 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.mod.c:3402\00", align 1
-@.str.19 = private unnamed_addr constant [78 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.mod.c:3493\00", align 1
-@.str.20 = private unnamed_addr constant [105 x i8] c"DEBUG (./examples/secdesk/c/refactored/fio.mod.c:3548): (%d) facil.io resources released, exit complete.\00", align 1
+@.str.16 = private unnamed_addr constant [67 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.mod.c:3334\00", align 1
+@.str.17 = private unnamed_addr constant [67 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.mod.c:3379\00", align 1
+@.str.18 = private unnamed_addr constant [67 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.mod.c:3402\00", align 1
+@.str.19 = private unnamed_addr constant [67 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.mod.c:3493\00", align 1
+@.str.20 = private unnamed_addr constant [94 x i8] c"DEBUG (./examples/secdesk/c/fio.mod.c:3548): (%d) facil.io resources released, exit complete.\00", align 1
 @.str.21 = private unnamed_addr constant [2 x i8] c"\0A\00", align 1
 @.str.22 = private unnamed_addr constant [47 x i8] c"WARNING: `getrlimit` failed in `fio_lib_init`.\00", align 1
 @.str.23 = private unnamed_addr constant [8 x i8] c"\09errno:\00", align 1
-@.str.24 = private unnamed_addr constant [78 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.mod.c:3623\00", align 1
+@.str.24 = private unnamed_addr constant [67 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.mod.c:3623\00", align 1
 @.str.25 = private unnamed_addr constant [138 x i8] c"INFO: Server is running %u %s X %u %s with facil.io 0.7.4 (%s)\0A* Detected capacity: %d open file limit\0A* Root pid: %d\0A* Press ^C to stop\0A\00", align 1
 @.str.26 = private unnamed_addr constant [8 x i8] c"workers\00", align 1
 @.str.27 = private unnamed_addr constant [7 x i8] c"worker\00", align 1
@@ -161,12 +161,12 @@ target triple = "x86_64-pc-linux-gnu"
 @__const.fio_ltoa.notation = private unnamed_addr constant [16 x i8] c"0123456789ABCDEF", align 16
 @.str.30 = private unnamed_addr constant [3 x i8] c"%g\00", align 1
 @.str.31 = private unnamed_addr constant [47 x i8] c"FATAL: No supported SSL/TLS library available.\00", align 1
-@.str.32 = private unnamed_addr constant [78 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.mod.c:4594\00", align 1
+@.str.32 = private unnamed_addr constant [67 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.mod.c:4594\00", align 1
 @.str.33 = private unnamed_addr constant [27 x i8] c"INFO: Listening on port %s\00", align 1
 @.str.34 = private unnamed_addr constant [37 x i8] c"INFO: Listening on Unix Socket at %s\00", align 1
-@.str.35 = private unnamed_addr constant [78 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.mod.c:4754\00", align 1
+@.str.35 = private unnamed_addr constant [67 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.mod.c:4754\00", align 1
 @FIO_PUBSUB_DEFAULT = dso_local global %struct.fio_pubsub_engine_s* inttoptr (i64 1 to %struct.fio_pubsub_engine_s*), align 8
-@.str.36 = private unnamed_addr constant [78 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.mod.c:5457\00", align 1
+@.str.36 = private unnamed_addr constant [67 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.mod.c:5457\00", align 1
 @fio_postoffice = internal global %struct.anon.13 zeroinitializer, align 8
 @.str.37 = private unnamed_addr constant [84 x i8] c"ERROR: (pub/sub) pub/sub engines can only be used for pub/sub messages (no filter).\00", align 1
 @FIO_MATCH_GLOB = dso_local global i32 (%struct.fio_str_info_s*, %struct.fio_str_info_s*)* @fio_glob_match, align 8
@@ -193,13 +193,13 @@ target triple = "x86_64-pc-linux-gnu"
 @.str.45 = private unnamed_addr constant [274 x i8] c"FATAL: facil.io Set / Hash Map has too many collisions (%zu/%zu).\0A\09\09this is a fatal implementation error,please report this issue at facio.io's open source project\0A\09\09Note: hash maps and sets should never reach this point.\0A\09\09They should be guarded against collision attacks.\00", align 1
 @.str.46 = private unnamed_addr constant [51 x i8] c"FATAL ERROR: couldn't allocate memory for Set data\00", align 1
 @.str.47 = private unnamed_addr constant [65 x i8] c"WARNING: (fio hash map) too many full collisions - under attack?\00", align 1
-@.str.48 = private unnamed_addr constant [77 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.mod.c:920\00", align 1
+@.str.48 = private unnamed_addr constant [66 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.mod.c:920\00", align 1
 @fio_timer_lock = internal global i8 0, align 1
 @fio_timers = internal global %struct.fio_ls_embd_s { %struct.fio_ls_embd_s* @fio_timers, %struct.fio_ls_embd_s* @fio_timers }, align 8
 @.str.49 = private unnamed_addr constant [47 x i8] c"WARNING: CPU core count auto-detection failed.\00", align 1
 @evio_fd = internal global [3 x i32] [i32 -1, i32 -1, i32 -1], align 4
 @.str.50 = private unnamed_addr constant [67 x i8] c"ERROR: (fio_unix_socket) address too long (%zu bytes > %zu bytes).\00", align 1
-@.str.51 = private unnamed_addr constant [77 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.mod.c:272\00", align 1
+@.str.51 = private unnamed_addr constant [66 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.mod.c:272\00", align 1
 @cluster_data = internal global %struct.cluster_data_s { i64 0, %struct.fio_ls_s { %struct.fio_ls_s* bitcast (i8* getelementptr (i8, i8* bitcast (%struct.cluster_data_s* @cluster_data to i8*), i64 8) to %struct.fio_ls_s*), %struct.fio_ls_s* bitcast (i8* getelementptr (i8, i8* bitcast (%struct.cluster_data_s* @cluster_data to i8*), i64 8) to %struct.fio_ls_s*), i8* null }, i8 0, [256 x i8] zeroinitializer }, align 8
 @.str.52 = private unnamed_addr constant [34 x i8] c"FATAL: couldn't initialize epoll.\00", align 1
 @.str.53 = private unnamed_addr constant [28 x i8] c"couldn't set signal handler\00", align 1
@@ -211,45 +211,45 @@ target triple = "x86_64-pc-linux-gnu"
 @.str.58 = private unnamed_addr constant [21 x i8] c"INFO: %d is running.\00", align 1
 @fio_cycle_schedule_events.idle = internal global i32 0, align 4
 @fio_cycle_schedule_events.last_to_review = internal global i64 0, align 8
-@.str.59 = private unnamed_addr constant [78 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.mod.c:1118\00", align 1
+@.str.59 = private unnamed_addr constant [67 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.mod.c:1118\00", align 1
 @.str.60 = private unnamed_addr constant [68 x i8] c"FATAL: couldn't spawn threads for thread pool, attempting shutdown.\00", align 1
 @fio_defer_thread_wait.static_throttle = internal thread_local global i64 262143, align 8
 @.str.61 = private unnamed_addr constant [33 x i8] c"INFO: (%d) detected exit signal.\00", align 1
 @.str.62 = private unnamed_addr constant [35 x i8] c"INFO: Server Detected exit signal.\00", align 1
 @.str.63 = private unnamed_addr constant [38 x i8] c"INFO:    ---  Shutdown Complete  ---\0A\00", align 1
 @.str.64 = private unnamed_addr constant [29 x i8] c"INFO: (%d) cleanup complete.\00", align 1
-@.str.65 = private unnamed_addr constant [90 x i8] c"DEBUG (./examples/secdesk/c/refactored/fio.mod.c:4514): (%d) started listening on port %s\00", align 1
-@.str.66 = private unnamed_addr constant [100 x i8] c"DEBUG (./examples/secdesk/c/refactored/fio.mod.c:4517): (%d) started listening on Unix Socket at %s\00", align 1
-@.str.67 = private unnamed_addr constant [78 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.mod.c:5144\00", align 1
-@.str.68 = private unnamed_addr constant [74 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.h:4920\00", align 1
+@.str.65 = private unnamed_addr constant [79 x i8] c"DEBUG (./examples/secdesk/c/fio.mod.c:4514): (%d) started listening on port %s\00", align 1
+@.str.66 = private unnamed_addr constant [89 x i8] c"DEBUG (./examples/secdesk/c/fio.mod.c:4517): (%d) started listening on Unix Socket at %s\00", align 1
+@.str.67 = private unnamed_addr constant [67 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.mod.c:5144\00", align 1
+@.str.68 = private unnamed_addr constant [63 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.h:4920\00", align 1
 @.str.69 = private unnamed_addr constant [7 x i8] c"TMPDIR\00", align 1
 @.str.70 = private unnamed_addr constant [5 x i8] c"/tmp\00", align 1
 @.str.71 = private unnamed_addr constant [15 x i8] c"facil-io-sock-\00", align 1
 @.str.72 = private unnamed_addr constant [3 x i8] c"%d\00", align 1
 @.str.73 = private unnamed_addr constant [57 x i8] c"FATAL: (facil.io cluster) failed to open cluster socket.\00", align 1
 @.str.74 = private unnamed_addr constant [44 x i8] c"             check file permissions. errno:\00", align 1
-@.str.75 = private unnamed_addr constant [78 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.mod.c:6226\00", align 1
-@.str.76 = private unnamed_addr constant [86 x i8] c"DEBUG (./examples/secdesk/c/refactored/fio.mod.c:6234): (%d) Listening to cluster: %s\00", align 1
+@.str.75 = private unnamed_addr constant [67 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.mod.c:6226\00", align 1
+@.str.76 = private unnamed_addr constant [75 x i8] c"DEBUG (./examples/secdesk/c/fio.mod.c:6234): (%d) Listening to cluster: %s\00", align 1
 @.str.77 = private unnamed_addr constant [43 x i8] c"FATAL: Cluster protocol allocation failed.\00", align 1
 @.str.78 = private unnamed_addr constant [60 x i8] c"FATAL: (%d) cluster message name too long (16Mb limit): %u\0A\00", align 1
 @.str.79 = private unnamed_addr constant [60 x i8] c"FATAL: (%d) cluster message data too long (64Mb limit): %u\0A\00", align 1
 @.str.80 = private unnamed_addr constant [43 x i8] c"FATAL: (%d) Parent Process crash detected!\00", align 1
-@.str.81 = private unnamed_addr constant [74 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.h:4024\00", align 1
-@.str.82 = private unnamed_addr constant [74 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.h:4027\00", align 1
-@.str.83 = private unnamed_addr constant [74 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.h:4042\00", align 1
-@.str.84 = private unnamed_addr constant [74 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.h:3313\00", align 1
+@.str.81 = private unnamed_addr constant [63 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.h:4024\00", align 1
+@.str.82 = private unnamed_addr constant [63 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.h:4027\00", align 1
+@.str.83 = private unnamed_addr constant [63 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.h:4042\00", align 1
+@.str.84 = private unnamed_addr constant [63 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.h:3313\00", align 1
 @.str.85 = private unnamed_addr constant [51 x i8] c"FATAL: (facil.io) unknown cluster connection error\00", align 1
 @.str.86 = private unnamed_addr constant [13 x i8] c"       errno\00", align 1
-@.str.87 = private unnamed_addr constant [78 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.mod.c:5289\00", align 1
+@.str.87 = private unnamed_addr constant [67 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.mod.c:5289\00", align 1
 @.str.88 = private unnamed_addr constant [54 x i8] c"ERROR: facio.io cluster inactive, can't send message.\00", align 1
-@.str.89 = private unnamed_addr constant [78 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.mod.c:7305\00", align 1
-@.str.90 = private unnamed_addr constant [99 x i8] c"DEBUG (./examples/secdesk/c/refactored/fio.mod.c:7146): memory allocator returned %p to the system\00", align 1
-@.str.91 = private unnamed_addr constant [100 x i8] c"FATAL: (./examples/secdesk/c/refactored/fio.mod.c:7159) Memory allocator error! double `fio_free`?\0A\00", align 1
+@.str.89 = private unnamed_addr constant [67 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.mod.c:7305\00", align 1
+@.str.90 = private unnamed_addr constant [88 x i8] c"DEBUG (./examples/secdesk/c/fio.mod.c:7146): memory allocator returned %p to the system\00", align 1
+@.str.91 = private unnamed_addr constant [89 x i8] c"FATAL: (./examples/secdesk/c/fio.mod.c:7159) Memory allocator error! double `fio_free`?\0A\00", align 1
 @.str.92 = private unnamed_addr constant [11 x i8] c"     errno\00", align 1
-@.str.93 = private unnamed_addr constant [102 x i8] c"DEBUG (./examples/secdesk/c/refactored/fio.mod.c:7170): memory allocator allocated %p from the system\00", align 1
+@.str.93 = private unnamed_addr constant [91 x i8] c"DEBUG (./examples/secdesk/c/fio.mod.c:7170): memory allocator allocated %p from the system\00", align 1
 @sys_alloc.next_alloc = internal global i8* null, align 8
 @.str.94 = private unnamed_addr constant [80 x i8] c"WARNING: facil.io detected memory traces remaining after cleanup - memory leak?\00", align 1
-@.str.95 = private unnamed_addr constant [112 x i8] c"DEBUG (./examples/secdesk/c/refactored/fio.mod.c:7328): Memory blocks in pool: %zu (%zu blocks per allocation).\00", align 1
+@.str.95 = private unnamed_addr constant [101 x i8] c"DEBUG (./examples/secdesk/c/fio.mod.c:7328): Memory blocks in pool: %zu (%zu blocks per allocation).\00", align 1
 @sha1_padding = internal constant <{ i8, [63 x i8] }> <{ i8 -128, [63 x i8] zeroinitializer }>, align 16
 @sha2_512_words = internal global [80 x i64] [i64 4794697086780616226, i64 8158064640168781261, i64 -5349999486874862801, i64 -1606136188198331460, i64 4131703408338449720, i64 6480981068601479193, i64 -7908458776815382629, i64 -6116909921290321640, i64 -2880145864133508542, i64 1334009975649890238, i64 2608012711638119052, i64 6128411473006802146, i64 8268148722764581231, i64 -9160688886553864527, i64 -7215885187991268811, i64 -4495734319001033068, i64 -1973867731355612462, i64 -1171420211273849373, i64 1135362057144423861, i64 2597628984639134821, i64 3308224258029322869, i64 5365058923640841347, i64 6679025012923562964, i64 8573033837759648693, i64 -7476448914759557205, i64 -6327057829258317296, i64 -5763719355590565569, i64 -4658551843659510044, i64 -4116276920077217854, i64 -3051310485924567259, i64 489312712824947311, i64 1452737877330783856, i64 2861767655752347644, i64 3322285676063803686, i64 5560940570517711597, i64 5996557281743188959, i64 7280758554555802590, i64 8532644243296465576, i64 -9096487096722542874, i64 -7894198246740708037, i64 -6719396339535248540, i64 -6333637450476146687, i64 -4446306890439682159, i64 -4076793802049405392, i64 -3345356375505022440, i64 -2983346525034927856, i64 -860691631967231958, i64 1182934255886127544, i64 1847814050463011016, i64 2177327727835720531, i64 2830643537854262169, i64 3796741975233480872, i64 4115178125766777443, i64 5681478168544905931, i64 6601373596472566643, i64 7507060721942968483, i64 8399075790359081724, i64 8693463985226723168, i64 -8878714635349349518, i64 -8302665154208450068, i64 -8016688836872298968, i64 -6606660893046293015, i64 -4685533653050689259, i64 -4147400797238176981, i64 -3880063495543823972, i64 -3348786107499101689, i64 -1523767162380948706, i64 -757361751448694408, i64 500013540394364858, i64 748580250866718886, i64 1242879168328830382, i64 1977374033974150939, i64 2944078676154940804, i64 3659926193048069267, i64 4368137639120453308, i64 4836135668995329356, i64 5532061633213252278, i64 6448918945643986474, i64 6902733635092675308, i64 7801388544844847127], align 16
 @sha2_256_words = internal global [64 x i32] [i32 1116352408, i32 1899447441, i32 -1245643825, i32 -373957723, i32 961987163, i32 1508970993, i32 -1841331548, i32 -1424204075, i32 -670586216, i32 310598401, i32 607225278, i32 1426881987, i32 1925078388, i32 -2132889090, i32 -1680079193, i32 -1046744716, i32 -459576895, i32 -272742522, i32 264347078, i32 604807628, i32 770255983, i32 1249150122, i32 1555081692, i32 1996064986, i32 -1740746414, i32 -1473132947, i32 -1341970488, i32 -1084653625, i32 -958395405, i32 -710438585, i32 113926993, i32 338241895, i32 666307205, i32 773529912, i32 1294757372, i32 1396182291, i32 1695183700, i32 1986661051, i32 -2117940946, i32 -1838011259, i32 -1564481375, i32 -1474664885, i32 -1035236496, i32 -949202525, i32 -778901479, i32 -694614492, i32 -200395387, i32 275423344, i32 430227734, i32 506948616, i32 659060556, i32 883997877, i32 958139571, i32 1322822218, i32 1537002063, i32 1747873779, i32 1955562222, i32 2024104815, i32 -2067236844, i32 -1933114872, i32 -1866530822, i32 -1538233109, i32 -1090935817, i32 -965641998], align 16
@@ -1777,7 +1777,7 @@ define weak dso_local i8* @fio_thread_new(i8* (i8*)*, i8*) #0 {
   br i1 %14, label %15, label %16
 
 15:                                               ; preds = %12
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([77 x i8], [77 x i8]* @.str.3, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([66 x i8], [66 x i8]* @.str.3, i64 0, i64 0))
   br label %16
 
 16:                                               ; preds = %15, %12
@@ -2108,7 +2108,7 @@ define internal void @fio_defer_push_task_fn(%struct.fio_defer_task_s* byval(%st
   br i1 %120, label %121, label %122
 
 121:                                              ; preds = %118
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([77 x i8], [77 x i8]* @.str.48, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([66 x i8], [66 x i8]* @.str.48, i64 0, i64 0))
   br label %122
 
 122:                                              ; preds = %121, %118
@@ -2287,7 +2287,7 @@ define dso_local i32 @fio_run_every(i64, i64, void (i8*)*, i8*, void (i8*)*) #0 
   br i1 %31, label %32, label %33
 
 32:                                               ; preds = %29
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([78 x i8], [78 x i8]* @.str.4, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.4, i64 0, i64 0))
   br label %33
 
 33:                                               ; preds = %32, %29
@@ -5722,7 +5722,7 @@ define internal %struct.fio_packet_s* @fio_packet_alloc() #0 {
   br i1 %12, label %13, label %14
 
 13:                                               ; preds = %10
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([77 x i8], [77 x i8]* @.str.51, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([66 x i8], [66 x i8]* @.str.51, i64 0, i64 0))
   br label %14
 
 14:                                               ; preds = %13, %10
@@ -7721,7 +7721,7 @@ define dso_local void @fio_timeout_set(i64, i8 zeroext) #0 {
 55:                                               ; preds = %52
   %56 = load i64, i64* %3, align 8
   %57 = inttoptr i64 %56 to i8*
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([99 x i8], [99 x i8]* @.str.15, i64 0, i64 0), i8* %57)
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([88 x i8], [88 x i8]* @.str.15, i64 0, i64 0), i8* %57)
   br label %58
 
 58:                                               ; preds = %55, %52
@@ -7819,7 +7819,7 @@ define dso_local void @fio_state_callback_add(i32, void (i8*)*, i8*) #0 {
   br i1 %42, label %43, label %44
 
 43:                                               ; preds = %40
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([78 x i8], [78 x i8]* @.str.16, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.16, i64 0, i64 0))
   br label %44
 
 44:                                               ; preds = %43, %40
@@ -8208,7 +8208,7 @@ define dso_local void @fio_state_callback_force(i32) #0 {
   br i1 %54, label %55, label %56
 
 55:                                               ; preds = %52
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([78 x i8], [78 x i8]* @.str.17, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.17, i64 0, i64 0))
   br label %56
 
 56:                                               ; preds = %55, %52
@@ -8347,7 +8347,7 @@ define dso_local void @fio_state_callback_force(i32) #0 {
   br i1 %139, label %140, label %141
 
 140:                                              ; preds = %137
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([78 x i8], [78 x i8]* @.str.18, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.18, i64 0, i64 0))
   br label %141
 
 141:                                              ; preds = %140, %137
@@ -8770,7 +8770,7 @@ define dso_local void @fio_defer_io_task(i64, %struct.fio_defer_iotask_args_s* b
   br i1 %39, label %40, label %41
 
 40:                                               ; preds = %37
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([78 x i8], [78 x i8]* @.str.19, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.19, i64 0, i64 0))
   br label %41
 
 41:                                               ; preds = %40, %37
@@ -8938,7 +8938,7 @@ define internal void @fio_lib_destroy() #0 {
 
 11:                                               ; preds = %8
   %12 = call i32 @getpid() #1
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([105 x i8], [105 x i8]* @.str.20, i64 0, i64 0), i32 %12)
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([94 x i8], [94 x i8]* @.str.20, i64 0, i64 0), i32 %12)
   br label %13
 
 13:                                               ; preds = %11, %8
@@ -9262,7 +9262,7 @@ define internal void @fio_mem_destroy() #0 {
 
 61:                                               ; preds = %58
   %62 = load i64, i64* %2, align 8
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([112 x i8], [112 x i8]* @.str.95, i64 0, i64 0), i64 %62, i64 256)
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([101 x i8], [101 x i8]* @.str.95, i64 0, i64 0), i64 %62, i64 256)
   br label %63
 
 63:                                               ; preds = %61, %58
@@ -9410,7 +9410,7 @@ define internal void @fio_lib_init() #0 {
   br i1 %67, label %68, label %69
 
 68:                                               ; preds = %65
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([78 x i8], [78 x i8]* @.str.24, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.24, i64 0, i64 0))
   br label %69
 
 69:                                               ; preds = %68, %65
@@ -9515,7 +9515,7 @@ define internal void @fio_mem_init() #0 {
   br i1 %21, label %22, label %23
 
 22:                                               ; preds = %19
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([78 x i8], [78 x i8]* @.str.89, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.89, i64 0, i64 0))
   br label %23
 
 23:                                               ; preds = %22, %19
@@ -11574,7 +11574,7 @@ define dso_local i64 @fio_listen(%struct.fio_listen_args* byval(%struct.fio_list
   br i1 %89, label %90, label %91
 
 90:                                               ; preds = %87
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([78 x i8], [78 x i8]* @.str.32, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.32, i64 0, i64 0))
   br label %91
 
 91:                                               ; preds = %90, %87
@@ -12030,7 +12030,7 @@ define internal void @fio_listen_on_startup(i8*) #0 {
   %23 = load %struct.fio_listen_protocol_s*, %struct.fio_listen_protocol_s** %3, align 8
   %24 = getelementptr inbounds %struct.fio_listen_protocol_s, %struct.fio_listen_protocol_s* %23, i32 0, i32 6
   %25 = load i8*, i8** %24, align 8
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([90 x i8], [90 x i8]* @.str.65, i64 0, i64 0), i32 %22, i8* %25)
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([79 x i8], [79 x i8]* @.str.65, i64 0, i64 0), i32 %22, i8* %25)
   br label %26
 
 26:                                               ; preds = %21, %18
@@ -12052,7 +12052,7 @@ define internal void @fio_listen_on_startup(i8*) #0 {
   %34 = load %struct.fio_listen_protocol_s*, %struct.fio_listen_protocol_s** %3, align 8
   %35 = getelementptr inbounds %struct.fio_listen_protocol_s, %struct.fio_listen_protocol_s* %34, i32 0, i32 7
   %36 = load i8*, i8** %35, align 8
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([100 x i8], [100 x i8]* @.str.66, i64 0, i64 0), i32 %33, i8* %36)
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([89 x i8], [89 x i8]* @.str.66, i64 0, i64 0), i32 %33, i8* %36)
   br label %37
 
 37:                                               ; preds = %32, %29
@@ -12251,7 +12251,7 @@ define dso_local i64 @fio_connect(%struct.fio_connect_args* byval(%struct.fio_co
   br i1 %51, label %52, label %53
 
 52:                                               ; preds = %49
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([78 x i8], [78 x i8]* @.str.35, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.35, i64 0, i64 0))
   br label %53
 
 53:                                               ; preds = %52, %49
@@ -13646,7 +13646,7 @@ define dso_local %struct.subscription_s* @fio_subscribe(%struct.subscribe_args_s
   br i1 %21, label %22, label %23
 
 22:                                               ; preds = %19
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([78 x i8], [78 x i8]* @.str.36, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.36, i64 0, i64 0))
   br label %23
 
 23:                                               ; preds = %22, %19
@@ -15198,7 +15198,7 @@ define internal %struct.fio_msg_internal_s* @fio_msg_internal_create(i32, i32, %
   br i1 %45, label %46, label %47
 
 46:                                               ; preds = %43
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([78 x i8], [78 x i8]* @.str.87, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.87, i64 0, i64 0))
   br label %47
 
 47:                                               ; preds = %46, %43
@@ -48244,7 +48244,7 @@ define internal %struct.fio_defer_thread_pool_s* @fio_defer_thread_pool_new(i64)
   br i1 %20, label %21, label %22
 
 21:                                               ; preds = %18
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([78 x i8], [78 x i8]* @.str.59, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.59, i64 0, i64 0))
   br label %22
 
 22:                                               ; preds = %21, %18
@@ -50490,7 +50490,7 @@ define internal %struct.channel_s* @fio_channel_copy(%struct.channel_s*) #0 {
   br i1 %17, label %18, label %19
 
 18:                                               ; preds = %15
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([78 x i8], [78 x i8]* @.str.67, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.67, i64 0, i64 0))
   br label %19
 
 19:                                               ; preds = %18, %15
@@ -52242,7 +52242,7 @@ define internal void @fio_meta_ary___require_on_top(%struct.fio_meta_ary_s*, i64
   br i1 %40, label %41, label %42
 
 41:                                               ; preds = %38
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([74 x i8], [74 x i8]* @.str.68, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([63 x i8], [63 x i8]* @.str.68, i64 0, i64 0))
   br label %42
 
 42:                                               ; preds = %41, %38
@@ -52423,7 +52423,7 @@ define internal void @fio_listen2cluster(i8*) #0 {
   br i1 %26, label %27, label %28
 
 27:                                               ; preds = %24
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([78 x i8], [78 x i8]* @.str.75, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.75, i64 0, i64 0))
   br label %28
 
 28:                                               ; preds = %27, %24
@@ -52462,7 +52462,7 @@ define internal void @fio_listen2cluster(i8*) #0 {
 
 46:                                               ; preds = %43
   %47 = call i32 @getpid() #1
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([86 x i8], [86 x i8]* @.str.76, i64 0, i64 0), i32 %47, i8* getelementptr inbounds (%struct.cluster_data_s, %struct.cluster_data_s* @cluster_data, i32 0, i32 3, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([75 x i8], [75 x i8]* @.str.76, i64 0, i64 0), i32 %47, i8* getelementptr inbounds (%struct.cluster_data_s, %struct.cluster_data_s* @cluster_data, i32 0, i32 3, i64 0))
   br label %48
 
 48:                                               ; preds = %46, %43
@@ -53457,7 +53457,7 @@ define internal %struct.fio_ls_s* @fio_ls_push(%struct.fio_ls_s*, i8*) #0 {
   br i1 %19, label %20, label %21
 
 20:                                               ; preds = %17
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([74 x i8], [74 x i8]* @.str.84, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([63 x i8], [63 x i8]* @.str.84, i64 0, i64 0))
   br label %21
 
 21:                                               ; preds = %20, %17
@@ -56504,7 +56504,7 @@ define internal void @fio_str_capa_assert(%struct.fio_str_info_s* noalias sret, 
   br i1 %93, label %94, label %95
 
 94:                                               ; preds = %91
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([74 x i8], [74 x i8]* @.str.81, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([63 x i8], [63 x i8]* @.str.81, i64 0, i64 0))
   br label %95
 
 95:                                               ; preds = %94, %91
@@ -56542,7 +56542,7 @@ define internal void @fio_str_capa_assert(%struct.fio_str_info_s* noalias sret, 
   br i1 %113, label %114, label %115
 
 114:                                              ; preds = %111
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([74 x i8], [74 x i8]* @.str.82, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([63 x i8], [63 x i8]* @.str.82, i64 0, i64 0))
   br label %115
 
 115:                                              ; preds = %114, %111
@@ -56645,7 +56645,7 @@ define internal void @fio_str_capa_assert(%struct.fio_str_info_s* noalias sret, 
   br i1 %182, label %183, label %184
 
 183:                                              ; preds = %180
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([74 x i8], [74 x i8]* @.str.83, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([63 x i8], [63 x i8]* @.str.83, i64 0, i64 0))
   br label %184
 
 184:                                              ; preds = %183, %180
@@ -57860,7 +57860,7 @@ define internal void @block_free(%struct.block_s*) #0 {
 60:                                               ; preds = %57
   %61 = load %struct.block_s*, %struct.block_s** %2, align 8
   %62 = bitcast %struct.block_s* %61 to i8*
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([99 x i8], [99 x i8]* @.str.90, i64 0, i64 0), i8* %62)
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([88 x i8], [88 x i8]* @.str.90, i64 0, i64 0), i8* %62)
   br label %63
 
 63:                                               ; preds = %60, %57
@@ -57907,7 +57907,7 @@ define internal %struct.block_s* @block_new() #0 {
   br i1 %22, label %23, label %24
 
 23:                                               ; preds = %20
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([100 x i8], [100 x i8]* @.str.91, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([89 x i8], [89 x i8]* @.str.91, i64 0, i64 0))
   br label %24
 
 24:                                               ; preds = %23, %20
@@ -57950,7 +57950,7 @@ define internal %struct.block_s* @block_new() #0 {
 41:                                               ; preds = %38
   %42 = load %struct.block_s*, %struct.block_s** %2, align 8
   %43 = bitcast %struct.block_s* %42 to i8*
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([102 x i8], [102 x i8]* @.str.93, i64 0, i64 0), i8* %43)
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([91 x i8], [91 x i8]* @.str.93, i64 0, i64 0), i8* %43)
   br label %44
 
 44:                                               ; preds = %41, %38

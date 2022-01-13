@@ -1,5 +1,5 @@
-; ModuleID = './examples/secdesk/c/refactored/http_internal.mod.c'
-source_filename = "./examples/secdesk/c/refactored/http_internal.mod.c"
+; ModuleID = './examples/secdesk/c/http_internal.mod.c'
+source_filename = "./examples/secdesk/c/http_internal.mod.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
@@ -34,8 +34,8 @@ target triple = "x86_64-pc-linux-gnu"
 @HTTP_HVALUE_SSE_MIME = common dso_local global i64 0, align 8
 @.str.4 = private unnamed_addr constant [4 x i8] c"sse\00", align 1
 @FIO_LOG_LEVEL = weak dso_local global i32 0, align 4
-@.str.5 = private unnamed_addr constant [84 x i8] c"DEBUG (./examples/secdesk/c/refactored/http_internal.mod.c:72): missing Host header\00", align 1
-@.str.6 = private unnamed_addr constant [117 x i8] c"FATAL: (./examples/secdesk/c/refactored/http_internal.mod.c:101) Couldn't allocate response object for error report.\00", align 1
+@.str.5 = private unnamed_addr constant [73 x i8] c"DEBUG (./examples/secdesk/c/http_internal.mod.c:72): missing Host header\00", align 1
+@.str.6 = private unnamed_addr constant [106 x i8] c"FATAL: (./examples/secdesk/c/http_internal.mod.c:101) Couldn't allocate response object for error report.\00", align 1
 @.str.7 = private unnamed_addr constant [11 x i8] c"     errno\00", align 1
 @fio_hash_secret_marker1 = weak dso_local global i8 0, align 1
 @fio_hash_secret_marker2 = weak dso_local global i8 0, align 1
@@ -2135,7 +2135,7 @@ define dso_local void @http_on_request_handler______internal(%struct.http_s*, %s
   br i1 %132, label %133, label %134
 
 133:                                              ; preds = %130
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([84 x i8], [84 x i8]* @.str.5, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([73 x i8], [73 x i8]* @.str.5, i64 0, i64 0))
   br label %134
 
 134:                                              ; preds = %133, %130
@@ -2874,7 +2874,7 @@ define dso_local i32 @http_send_error2(i64, i64, %struct.http_settings_s*) #0 {
   br i1 %34, label %35, label %36
 
 35:                                               ; preds = %32
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([117 x i8], [117 x i8]* @.str.6, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([106 x i8], [106 x i8]* @.str.6, i64 0, i64 0))
   br label %36
 
 36:                                               ; preds = %35, %32

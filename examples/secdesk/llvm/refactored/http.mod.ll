@@ -1,5 +1,5 @@
-; ModuleID = './examples/secdesk/c/refactored/http.mod.c'
-source_filename = "./examples/secdesk/c/refactored/http.mod.c"
+; ModuleID = './examples/secdesk/c/http.mod.c'
+source_filename = "./examples/secdesk/c/http.mod.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
@@ -104,10 +104,10 @@ target triple = "x86_64-pc-linux-gnu"
 @.str.34 = private unnamed_addr constant [55 x i8] c"ERROR: Secure connections (%.*s) require a TLS object.\00", align 1
 @.str.35 = private unnamed_addr constant [4 x i8] c"443\00", align 1
 @.str.36 = private unnamed_addr constant [3 x i8] c"80\00", align 1
-@.str.37 = private unnamed_addr constant [95 x i8] c"FATAL: (./examples/secdesk/c/refactored/http.mod.c:1123) HTTP Client handler allocation failed\00", align 1
+@.str.37 = private unnamed_addr constant [84 x i8] c"FATAL: (./examples/secdesk/c/http.mod.c:1123) HTTP Client handler allocation failed\00", align 1
 @.str.38 = private unnamed_addr constant [11 x i8] c"     errno\00", align 1
 @.str.39 = private unnamed_addr constant [5 x i8] c"host\00", align 1
-@.str.40 = private unnamed_addr constant [79 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/http.mod.c:1283\00", align 1
+@.str.40 = private unnamed_addr constant [68 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/http.mod.c:1283\00", align 1
 @.str.41 = private unnamed_addr constant [5 x i8] c"id: \00", align 1
 @.str.42 = private unnamed_addr constant [8 x i8] c"event: \00", align 1
 @.str.43 = private unnamed_addr constant [8 x i8] c"retry: \00", align 1
@@ -140,7 +140,7 @@ target triple = "x86_64-pc-linux-gnu"
 @http_time2str.cached_len = internal thread_local global i64 0, align 8
 @fio_http_mime_types = internal global %struct.fio_mime_set_s zeroinitializer, align 8
 @.str.61 = private unnamed_addr constant [50 x i8] c"WARNING: mime-type collision: %.*s was %s, now %s\00", align 1
-@.str.62 = private unnamed_addr constant [102 x i8] c"DEBUG (./examples/secdesk/c/refactored/http.mod.c:2505): HTTP MIME hash storage count/capa: %zu / %zu\00", align 1
+@.str.62 = private unnamed_addr constant [91 x i8] c"DEBUG (./examples/secdesk/c/http.mod.c:2505): HTTP MIME hash storage count/capa: %zu / %zu\00", align 1
 @http_mimetype_find2.buffer = internal thread_local global [16 x i8] zeroinitializer, align 16
 @HTTP_HVALUE_CONTENT_TYPE_DEFAULT = external dso_local global i64, align 8
 @last_date_added = internal global i64 0, align 8
@@ -235,7 +235,7 @@ target triple = "x86_64-pc-linux-gnu"
 @.str.135 = private unnamed_addr constant [74 x i8] c"WARNING: (websocket client) path not specified in address, assuming root!\00", align 1
 @.str.136 = private unnamed_addr constant [2 x i8] c"/\00", align 1
 @__const.fio_reschedule_thread.tm = private unnamed_addr constant %struct.timespec { i64 0, i64 1 }, align 8
-@.str.137 = private unnamed_addr constant [74 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fio.h:3313\00", align 1
+@.str.137 = private unnamed_addr constant [63 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.h:3313\00", align 1
 @.str.138 = private unnamed_addr constant [15 x i8] c"multipart/form\00", align 1
 @.str.139 = private unnamed_addr constant [10 x i8] c"boundary=\00", align 1
 @.str.140 = private unnamed_addr constant [21 x i8] c"content-disposition:\00", align 1
@@ -5765,7 +5765,7 @@ define dso_local i64 @http_connect(i8*, i8*, %struct.http_settings_s* byval(%str
   br i1 %342, label %343, label %344
 
 343:                                              ; preds = %340
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([95 x i8], [95 x i8]* @.str.37, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([84 x i8], [84 x i8]* @.str.37, i64 0, i64 0))
   br label %344
 
 344:                                              ; preds = %343, %340
@@ -6244,7 +6244,7 @@ define dso_local i64 @http_sse_subscribe(%struct.http_sse_s*, %struct.http_sse_s
   br i1 %38, label %39, label %40
 
 39:                                               ; preds = %36
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([79 x i8], [79 x i8]* @.str.40, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([68 x i8], [68 x i8]* @.str.40, i64 0, i64 0))
   br label %40
 
 40:                                               ; preds = %39, %36
@@ -6511,7 +6511,7 @@ define internal %struct.fio_ls_s* @fio_ls_push(%struct.fio_ls_s*, i8*) #0 {
   br i1 %19, label %20, label %21
 
 20:                                               ; preds = %17
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([74 x i8], [74 x i8]* @.str.137, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([63 x i8], [63 x i8]* @.str.137, i64 0, i64 0))
   br label %21
 
 21:                                               ; preds = %20, %17
@@ -12747,7 +12747,7 @@ define dso_local void @http_mimetype_stats() #0 {
 4:                                                ; preds = %1
   %5 = call i64 @fio_mime_set_count(%struct.fio_mime_set_s* @fio_http_mime_types)
   %6 = call i64 @fio_mime_set_capa(%struct.fio_mime_set_s* @fio_http_mime_types)
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([102 x i8], [102 x i8]* @.str.62, i64 0, i64 0), i64 %5, i64 %6)
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([91 x i8], [91 x i8]* @.str.62, i64 0, i64 0), i64 %5, i64 %6)
   br label %7
 
 7:                                                ; preds = %4, %1

@@ -1,6 +1,5 @@
 #ifndef GMA_HEADER_FILE
 #define GMA_HEADER_FILE
-#pragma pack(1)
 
 #include <stdio.h>
 #include <stdint.h>
@@ -12,6 +11,8 @@
 #include <float.h>
 
 #include "float754.h"
+
+#pragma pack(push,1)
 
 #define id(X) (X)
 
@@ -118,6 +119,8 @@ typedef struct _response_stop_recognizer_output {
   int32_t ret;
   trailer_datatype trailer;
 } response_stop_recognizer_output;
+
+#pragma pack(pop)
 
 extern void nextrpc_print (nextrpc_datatype *nextrpc);
 extern void nextrpc_data_encode (void *buff_out, void *buff_in, size_t *len_out);

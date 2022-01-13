@@ -1,5 +1,5 @@
-; ModuleID = './examples/secdesk/c/purple/purple_rpc.mod.c'
-source_filename = "./examples/secdesk/c/purple/purple_rpc.mod.c"
+; ModuleID = './examples/secdesk/c/purple_rpc.mod.c'
+source_filename = "./examples/secdesk/c/purple_rpc.mod.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
@@ -26,10 +26,10 @@ target triple = "x86_64-pc-linux-gnu"
 @.str.1 = private unnamed_addr constant [28 x i8] c"ipc:///tmp/secdeskpubpurple\00", align 1
 @.str.2 = private unnamed_addr constant [28 x i8] c"ipc:///tmp/secdesksubpurple\00", align 1
 @.str.3 = private unnamed_addr constant [9 x i8] c"err == 0\00", align 1
-@.str.4 = private unnamed_addr constant [45 x i8] c"./examples/secdesk/c/purple/purple_rpc.mod.c\00", align 1
+@.str.4 = private unnamed_addr constant [38 x i8] c"./examples/secdesk/c/purple_rpc.mod.c\00", align 1
 @__PRETTY_FUNCTION__.my_xdc_sub_socket = private unnamed_addr constant [42 x i8] c"void *my_xdc_sub_socket(gaps_tag, void *)\00", align 1
 @.str.5 = private unnamed_addr constant [12 x i8] c"TAG_NEXTRPC\00", section "llvm.metadata"
-@.str.6 = private unnamed_addr constant [45 x i8] c"./examples/secdesk/c/purple/purple_rpc.mod.c\00", section "llvm.metadata"
+@.str.6 = private unnamed_addr constant [38 x i8] c"./examples/secdesk/c/purple_rpc.mod.c\00", section "llvm.metadata"
 @.str.7 = private unnamed_addr constant [9 x i8] c"TAG_OKAY\00", section "llvm.metadata"
 @.str.8 = private unnamed_addr constant [22 x i8] c"TAG_REQUEST_RECOGNIZE\00", section "llvm.metadata"
 @.str.9 = private unnamed_addr constant [23 x i8] c"TAG_RESPONSE_RECOGNIZE\00", section "llvm.metadata"
@@ -434,7 +434,7 @@ define dso_local i8* @my_xdc_sub_socket(i64, i32, i8*) #0 {
   br label %25
 
 24:                                               ; preds = %3
-  call void @__assert_fail(i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.3, i64 0, i64 0), i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str.4, i64 0, i64 0), i32 94, i8* getelementptr inbounds ([42 x i8], [42 x i8]* @__PRETTY_FUNCTION__.my_xdc_sub_socket, i64 0, i64 0)) #7
+  call void @__assert_fail(i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.3, i64 0, i64 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.4, i64 0, i64 0), i32 94, i8* getelementptr inbounds ([42 x i8], [42 x i8]* @__PRETTY_FUNCTION__.my_xdc_sub_socket, i64 0, i64 0)) #7
   unreachable
 
 25:                                               ; preds = %23
@@ -493,8 +493,8 @@ define dso_local void @_handle_nextrpc(%struct._tag*) #0 {
   %6 = alloca %struct._tag, align 4
   %7 = alloca [200 x %struct._codec_map], align 16
   %8 = alloca i32, align 4
-  %9 = alloca %struct._nextrpc_datatype, align 4
-  %10 = alloca %struct._okay_datatype, align 4
+  %9 = alloca %struct._nextrpc_datatype, align 1
+  %10 = alloca %struct._okay_datatype, align 1
   %11 = alloca i8*, align 8
   %12 = alloca { i64, i32 }, align 4
   store %struct._tag* %0, %struct._tag** %2, align 8
@@ -538,9 +538,9 @@ define dso_local void @_handle_nextrpc(%struct._tag*) #0 {
   %32 = getelementptr inbounds [200 x %struct._codec_map], [200 x %struct._codec_map]* %7, i64 0, i64 0
   call void @my_xdc_register(void (i8*, i8*, i64*)* @response_stop_recognizer_data_encode, void (i8*, i8*, i64*)* @response_stop_recognizer_data_decode, i32 8, %struct._codec_map* %32)
   %33 = bitcast %struct._nextrpc_datatype* %9 to i8*
-  call void @llvm.var.annotation(i8* %33, i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str.5, i32 0, i32 0), i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str.6, i32 0, i32 0), i32 147)
+  call void @llvm.var.annotation(i8* %33, i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str.5, i32 0, i32 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.6, i32 0, i32 0), i32 147)
   %34 = bitcast %struct._okay_datatype* %10 to i8*
-  call void @llvm.var.annotation(i8* %34, i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.7, i32 0, i32 0), i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str.6, i32 0, i32 0), i32 154)
+  call void @llvm.var.annotation(i8* %34, i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.7, i32 0, i32 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.6, i32 0, i32 0), i32 154)
   call void @my_tag_write(%struct._tag* %5, i32 1, i32 1, i32 1)
   %35 = call i8* @zmq_ctx_new()
   store i8* %35, i8** %11, align 8
@@ -564,7 +564,7 @@ define dso_local void @_handle_nextrpc(%struct._tag*) #0 {
   call void @my_xdc_blocking_recv(i8* %47, i8* %48, %struct._tag* %5, %struct._codec_map* %49)
   call void @my_tag_write(%struct._tag* %6, i32 2, i32 2, i32 2)
   %50 = getelementptr inbounds %struct._okay_datatype, %struct._okay_datatype* %10, i32 0, i32 0
-  store i32 0, i32* %50, align 4
+  store i32 0, i32* %50, align 1
   %51 = load i8*, i8** %3, align 8
   %52 = bitcast %struct._okay_datatype* %10 to i8*
   %53 = getelementptr inbounds [200 x %struct._codec_map], [200 x %struct._codec_map]* %7, i64 0, i64 0
@@ -576,17 +576,17 @@ define dso_local void @_handle_nextrpc(%struct._tag*) #0 {
   %58 = load i8*, i8** %11, align 8
   %59 = call i32 @zmq_ctx_shutdown(i8* %58)
   %60 = getelementptr inbounds %struct._nextrpc_datatype, %struct._nextrpc_datatype* %9, i32 0, i32 0
-  %61 = load i32, i32* %60, align 4
+  %61 = load i32, i32* %60, align 1
   %62 = load %struct._tag*, %struct._tag** %2, align 8
   %63 = getelementptr inbounds %struct._tag, %struct._tag* %62, i32 0, i32 0
   store i32 %61, i32* %63, align 4
   %64 = getelementptr inbounds %struct._nextrpc_datatype, %struct._nextrpc_datatype* %9, i32 0, i32 1
-  %65 = load i32, i32* %64, align 4
+  %65 = load i32, i32* %64, align 1
   %66 = load %struct._tag*, %struct._tag** %2, align 8
   %67 = getelementptr inbounds %struct._tag, %struct._tag* %66, i32 0, i32 1
   store i32 %65, i32* %67, align 4
   %68 = getelementptr inbounds %struct._nextrpc_datatype, %struct._nextrpc_datatype* %9, i32 0, i32 2
-  %69 = load i32, i32* %68, align 4
+  %69 = load i32, i32* %68, align 1
   %70 = load %struct._tag*, %struct._tag** %2, align 8
   %71 = getelementptr inbounds %struct._tag, %struct._tag* %70, i32 0, i32 2
   store i32 %69, i32* %71, align 4
@@ -645,8 +645,8 @@ define dso_local void @_handle_request_recognize(%struct._tag*) #0 {
   %6 = alloca %struct._tag, align 4
   %7 = alloca [200 x %struct._codec_map], align 16
   %8 = alloca i32, align 4
-  %9 = alloca %struct._request_recognize_datatype, align 8
-  %10 = alloca %struct._response_recognize_datatype, align 4
+  %9 = alloca %struct._request_recognize_datatype, align 1
+  %10 = alloca %struct._response_recognize_datatype, align 1
   %11 = alloca i8*, align 8
   %12 = alloca { i64, i32 }, align 4
   store %struct._tag* %0, %struct._tag** %2, align 8
@@ -690,10 +690,10 @@ define dso_local void @_handle_request_recognize(%struct._tag*) #0 {
   %32 = getelementptr inbounds [200 x %struct._codec_map], [200 x %struct._codec_map]* %7, i64 0, i64 0
   call void @my_xdc_register(void (i8*, i8*, i64*)* @response_stop_recognizer_data_encode, void (i8*, i8*, i64*)* @response_stop_recognizer_data_decode, i32 8, %struct._codec_map* %32)
   %33 = bitcast %struct._request_recognize_datatype* %9 to i8*
-  call void @llvm.var.annotation(i8* %33, i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str.8, i32 0, i32 0), i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str.6, i32 0, i32 0), i32 221)
+  call void @llvm.var.annotation(i8* %33, i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str.8, i32 0, i32 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.6, i32 0, i32 0), i32 221)
   call void @my_tag_write(%struct._tag* %5, i32 1, i32 1, i32 3)
   %34 = bitcast %struct._response_recognize_datatype* %10 to i8*
-  call void @llvm.var.annotation(i8* %34, i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.9, i32 0, i32 0), i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str.6, i32 0, i32 0), i32 233)
+  call void @llvm.var.annotation(i8* %34, i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.9, i32 0, i32 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.6, i32 0, i32 0), i32 233)
   call void @my_tag_write(%struct._tag* %6, i32 2, i32 2, i32 4)
   %35 = call i8* @zmq_ctx_new()
   store i8* %35, i8** %11, align 8
@@ -719,7 +719,7 @@ define dso_local void @_handle_request_recognize(%struct._tag*) #0 {
   %51 = getelementptr inbounds [128 x double], [128 x double]* %50, i64 0, i64 0
   %52 = call i32 @recognize(double* %51)
   %53 = getelementptr inbounds %struct._response_recognize_datatype, %struct._response_recognize_datatype* %10, i32 0, i32 0
-  store i32 %52, i32* %53, align 4
+  store i32 %52, i32* %53, align 1
   %54 = load i8*, i8** %3, align 8
   %55 = bitcast %struct._response_recognize_datatype* %10 to i8*
   %56 = getelementptr inbounds [200 x %struct._codec_map], [200 x %struct._codec_map]* %7, i64 0, i64 0
@@ -744,8 +744,8 @@ define dso_local void @_handle_request_start_recognizer(%struct._tag*) #0 {
   %6 = alloca %struct._tag, align 4
   %7 = alloca [200 x %struct._codec_map], align 16
   %8 = alloca i32, align 4
-  %9 = alloca %struct._request_start_recognizer_datatype, align 4
-  %10 = alloca %struct._response_start_recognizer_datatype, align 4
+  %9 = alloca %struct._request_start_recognizer_datatype, align 1
+  %10 = alloca %struct._response_start_recognizer_datatype, align 1
   %11 = alloca i8*, align 8
   %12 = alloca { i64, i32 }, align 4
   store %struct._tag* %0, %struct._tag** %2, align 8
@@ -789,10 +789,10 @@ define dso_local void @_handle_request_start_recognizer(%struct._tag*) #0 {
   %32 = getelementptr inbounds [200 x %struct._codec_map], [200 x %struct._codec_map]* %7, i64 0, i64 0
   call void @my_xdc_register(void (i8*, i8*, i64*)* @response_stop_recognizer_data_encode, void (i8*, i8*, i64*)* @response_stop_recognizer_data_decode, i32 8, %struct._codec_map* %32)
   %33 = bitcast %struct._request_start_recognizer_datatype* %9 to i8*
-  call void @llvm.var.annotation(i8* %33, i8* getelementptr inbounds ([29 x i8], [29 x i8]* @.str.10, i32 0, i32 0), i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str.6, i32 0, i32 0), i32 301)
+  call void @llvm.var.annotation(i8* %33, i8* getelementptr inbounds ([29 x i8], [29 x i8]* @.str.10, i32 0, i32 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.6, i32 0, i32 0), i32 301)
   call void @my_tag_write(%struct._tag* %5, i32 1, i32 1, i32 5)
   %34 = bitcast %struct._response_start_recognizer_datatype* %10 to i8*
-  call void @llvm.var.annotation(i8* %34, i8* getelementptr inbounds ([30 x i8], [30 x i8]* @.str.11, i32 0, i32 0), i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str.6, i32 0, i32 0), i32 313)
+  call void @llvm.var.annotation(i8* %34, i8* getelementptr inbounds ([30 x i8], [30 x i8]* @.str.11, i32 0, i32 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.6, i32 0, i32 0), i32 313)
   call void @my_tag_write(%struct._tag* %6, i32 2, i32 2, i32 6)
   %35 = call i8* @zmq_ctx_new()
   store i8* %35, i8** %11, align 8
@@ -816,7 +816,7 @@ define dso_local void @_handle_request_start_recognizer(%struct._tag*) #0 {
   call void @my_xdc_blocking_recv(i8* %47, i8* %48, %struct._tag* %5, %struct._codec_map* %49)
   %50 = call i32 (...) @start_recognizer()
   %51 = getelementptr inbounds %struct._response_start_recognizer_datatype, %struct._response_start_recognizer_datatype* %10, i32 0, i32 0
-  store i32 %50, i32* %51, align 4
+  store i32 %50, i32* %51, align 1
   %52 = load i8*, i8** %3, align 8
   %53 = bitcast %struct._response_start_recognizer_datatype* %10 to i8*
   %54 = getelementptr inbounds [200 x %struct._codec_map], [200 x %struct._codec_map]* %7, i64 0, i64 0
@@ -841,8 +841,8 @@ define dso_local void @_handle_request_stop_recognizer(%struct._tag*) #0 {
   %6 = alloca %struct._tag, align 4
   %7 = alloca [200 x %struct._codec_map], align 16
   %8 = alloca i32, align 4
-  %9 = alloca %struct._request_stop_recognizer_datatype, align 4
-  %10 = alloca %struct._response_stop_recognizer_datatype, align 4
+  %9 = alloca %struct._request_stop_recognizer_datatype, align 1
+  %10 = alloca %struct._response_stop_recognizer_datatype, align 1
   %11 = alloca i8*, align 8
   %12 = alloca { i64, i32 }, align 4
   store %struct._tag* %0, %struct._tag** %2, align 8
@@ -886,10 +886,10 @@ define dso_local void @_handle_request_stop_recognizer(%struct._tag*) #0 {
   %32 = getelementptr inbounds [200 x %struct._codec_map], [200 x %struct._codec_map]* %7, i64 0, i64 0
   call void @my_xdc_register(void (i8*, i8*, i64*)* @response_stop_recognizer_data_encode, void (i8*, i8*, i64*)* @response_stop_recognizer_data_decode, i32 8, %struct._codec_map* %32)
   %33 = bitcast %struct._request_stop_recognizer_datatype* %9 to i8*
-  call void @llvm.var.annotation(i8* %33, i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.12, i32 0, i32 0), i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str.6, i32 0, i32 0), i32 381)
+  call void @llvm.var.annotation(i8* %33, i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.12, i32 0, i32 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.6, i32 0, i32 0), i32 381)
   call void @my_tag_write(%struct._tag* %5, i32 1, i32 1, i32 7)
   %34 = bitcast %struct._response_stop_recognizer_datatype* %10 to i8*
-  call void @llvm.var.annotation(i8* %34, i8* getelementptr inbounds ([29 x i8], [29 x i8]* @.str.13, i32 0, i32 0), i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str.6, i32 0, i32 0), i32 393)
+  call void @llvm.var.annotation(i8* %34, i8* getelementptr inbounds ([29 x i8], [29 x i8]* @.str.13, i32 0, i32 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.6, i32 0, i32 0), i32 393)
   call void @my_tag_write(%struct._tag* %6, i32 2, i32 2, i32 8)
   %35 = call i8* @zmq_ctx_new()
   store i8* %35, i8** %11, align 8
@@ -913,7 +913,7 @@ define dso_local void @_handle_request_stop_recognizer(%struct._tag*) #0 {
   call void @my_xdc_blocking_recv(i8* %47, i8* %48, %struct._tag* %5, %struct._codec_map* %49)
   %50 = call i32 (...) @stop_recognizer()
   %51 = getelementptr inbounds %struct._response_stop_recognizer_datatype, %struct._response_stop_recognizer_datatype* %10, i32 0, i32 0
-  store i32 %50, i32* %51, align 4
+  store i32 %50, i32* %51, align 1
   %52 = load i8*, i8** %3, align 8
   %53 = bitcast %struct._response_stop_recognizer_datatype* %10 to i8*
   %54 = getelementptr inbounds [200 x %struct._codec_map], [200 x %struct._codec_map]* %7, i64 0, i64 0

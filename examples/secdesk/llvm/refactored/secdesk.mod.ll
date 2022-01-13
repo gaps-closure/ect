@@ -1,5 +1,5 @@
-; ModuleID = './examples/secdesk/c/refactored/secdesk.mod.c'
-source_filename = "./examples/secdesk/c/refactored/secdesk.mod.c"
+; ModuleID = './examples/secdesk/c/secdesk.mod.c'
+source_filename = "./examples/secdesk/c/secdesk.mod.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
@@ -83,7 +83,7 @@ target triple = "x86_64-pc-linux-gnu"
 @.str.50 = private unnamed_addr constant [5 x i8] c"name\00", align 1
 @.str.51 = private unnamed_addr constant [5 x i8] c"data\00", align 1
 @.str.52 = private unnamed_addr constant [7 x i8] c"ORANGE\00", section "llvm.metadata"
-@.str.53 = private unnamed_addr constant [46 x i8] c"./examples/secdesk/c/refactored/secdesk.mod.c\00", section "llvm.metadata"
+@.str.53 = private unnamed_addr constant [35 x i8] c"./examples/secdesk/c/secdesk.mod.c\00", section "llvm.metadata"
 @.str.54 = private unnamed_addr constant [7 x i8] c"%s/tmp\00", align 1
 @.str.55 = private unnamed_addr constant [22 x i8] c"%s/secdesk_img_XXXXXX\00", align 1
 @.str.56 = private unnamed_addr constant [3 x i8] c"wb\00", align 1
@@ -94,7 +94,7 @@ target triple = "x86_64-pc-linux-gnu"
 @.str.60 = private unnamed_addr constant [20 x i8] c"EMBEDDING_SHAREABLE\00", section "llvm.metadata"
 @.str.61 = private unnamed_addr constant [17 x i8] c"PROCESS_SECINPUT\00", section "llvm.metadata"
 @.str.62 = private unnamed_addr constant [92 x i8] c"<!DOCTYPE html><html><body>%s<br><img height=\22200px\22 src=\22%s\22 id=\22myImage\22 /></body></html>\00", align 1
-@llvm.global.annotations = appending global [1 x { i8*, i8*, i8*, i32 }] [{ i8*, i8*, i8*, i32 } { i8* bitcast (i32 (%struct.secinput*, i8*)* @process_secinput to i8*), i8* getelementptr inbounds ([17 x i8], [17 x i8]* @.str.61, i32 0, i32 0), i8* getelementptr inbounds ([46 x i8], [46 x i8]* @.str.53, i32 0, i32 0), i32 93 }], section "llvm.metadata"
+@llvm.global.annotations = appending global [1 x { i8*, i8*, i8*, i32 }] [{ i8*, i8*, i8*, i32 } { i8* bitcast (i32 (%struct.secinput*, i8*)* @process_secinput to i8*), i8* getelementptr inbounds ([17 x i8], [17 x i8]* @.str.61, i32 0, i32 0), i8* getelementptr inbounds ([35 x i8], [35 x i8]* @.str.53, i32 0, i32 0), i32 93 }], section "llvm.metadata"
 
 ; Function Attrs: noinline nounwind optnone uwtable
 define weak dso_local void @FIO_LOG2STDERR(i8*, ...) #0 {
@@ -763,9 +763,9 @@ define internal i32 @process_secinput(%struct.secinput*, i8*) #0 {
   %30 = load i8*, i8** %29, align 8
   store i8* %30, i8** %6, align 8
   %31 = bitcast [256 x i8]* %8 to i8*
-  call void @llvm.var.annotation(i8* %31, i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str.52, i32 0, i32 0), i8* getelementptr inbounds ([46 x i8], [46 x i8]* @.str.53, i32 0, i32 0), i32 100)
+  call void @llvm.var.annotation(i8* %31, i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str.52, i32 0, i32 0), i8* getelementptr inbounds ([35 x i8], [35 x i8]* @.str.53, i32 0, i32 0), i32 100)
   %32 = bitcast [512 x i8]* %9 to i8*
-  call void @llvm.var.annotation(i8* %32, i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str.52, i32 0, i32 0), i8* getelementptr inbounds ([46 x i8], [46 x i8]* @.str.53, i32 0, i32 0), i32 100)
+  call void @llvm.var.annotation(i8* %32, i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str.52, i32 0, i32 0), i8* getelementptr inbounds ([35 x i8], [35 x i8]* @.str.53, i32 0, i32 0), i32 100)
   %33 = getelementptr inbounds [256 x i8], [256 x i8]* %8, i64 0, i64 0
   %34 = call i8* @fio_cli_get(i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str.4, i64 0, i64 0))
   %35 = call i32 (i8*, i8*, ...) @sprintf(i8* %33, i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str.54, i64 0, i64 0), i8* %34) #1
@@ -842,12 +842,12 @@ define internal i32 @process_secinput(%struct.secinput*, i8*) #0 {
   %90 = call noalias i8* @strdup(i8* %89) #1
   store i8* %90, i8** %14, align 8
   %91 = bitcast [128 x double]* %18 to i8*
-  call void @llvm.var.annotation(i8* %91, i8* getelementptr inbounds ([20 x i8], [20 x i8]* @.str.60, i32 0, i32 0), i8* getelementptr inbounds ([46 x i8], [46 x i8]* @.str.53, i32 0, i32 0), i32 125)
+  call void @llvm.var.annotation(i8* %91, i8* getelementptr inbounds ([20 x i8], [20 x i8]* @.str.60, i32 0, i32 0), i8* getelementptr inbounds ([35 x i8], [35 x i8]* @.str.53, i32 0, i32 0), i32 125)
   %92 = getelementptr inbounds [512 x i8], [512 x i8]* %9, i64 0, i64 0
   %93 = getelementptr inbounds [128 x double], [128 x double]* %18, i64 0, i64 0
   %94 = call i32 @get_features(i8* %92, double* %93)
   %95 = bitcast i32* %19 to i8*
-  call void @llvm.var.annotation(i8* %95, i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str.52, i32 0, i32 0), i8* getelementptr inbounds ([46 x i8], [46 x i8]* @.str.53, i32 0, i32 0), i32 132)
+  call void @llvm.var.annotation(i8* %95, i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str.52, i32 0, i32 0), i8* getelementptr inbounds ([35 x i8], [35 x i8]* @.str.53, i32 0, i32 0), i32 132)
   %96 = getelementptr inbounds [128 x double], [128 x double]* %18, i64 0, i64 0
   %97 = call i32 @recognize(double* %96)
   store i32 %97, i32* %19, align 4

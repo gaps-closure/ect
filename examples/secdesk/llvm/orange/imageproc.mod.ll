@@ -1,13 +1,13 @@
-; ModuleID = './examples/secdesk/c/orange/imageproc.mod.c'
-source_filename = "./examples/secdesk/c/orange/imageproc.mod.c"
+; ModuleID = './examples/secdesk/c/imageproc.mod.c'
+source_filename = "./examples/secdesk/c/imageproc.mod.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
 @savedBox = dso_local global [4 x i64] zeroinitializer, align 16
 @.str = private unnamed_addr constant [13 x i8] c"GET_FEATURES\00", section "llvm.metadata"
-@.str.1 = private unnamed_addr constant [44 x i8] c"./examples/secdesk/c/orange/imageproc.mod.c\00", section "llvm.metadata"
+@.str.1 = private unnamed_addr constant [37 x i8] c"./examples/secdesk/c/imageproc.mod.c\00", section "llvm.metadata"
 @savedName = common dso_local global [32 x i8] zeroinitializer, align 16
-@llvm.global.annotations = appending global [1 x { i8*, i8*, i8*, i32 }] [{ i8*, i8*, i8*, i32 } { i8* bitcast (i32 (i8*, double*)* @get_features to i8*), i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str.1, i32 0, i32 0), i32 203 }], section "llvm.metadata"
+@llvm.global.annotations = appending global [1 x { i8*, i8*, i8*, i32 }] [{ i8*, i8*, i8*, i32 } { i8* bitcast (i32 (i8*, double*)* @get_features to i8*), i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.1, i32 0, i32 0), i32 203 }], section "llvm.metadata"
 
 ; Function Attrs: noinline nounwind optnone uwtable
 define dso_local i32 @start_imageprocessor() #0 {

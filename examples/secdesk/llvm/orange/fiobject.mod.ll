@@ -1,5 +1,5 @@
-; ModuleID = './examples/secdesk/c/orange/fiobject.mod.c'
-source_filename = "./examples/secdesk/c/orange/fiobject.mod.c"
+; ModuleID = './examples/secdesk/c/fiobject.mod.c'
+source_filename = "./examples/secdesk/c/fiobject.mod.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
@@ -28,7 +28,7 @@ target triple = "x86_64-pc-linux-gnu"
 @FIOBJECT_VTABLE_ARRAY = external dso_local constant %struct.fiobj_object_vtable_s, align 8
 @FIOBJECT_VTABLE_HASH = external dso_local constant %struct.fiobj_object_vtable_s, align 8
 @FIOBJECT_VTABLE_DATA = external dso_local constant %struct.fiobj_object_vtable_s, align 8
-@.str.3 = private unnamed_addr constant [70 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/orange/fio.h:4920\00", align 1
+@.str.3 = private unnamed_addr constant [63 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.h:4920\00", align 1
 
 ; Function Attrs: noinline nounwind optnone uwtable
 define weak dso_local void @FIO_LOG2STDERR(i8*, ...) #0 {
@@ -2111,7 +2111,7 @@ define internal void @fiobj_stack___require_on_top(%struct.fiobj_stack_s*, i64) 
   br i1 %47, label %48, label %49
 
 48:                                               ; preds = %45
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([70 x i8], [70 x i8]* @.str.3, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([63 x i8], [63 x i8]* @.str.3, i64 0, i64 0))
   br label %49
 
 49:                                               ; preds = %48, %45

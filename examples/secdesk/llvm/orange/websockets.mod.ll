@@ -1,5 +1,5 @@
-; ModuleID = './examples/secdesk/c/orange/websockets.mod.c'
-source_filename = "./examples/secdesk/c/orange/websockets.mod.c"
+; ModuleID = './examples/secdesk/c/websockets.mod.c'
+source_filename = "./examples/secdesk/c/websockets.mod.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
@@ -36,11 +36,11 @@ target triple = "x86_64-pc-linux-gnu"
 @.str.1 = private unnamed_addr constant [40 x i8] c"ERROR: log output error (can't write).\0A\00", align 1
 @stderr = external dso_local global %struct._IO_FILE*, align 8
 @FIO_LOG_LEVEL = weak dso_local global i32 0, align 4
-@.str.2 = private unnamed_addr constant [80 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/orange/websockets.mod.c:333\00", align 1
+@.str.2 = private unnamed_addr constant [73 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/websockets.mod.c:333\00", align 1
 @websocket_optimize4broadcasts.generic = internal global i64 0, align 8
 @websocket_optimize4broadcasts.text = internal global i64 0, align 8
 @websocket_optimize4broadcasts.binary = internal global i64 0, align 8
-@.str.3 = private unnamed_addr constant [80 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/orange/websockets.mod.c:635\00", align 1
+@.str.3 = private unnamed_addr constant [73 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/websockets.mod.c:635\00", align 1
 @.str.4 = private unnamed_addr constant [3 x i8] c"\88\00\00", align 1
 @fio_hash_secret_marker1 = weak dso_local global i8 0, align 1
 @fio_hash_secret_marker2 = weak dso_local global i8 0, align 1
@@ -65,7 +65,7 @@ target triple = "x86_64-pc-linux-gnu"
 @.str.15 = private unnamed_addr constant [7 x i8] c"\89\80MASK\00", align 1
 @fio_str_utf8_map = internal global [32 x i8] c"\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01\05\05\05\05\05\05\05\05\02\02\02\02\03\03\04\00", align 16
 @__const.fio_reschedule_thread.tm = private unnamed_addr constant %struct.timespec { i64 0, i64 1 }, align 8
-@.str.16 = private unnamed_addr constant [70 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/orange/fio.h:3313\00", align 1
+@.str.16 = private unnamed_addr constant [63 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.h:3313\00", align 1
 
 ; Function Attrs: noinline nounwind optnone uwtable
 define weak dso_local void @FIO_LOG2STDERR(i8*, ...) #0 {
@@ -280,7 +280,7 @@ define dso_local void @websocket_attach(i64, %struct.http_settings_s*, %struct.w
   br i1 %21, label %22, label %23
 
 22:                                               ; preds = %19
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([80 x i8], [80 x i8]* @.str.2, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([73 x i8], [73 x i8]* @.str.2, i64 0, i64 0))
   br label %23
 
 23:                                               ; preds = %22, %19
@@ -799,7 +799,7 @@ define dso_local i64 @websocket_subscribe(%struct.websocket_subscribe_s* byval(%
   br i1 %29, label %30, label %31
 
 30:                                               ; preds = %27
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([80 x i8], [80 x i8]* @.str.3, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([73 x i8], [73 x i8]* @.str.3, i64 0, i64 0))
   br label %31
 
 31:                                               ; preds = %30, %27
@@ -1190,7 +1190,7 @@ define internal %struct.fio_ls_s* @fio_ls_push(%struct.fio_ls_s*, i8*) #0 {
   br i1 %19, label %20, label %21
 
 20:                                               ; preds = %17
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([70 x i8], [70 x i8]* @.str.16, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([63 x i8], [63 x i8]* @.str.16, i64 0, i64 0))
   br label %21
 
 21:                                               ; preds = %20, %17

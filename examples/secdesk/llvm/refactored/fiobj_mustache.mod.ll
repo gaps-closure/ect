@@ -1,5 +1,5 @@
-; ModuleID = './examples/secdesk/c/refactored/fiobj_mustache.mod.c'
-source_filename = "./examples/secdesk/c/refactored/fiobj_mustache.mod.c"
+; ModuleID = './examples/secdesk/c/fiobj_mustache.mod.c'
+source_filename = "./examples/secdesk/c/fiobj_mustache.mod.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 

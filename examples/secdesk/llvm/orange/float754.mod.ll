@@ -1,5 +1,5 @@
-; ModuleID = './examples/secdesk/c/orange/float754.mod.c'
-source_filename = "./examples/secdesk/c/orange/float754.mod.c"
+; ModuleID = './examples/secdesk/c/float754.mod.c'
+source_filename = "./examples/secdesk/c/float754.mod.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 

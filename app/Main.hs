@@ -36,8 +36,7 @@ import Data.Maybe
 import qualified Data.ByteString.UTF8 as BS
 import qualified Data.ByteString.Lazy.UTF8 as BSL
 import Data.ByteString.Short ( toShort, fromShort )
-import Data.List ( intercalate, isPrefixOf, nub, findIndex )
-import qualified Data.ByteString.Char8 as C
+import Data.List ( intercalate, findIndex )
 import qualified Data.Char as CH
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
@@ -166,43 +165,43 @@ combineGlobals l r entry = M.unionWithKey dupHandler lGlobals rGlobals
 
 -- FIXME: function calls can potentially come from other places besides
 -- Call instructions, and we should replace RPC calls there too.
-replRpc :: NameReferenceMap -> NameReferenceMap
-replRpc = M.map replRpcFunc
-  where
-    replRpcFunc (GlobalDef f@A.Function{}) = GlobalDef $ f { A.basicBlocks = map
-      (\(A.BasicBlock n i t) -> A.BasicBlock n (map replRpcNamed i) t)
-      (A.basicBlocks f)
-    }
-    replRpcFunc g = g
+-- replRpc :: NameReferenceMap -> NameReferenceMap
+-- replRpc = M.map replRpcFunc
+--   where
+--     replRpcFunc (GlobalDef f@A.Function{}) = GlobalDef $ f { A.basicBlocks = map
+--       (\(A.BasicBlock n i t) -> A.BasicBlock n (map replRpcNamed i) t)
+--       (A.basicBlocks f)
+--     }
+--     replRpcFunc g = g
 
-    replRpcNamed (n A.:= a) = n A.:= replRpcInstr a
-    replRpcNamed (A.Do a)   = A.Do (replRpcInstr a)
+--     replRpcNamed (n A.:= a) = n A.:= replRpcInstr a
+--     replRpcNamed (A.Do a)   = A.Do (replRpcInstr a)
 
-    replRpcInstr i@A.Call{} = i { A.function = replRpcRef $ A.function i }
-    replRpcInstr i = i
+--     replRpcInstr i@A.Call{} = i { A.function = replRpcRef $ A.function i }
+--     replRpcInstr i = i
 
-    replRpcRef (Right (A.ConstantOperand (A.GlobalReference t n))) =
-      Right (A.ConstantOperand (A.GlobalReference t' n'))
-      where
-        n' = case n of
-               A.Name bytes
-                 | isPrefixOf "_rpc_" s -> A.Name $ toShort $ C.pack $ drop 5 s
-                 | otherwise -> n
-                 where s = C.unpack $ fromShort bytes
-               _ -> n
-        t' = if n' == n then t
-             else case t of
-                    A.PointerType (A.FunctionType r a _) addr ->
-                      A.PointerType (A.FunctionType r a False) addr
-                    _ -> error "A.GlobalReference has unexpected type"
-    replRpcRef r = r
+--     replRpcRef (Right (A.ConstantOperand (A.GlobalReference t n))) =
+--       Right (A.ConstantOperand (A.GlobalReference t' n'))
+--       where
+--         n' = case n of
+--                A.Name bytes
+--                  | isPrefixOf "_rpc_" s -> A.Name $ toShort $ C.pack $ drop 5 s
+--                  | otherwise -> n
+--                  where s = C.unpack $ fromShort bytes
+--                _ -> n
+--         t' = if n' == n then t
+--              else case t of
+--                     A.PointerType (A.FunctionType r a _) addr ->
+--                       A.PointerType (A.FunctionType r a False) addr
+--                     _ -> error "A.GlobalReference has unexpected type"
+--     replRpcRef r = r
 
 rmDbgCalls :: A.Global -> A.Global
 rmDbgCalls f@A.Function{} = f { A.basicBlocks = map 
   (\(A.BasicBlock n i t) -> A.BasicBlock n (filter (not . isDbgCall) i) t) 
   (A.basicBlocks f) }
   where
-    dbg = [llvmName "llvm.var.annotation", llvmName "printf"]
+    dbg = [llvmName "llvm.var.annotation"]
     isDbgCall (_ A.:= a) = isDbgCall' a
     isDbgCall (A.Do a)   = isDbgCall' a
     isDbgCall' (A.Call _ _ _ ref _ _ _) = isDbgRef ref
@@ -315,7 +314,7 @@ toLLModule :: A.Module -> LLModule
 toLLModule ll = LLModule n gs' annos (Nothing, Nothing, Nothing)
   where
     n     = moduleFname ll
-    gs    = (replRpc . findGlobals) ll
+    gs    = findGlobals ll
     gs'   = M.map rmDbg gs
     annos = M.union (findLocalAnnotations gs) (findGlobalAnnotations gs)
     rmDbg (GlobalDef g) = GlobalDef $ rmDbgCalls g
@@ -403,9 +402,8 @@ main = do
           comment "Refactored CLE map is a subset of the union of partitioned CLE maps."
           comment "Tags in the partitioned CLE maps are consistent."
         Just e -> die ["Error: " ++ e ++ "."]
-  cs <- mapM checkCmap $ zip cmaps cmap_files
-  let colorSet = nub $ concat cs
-      (partCles, refCle) = (init cmaps, last cmaps)
+  _ <- mapM checkCmap $ zip cmaps cmap_files
+  let (partCles, refCle) = (init cmaps, last cmaps)
   checkAgreement partCles refCle
 
   -- Parse and valdiate LLVM files

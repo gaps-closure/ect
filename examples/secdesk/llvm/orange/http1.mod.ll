@@ -1,5 +1,5 @@
-; ModuleID = './examples/secdesk/c/orange/http1.mod.c'
-source_filename = "./examples/secdesk/c/orange/http1.mod.c"
+; ModuleID = './examples/secdesk/c/http1.mod.c'
+source_filename = "./examples/secdesk/c/http1.mod.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
@@ -41,7 +41,7 @@ target triple = "x86_64-pc-linux-gnu"
 @stderr = external dso_local global %struct._IO_FILE*, align 8
 @HTTP1_VTABLE = dso_local global %struct.http_vtable_s { i32 (%struct.http_s*, i8*, i64)* @http1_send_body, i32 (%struct.http_s*, i32, i64, i64)* @http1_sendfile, i32 (%struct.http_s*, i8*, i64)* null, void (%struct.http_s*)* @htt1p_finish, i32 (%struct.http_s*, i8*, i64, i64)* @http1_push_data, i32 (%struct.http_s*, %struct.websocket_settings_s*)* @http1_http2websocket, i32 (%struct.http_s*, i64, i64)* @http1_push_file, void (%struct.http_s*, %struct.http_fio_protocol_s*)* @http1_on_pause, void (%struct.http_s*, %struct.http_fio_protocol_s*)* @http1_on_resume, i64 (%struct.http_s*, %struct.fio_str_info_s*)* @http1_hijack, i32 (%struct.http_s*, %struct.http_sse_s*)* @http1_upgrade2sse, i32 (%struct.http_sse_s*, i64)* @http1_sse_write, i32 (%struct.http_sse_s*)* @http1_sse_close }, align 8
 @FIO_LOG_LEVEL = weak dso_local global i32 0, align 4
-@.str.2 = private unnamed_addr constant [75 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/orange/http1.mod.c:790\00", align 1
+@.str.2 = private unnamed_addr constant [68 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/http1.mod.c:790\00", align 1
 @fio_hash_secret_marker1 = weak dso_local global i8 0, align 1
 @fio_hash_secret_marker2 = weak dso_local global i8 0, align 1
 @headers2str.connection_hash = internal global i64 0, align 8
@@ -136,7 +136,7 @@ target triple = "x86_64-pc-linux-gnu"
 @FIOBJECT_VTABLE_DATA = external dso_local constant %struct.fiobj_object_vtable_s, align 8
 @.str.83 = private unnamed_addr constant [2 x i8] c":\00", align 1
 @.str.84 = private unnamed_addr constant [2 x i8] c"h\00", align 1
-@.str.85 = private unnamed_addr constant [40 x i8] c"./examples/secdesk/c/orange/http1.mod.c\00", align 1
+@.str.85 = private unnamed_addr constant [33 x i8] c"./examples/secdesk/c/http1.mod.c\00", align 1
 @__PRETTY_FUNCTION__.http1_http2websocket = private unnamed_addr constant [59 x i8] c"int http1_http2websocket(http_s *, websocket_settings_s *)\00", align 1
 @http1_http2websocket_server.ws_key_accpt_str = internal global [37 x i8] c"258EAFA5-E914-47DA-95CA-C5AB0DC85B11\00", align 16
 @http1_http2websocket_server.sec_version = internal global i64 0, align 8
@@ -160,7 +160,7 @@ target triple = "x86_64-pc-linux-gnu"
 @.str.89 = private unnamed_addr constant [9 x i8] c": ping\0A\0A\00", align 1
 @.str.90 = private unnamed_addr constant [25 x i8] c"PRI * HTTP/2.0\0D\0A\0D\0ASM\0D\0A\0D\0A\00", align 1
 @.str.91 = private unnamed_addr constant [60 x i8] c"WARNING: client claimed unsupported HTTP/2 prior knowledge.\00", align 1
-@.str.92 = private unnamed_addr constant [90 x i8] c"DEBUG (./examples/secdesk/c/orange/http1.mod.c:718): (HTTP/1,1) throttling client at %.*s\00", align 1
+@.str.92 = private unnamed_addr constant [83 x i8] c"DEBUG (./examples/secdesk/c/http1.mod.c:718): (HTTP/1,1) throttling client at %.*s\00", align 1
 @.str.93 = private unnamed_addr constant [2 x i8] c"/\00", align 1
 @.str.94 = private unnamed_addr constant [70 x i8] c"ERROR: (http1 parse ordering error) missing HashMap for header %s: %s\00", align 1
 @.str.95 = private unnamed_addr constant [56 x i8] c"WARNING: (HTTP) security alert - header flood detected.\00", align 1
@@ -168,7 +168,7 @@ target triple = "x86_64-pc-linux-gnu"
 @__const.http1_consume_header_trailer.http1_trailer_white_list = private unnamed_addr constant [2 x %struct.anon.2] [%struct.anon.2 { i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str.96, i32 0, i32 0), i64 13 }, %struct.anon.2 zeroinitializer], align 16
 @.str.97 = private unnamed_addr constant [15 x i8] c"content-length\00", align 1
 @.str.98 = private unnamed_addr constant [18 x i8] c"transfer-encoding\00", align 1
-@.str.99 = private unnamed_addr constant [72 x i8] c"DEBUG (./examples/secdesk/c/orange/http1.mod.c:670): HTTP parser error.\00", align 1
+@.str.99 = private unnamed_addr constant [65 x i8] c"DEBUG (./examples/secdesk/c/http1.mod.c:670): HTTP parser error.\00", align 1
 
 ; Function Attrs: noinline nounwind optnone uwtable
 define weak dso_local void @FIO_LOG2STDERR(i8*, ...) #0 {
@@ -511,7 +511,7 @@ define internal i32 @http1_http2websocket(%struct.http_s*, %struct.websocket_set
   br label %11
 
 10:                                               ; preds = %2
-  call void @__assert_fail(i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str.84, i64 0, i64 0), i8* getelementptr inbounds ([40 x i8], [40 x i8]* @.str.85, i64 0, i64 0), i32 410, i8* getelementptr inbounds ([59 x i8], [59 x i8]* @__PRETTY_FUNCTION__.http1_http2websocket, i64 0, i64 0)) #8
+  call void @__assert_fail(i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str.84, i64 0, i64 0), i8* getelementptr inbounds ([33 x i8], [33 x i8]* @.str.85, i64 0, i64 0), i32 410, i8* getelementptr inbounds ([59 x i8], [59 x i8]* @__PRETTY_FUNCTION__.http1_http2websocket, i64 0, i64 0)) #8
   unreachable
 
 11:                                               ; preds = %9
@@ -961,7 +961,7 @@ define dso_local %struct.fio_protocol_s* @http1_new(i64, %struct.http_settings_s
   br i1 %29, label %30, label %31
 
 30:                                               ; preds = %27
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([75 x i8], [75 x i8]* @.str.2, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([68 x i8], [68 x i8]* @.str.2, i64 0, i64 0))
   br label %31
 
 31:                                               ; preds = %30, %27
@@ -3968,7 +3968,7 @@ define internal void @http1_consume_data(i64, %struct.http1pr_s*) #0 {
   call void @fio_peer_addr(%struct.fio_str_info_s* sret %9, i64 %139)
   %140 = getelementptr inbounds %struct.fio_str_info_s, %struct.fio_str_info_s* %9, i32 0, i32 2
   %141 = load i8*, i8** %140, align 8
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([90 x i8], [90 x i8]* @.str.92, i64 0, i64 0), i32 %138, i8* %141)
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([83 x i8], [83 x i8]* @.str.92, i64 0, i64 0), i32 %138, i8* %141)
   br label %142
 
 142:                                              ; preds = %134, %131
@@ -5292,7 +5292,7 @@ define internal i32 @http1_on_error(%struct.http1_parser_s*) #0 {
   br i1 %15, label %16, label %17
 
 16:                                               ; preds = %13
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([72 x i8], [72 x i8]* @.str.99, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([65 x i8], [65 x i8]* @.str.99, i64 0, i64 0))
   br label %17
 
 17:                                               ; preds = %16, %13

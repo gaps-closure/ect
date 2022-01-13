@@ -340,9 +340,9 @@ provenance :: (NameReferenceMap, NameReferenceMap)
            -> String
 provenance (gs1, gs2) err fnames (l1, l2) =
   "\nproofFail: " ++ err ++ " \n\
-  \    in " ++ fst fnames ++ "\n\
+  \    in partitioned file " ++ fst fnames ++ "\n\
   \        " ++ partLoc ++ "  \n\
-  \    in " ++ snd fnames ++ "\n\
+  \    in refactored file " ++ snd fnames ++ "\n\
   \        " ++ refLoc
   where
     [partLoc, refLoc] = map strLoc [(gs1, l1), (gs2, l2)]

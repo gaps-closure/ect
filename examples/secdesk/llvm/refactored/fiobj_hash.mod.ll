@@ -1,5 +1,5 @@
-; ModuleID = './examples/secdesk/c/refactored/fiobj_hash.mod.c'
-source_filename = "./examples/secdesk/c/refactored/fiobj_hash.mod.c"
+; ModuleID = './examples/secdesk/c/fiobj_hash.mod.c'
+source_filename = "./examples/secdesk/c/fiobj_hash.mod.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
@@ -21,7 +21,7 @@ target triple = "x86_64-pc-linux-gnu"
 @.str.1 = private unnamed_addr constant [40 x i8] c"ERROR: log output error (can't write).\0A\00", align 1
 @stderr = external dso_local global %struct._IO_FILE*, align 8
 @.str.2 = private unnamed_addr constant [36 x i8] c"h && FIOBJ_TYPE_IS(h, FIOBJ_T_HASH)\00", align 1
-@.str.3 = private unnamed_addr constant [49 x i8] c"./examples/secdesk/c/refactored/fiobj_hash.mod.c\00", align 1
+@.str.3 = private unnamed_addr constant [38 x i8] c"./examples/secdesk/c/fiobj_hash.mod.c\00", align 1
 @__PRETTY_FUNCTION__.fiobj_hash_rehash = private unnamed_addr constant [30 x i8] c"void fiobj_hash_rehash(FIOBJ)\00", align 1
 @each_at_key = internal thread_local global i64 0, align 8
 @.str.4 = private unnamed_addr constant [36 x i8] c"o && FIOBJ_TYPE_IS(o, FIOBJ_T_HASH)\00", align 1
@@ -29,8 +29,8 @@ target triple = "x86_64-pc-linux-gnu"
 @.str.5 = private unnamed_addr constant [5 x i8] c"Hash\00", align 1
 @FIOBJECT_VTABLE_HASH = dso_local constant %struct.fiobj_object_vtable_s { i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str.5, i32 0, i32 0), void (i64, void (i64, i8*)*, i8*)* @fiobj_hash_dealloc, i64 (i64)* @fiobj_hash_count, i64 (i64)* @fiobj_hash_is_true, i64 (i64, i64)* @fiobj_hash_is_eq, i64 (i64, i64, i32 (i64, i8*)*, i8*)* @fiobj_hash_each1, void (%struct.fio_str_info_s*, i64)* @fiobject___noop_to_str, i64 (i64)* @fiobj_hash2num, double (i64)* @fiobject___noop_to_f }, align 8
 @FIO_LOG_LEVEL = weak dso_local global i32 0, align 4
-@.str.6 = private unnamed_addr constant [84 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fiobj_hash.mod.c:162\00", align 1
-@.str.7 = private unnamed_addr constant [84 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/refactored/fiobj_hash.mod.c:177\00", align 1
+@.str.6 = private unnamed_addr constant [73 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fiobj_hash.mod.c:162\00", align 1
+@.str.7 = private unnamed_addr constant [73 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fiobj_hash.mod.c:177\00", align 1
 @.str.8 = private unnamed_addr constant [42 x i8] c"hash && FIOBJ_TYPE_IS(hash, FIOBJ_T_HASH)\00", align 1
 @__PRETTY_FUNCTION__.fiobj_hash_capa = private unnamed_addr constant [36 x i8] c"size_t fiobj_hash_capa(const FIOBJ)\00", align 1
 @__PRETTY_FUNCTION__.fiobj_hash_set = private unnamed_addr constant [40 x i8] c"int fiobj_hash_set(FIOBJ, FIOBJ, FIOBJ)\00", align 1
@@ -162,7 +162,7 @@ define dso_local void @fiobj_hash_rehash(i64) #0 {
   br label %11
 
 10:                                               ; preds = %5, %1
-  call void @__assert_fail(i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str.2, i64 0, i64 0), i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.3, i64 0, i64 0), i32 50, i8* getelementptr inbounds ([30 x i8], [30 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_rehash, i64 0, i64 0)) #7
+  call void @__assert_fail(i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str.2, i64 0, i64 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.3, i64 0, i64 0), i32 50, i8* getelementptr inbounds ([30 x i8], [30 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_rehash, i64 0, i64 0)) #7
   unreachable
 
 11:                                               ; preds = %9
@@ -537,7 +537,7 @@ define dso_local i64 @fiobj_hash_count(i64) #0 {
   br label %11
 
 10:                                               ; preds = %5, %1
-  call void @__assert_fail(i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str.4, i64 0, i64 0), i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.3, i64 0, i64 0), i32 124, i8* getelementptr inbounds ([37 x i8], [37 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_count, i64 0, i64 0)) #7
+  call void @__assert_fail(i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str.4, i64 0, i64 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.3, i64 0, i64 0), i32 124, i8* getelementptr inbounds ([37 x i8], [37 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_count, i64 0, i64 0)) #7
   unreachable
 
 11:                                               ; preds = %9
@@ -753,7 +753,7 @@ define internal i64 @fiobj_hash_each1(i64, i64, i32 (i64, i8*)*, i8*) #0 {
   br label %21
 
 20:                                               ; preds = %15, %4
-  call void @__assert_fail(i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str.4, i64 0, i64 0), i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.3, i64 0, i64 0), i32 76, i8* getelementptr inbounds ([71 x i8], [71 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_each1, i64 0, i64 0)) #7
+  call void @__assert_fail(i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str.4, i64 0, i64 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.3, i64 0, i64 0), i32 76, i8* getelementptr inbounds ([71 x i8], [71 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_each1, i64 0, i64 0)) #7
   unreachable
 
 21:                                               ; preds = %19
@@ -991,7 +991,7 @@ define dso_local i64 @fiobj_hash_new() #0 {
   br i1 %13, label %14, label %15
 
 14:                                               ; preds = %11
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([84 x i8], [84 x i8]* @.str.6, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([73 x i8], [73 x i8]* @.str.6, i64 0, i64 0))
   br label %15
 
 15:                                               ; preds = %14, %11
@@ -1068,7 +1068,7 @@ define dso_local i64 @fiobj_hash_new2(i64) #0 {
   br i1 %15, label %16, label %17
 
 16:                                               ; preds = %13
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([84 x i8], [84 x i8]* @.str.7, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([73 x i8], [73 x i8]* @.str.7, i64 0, i64 0))
   br label %17
 
 17:                                               ; preds = %16, %13
@@ -1181,7 +1181,7 @@ define dso_local i64 @fiobj_hash_capa(i64) #0 {
   br label %11
 
 10:                                               ; preds = %5, %1
-  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.3, i64 0, i64 0), i32 189, i8* getelementptr inbounds ([36 x i8], [36 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_capa, i64 0, i64 0)) #7
+  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.3, i64 0, i64 0), i32 189, i8* getelementptr inbounds ([36 x i8], [36 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_capa, i64 0, i64 0)) #7
   unreachable
 
 11:                                               ; preds = %9
@@ -1226,7 +1226,7 @@ define dso_local i32 @fiobj_hash_set(i64, i64, i64) #0 {
   br label %15
 
 14:                                               ; preds = %9, %3
-  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.3, i64 0, i64 0), i32 200, i8* getelementptr inbounds ([40 x i8], [40 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_set, i64 0, i64 0)) #7
+  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.3, i64 0, i64 0), i32 200, i8* getelementptr inbounds ([40 x i8], [40 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_set, i64 0, i64 0)) #7
   unreachable
 
 15:                                               ; preds = %13
@@ -1455,7 +1455,7 @@ define dso_local i64 @fiobj_hash_pop(i64, i64*) #0 {
   br label %17
 
 16:                                               ; preds = %11, %2
-  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.3, i64 0, i64 0), i32 219, i8* getelementptr inbounds ([37 x i8], [37 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_pop, i64 0, i64 0)) #7
+  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.3, i64 0, i64 0), i32 219, i8* getelementptr inbounds ([37 x i8], [37 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_pop, i64 0, i64 0)) #7
   unreachable
 
 17:                                               ; preds = %15
@@ -1778,7 +1778,7 @@ define dso_local i64 @fiobj_hash_replace(i64, i64, i64) #0 {
   br label %16
 
 15:                                               ; preds = %10, %3
-  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.3, i64 0, i64 0), i32 240, i8* getelementptr inbounds ([46 x i8], [46 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_replace, i64 0, i64 0)) #7
+  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.3, i64 0, i64 0), i32 240, i8* getelementptr inbounds ([46 x i8], [46 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_replace, i64 0, i64 0)) #7
   unreachable
 
 16:                                               ; preds = %14
@@ -1820,7 +1820,7 @@ define dso_local i64 @fiobj_hash_remove(i64, i64) #0 {
   br label %14
 
 13:                                               ; preds = %8, %2
-  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.3, i64 0, i64 0), i32 251, i8* getelementptr inbounds ([38 x i8], [38 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_remove, i64 0, i64 0)) #7
+  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.3, i64 0, i64 0), i32 251, i8* getelementptr inbounds ([38 x i8], [38 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_remove, i64 0, i64 0)) #7
   unreachable
 
 14:                                               ; preds = %12
@@ -2041,7 +2041,7 @@ define dso_local i64 @fiobj_hash_remove2(i64, i64) #0 {
   br label %14
 
 13:                                               ; preds = %8, %2
-  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.3, i64 0, i64 0), i32 262, i8* getelementptr inbounds ([42 x i8], [42 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_remove2, i64 0, i64 0)) #7
+  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.3, i64 0, i64 0), i32 262, i8* getelementptr inbounds ([42 x i8], [42 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_remove2, i64 0, i64 0)) #7
   unreachable
 
 14:                                               ; preds = %12
@@ -2111,7 +2111,7 @@ define dso_local i64 @fiobj_hash_get(i64, i64) #0 {
   br label %13
 
 12:                                               ; preds = %7, %2
-  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.3, i64 0, i64 0), i32 298, i8* getelementptr inbounds ([41 x i8], [41 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_get, i64 0, i64 0)) #7
+  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.3, i64 0, i64 0), i32 298, i8* getelementptr inbounds ([41 x i8], [41 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_get, i64 0, i64 0)) #7
   unreachable
 
 13:                                               ; preds = %11
@@ -2206,7 +2206,7 @@ define dso_local i64 @fiobj_hash_get2(i64, i64) #0 {
   br label %13
 
 12:                                               ; preds = %7, %2
-  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.3, i64 0, i64 0), i32 312, i8* getelementptr inbounds ([45 x i8], [45 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_get2, i64 0, i64 0)) #7
+  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.3, i64 0, i64 0), i32 312, i8* getelementptr inbounds ([45 x i8], [45 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_get2, i64 0, i64 0)) #7
   unreachable
 
 13:                                               ; preds = %11
@@ -2240,7 +2240,7 @@ define dso_local i32 @fiobj_hash_haskey(i64, i64) #0 {
   br label %13
 
 12:                                               ; preds = %7, %2
-  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.3, i64 0, i64 0), i32 321, i8* getelementptr inbounds ([42 x i8], [42 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_haskey, i64 0, i64 0)) #7
+  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.3, i64 0, i64 0), i32 321, i8* getelementptr inbounds ([42 x i8], [42 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_haskey, i64 0, i64 0)) #7
   unreachable
 
 13:                                               ; preds = %11
@@ -2276,7 +2276,7 @@ define dso_local void @fiobj_hash_clear(i64) #0 {
   br label %11
 
 10:                                               ; preds = %5, %1
-  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.3, i64 0, i64 0), i32 330, i8* getelementptr inbounds ([35 x i8], [35 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_clear, i64 0, i64 0)) #7
+  call void @__assert_fail(i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i64 0, i64 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.3, i64 0, i64 0), i32 330, i8* getelementptr inbounds ([35 x i8], [35 x i8]* @__PRETTY_FUNCTION__.fiobj_hash_clear, i64 0, i64 0)) #7
   unreachable
 
 11:                                               ; preds = %9

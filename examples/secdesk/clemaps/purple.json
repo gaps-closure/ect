@@ -1,165 +1,5 @@
 [
   {
-    "cle-label": "TAG_NEXTRPC",
-    "cle-json": {
-      "level": "purple",
-      "cdf": [
-        {
-          "remotelevel": "purple",
-          "direction": "egress",
-          "guarddirective": {
-            "operation": "allow",
-            "gapstag": [
-              1,
-              1,
-              1
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "cle-label": "TAG_OKAY",
-    "cle-json": {
-      "level": "purple",
-      "cdf": [
-        {
-          "remotelevel": "orange",
-          "direction": "egress",
-          "guarddirective": {
-            "operation": "allow",
-            "gapstag": [
-              2,
-              2,
-              2
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "cle-label": "TAG_REQUEST_RECOGNIZE",
-    "cle-json": {
-      "level": "purple",
-      "cdf": [
-        {
-          "remotelevel": "purple",
-          "direction": "egress",
-          "guarddirective": {
-            "operation": "allow",
-            "gapstag": [
-              1,
-              1,
-              3
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "cle-label": "TAG_RESPONSE_RECOGNIZE",
-    "cle-json": {
-      "level": "purple",
-      "cdf": [
-        {
-          "remotelevel": "orange",
-          "direction": "egress",
-          "guarddirective": {
-            "operation": "allow",
-            "gapstag": [
-              2,
-              2,
-              4
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "cle-label": "TAG_REQUEST_START_RECOGNIZER",
-    "cle-json": {
-      "level": "purple",
-      "cdf": [
-        {
-          "remotelevel": "purple",
-          "direction": "egress",
-          "guarddirective": {
-            "operation": "allow",
-            "gapstag": [
-              1,
-              1,
-              5
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "cle-label": "TAG_RESPONSE_START_RECOGNIZER",
-    "cle-json": {
-      "level": "purple",
-      "cdf": [
-        {
-          "remotelevel": "orange",
-          "direction": "egress",
-          "guarddirective": {
-            "operation": "allow",
-            "gapstag": [
-              2,
-              2,
-              6
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "cle-label": "TAG_REQUEST_STOP_RECOGNIZER",
-    "cle-json": {
-      "level": "purple",
-      "cdf": [
-        {
-          "remotelevel": "purple",
-          "direction": "egress",
-          "guarddirective": {
-            "operation": "allow",
-            "gapstag": [
-              1,
-              1,
-              7
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "cle-label": "TAG_RESPONSE_STOP_RECOGNIZER",
-    "cle-json": {
-      "level": "purple",
-      "cdf": [
-        {
-          "remotelevel": "orange",
-          "direction": "egress",
-          "guarddirective": {
-            "operation": "allow",
-            "gapstag": [
-              2,
-              2,
-              8
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
     "cle-label": "ORANGE",
     "cle-json": {
       "level": "orange"
@@ -343,6 +183,166 @@
             "ORANGE",
             "EMBEDDING_SHAREABLE"
           ]
+        }
+      ]
+    }
+  },
+  {
+    "cle-label": "TAG_NEXTRPC",
+    "cle-json": {
+      "level": "purple",
+      "cdf": [
+        {
+          "remotelevel": "purple",
+          "direction": "egress",
+          "guarddirective": {
+            "operation": "allow",
+            "gapstag": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "cle-label": "TAG_OKAY",
+    "cle-json": {
+      "level": "purple",
+      "cdf": [
+        {
+          "remotelevel": "orange",
+          "direction": "egress",
+          "guarddirective": {
+            "operation": "allow",
+            "gapstag": [
+              2,
+              2,
+              2
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "cle-label": "TAG_REQUEST_RECOGNIZE",
+    "cle-json": {
+      "level": "purple",
+      "cdf": [
+        {
+          "remotelevel": "purple",
+          "direction": "egress",
+          "guarddirective": {
+            "operation": "allow",
+            "gapstag": [
+              1,
+              1,
+              3
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "cle-label": "TAG_RESPONSE_RECOGNIZE",
+    "cle-json": {
+      "level": "purple",
+      "cdf": [
+        {
+          "remotelevel": "orange",
+          "direction": "egress",
+          "guarddirective": {
+            "operation": "allow",
+            "gapstag": [
+              2,
+              2,
+              4
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "cle-label": "TAG_REQUEST_START_RECOGNIZER",
+    "cle-json": {
+      "level": "purple",
+      "cdf": [
+        {
+          "remotelevel": "purple",
+          "direction": "egress",
+          "guarddirective": {
+            "operation": "allow",
+            "gapstag": [
+              1,
+              1,
+              5
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "cle-label": "TAG_RESPONSE_START_RECOGNIZER",
+    "cle-json": {
+      "level": "purple",
+      "cdf": [
+        {
+          "remotelevel": "orange",
+          "direction": "egress",
+          "guarddirective": {
+            "operation": "allow",
+            "gapstag": [
+              2,
+              2,
+              6
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "cle-label": "TAG_REQUEST_STOP_RECOGNIZER",
+    "cle-json": {
+      "level": "purple",
+      "cdf": [
+        {
+          "remotelevel": "purple",
+          "direction": "egress",
+          "guarddirective": {
+            "operation": "allow",
+            "gapstag": [
+              1,
+              1,
+              7
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "cle-label": "TAG_RESPONSE_STOP_RECOGNIZER",
+    "cle-json": {
+      "level": "purple",
+      "cdf": [
+        {
+          "remotelevel": "orange",
+          "direction": "egress",
+          "guarddirective": {
+            "operation": "allow",
+            "gapstag": [
+              2,
+              2,
+              8
+            ]
+          }
         }
       ]
     }

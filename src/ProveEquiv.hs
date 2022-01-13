@@ -14,14 +14,14 @@ module ProveEquiv where
 import Data.Maybe
 import Data.ByteString.Short ( ShortByteString, fromShort, toShort )
 import Data.Word ( Word16, Word32, Word64 )
-import Data.List ( intercalate )
+import Data.List ( intercalate, isPrefixOf )
 import qualified Data.ByteString.Char8 as C
 import qualified Data.Foldable as F
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified GHC.Base as G
 
-import Control.Monad ( unless, zipWithM, msum )
+import Control.Monad ( unless, zipWithM )
 import Control.Monad.IO.Class ( liftIO )
 import Control.Monad.Trans.State.Strict ( get, gets, put, modify )
 import Control.Monad.Trans.Class ( lift )
@@ -346,27 +346,49 @@ proveCongruence lName rName = do
             ProofM $ lift $ put $ ProofState { curEnclave = curEnclave, .. }
       Nothing -> err "proveCongruence" rName
   where
-    err s n = error $ s ++ ": global definition " ++ show n ++ " not found in NameReferenceMap"
+    err s n = error $ s ++ ": global @" ++ showName n ++ " not found in NameReferenceMap"
     
     searchPartition n = do
       ProofState{..} <- ProofM $ lift get
-      let searchEnclave' (en, e) = case searchEnclave2 n e of
-            Nothing -> Nothing
-            Just (mn, g) -> Just (en, mn, g)
-          found = catMaybes $ map searchEnclave' $ M.toList partition
-      case found of
-        [x] -> return x
-        _ -> error $ "ambiguous / non-existant rpc call to definition: " ++ show n
-    
-    searchEnclave n en = case M.lookup (curModule en) (modules en) of
-      Nothing -> error $ "module '" ++ (curModule en) ++ "' not found in the modules of " ++ ename en 
-      Just m -> case searchModule n (mname m) m of
-        Nothing -> searchEnclave2 n en
-        x -> x
+      case concatMap enclaveDefs (otherEnclaves curEnclave partition) of
+        [def] -> return def
+        _ -> error $ "ambiguous / non-existent rpc call to definition: " ++ showName n
+      where
+        otherEnclaves cur p = [ e | (en, e) <- M.toList p, en /= cur ]
+        enclaveDefs e = map (\(mn, g) -> (ename e, mn, g)) $ filter isDef $ catMaybes $ 
+          M.elems $ M.map (\m -> searchModule n' (mname m) m) (modules e)
+        n' = case n of
+          A.Name bytes
+            | isPrefixOf "_rpc_" s -> A.Name $ toShort $ C.pack $ drop 5 s
+            | otherwise -> error rpc_err
+            where s = C.unpack $ fromShort bytes
+          _ -> error rpc_err
+        rpc_err = "searchPartition: @" ++ showName n ++ " is not an RPC call"
 
-    searchEnclave2 n en = msum $ M.elems $ 
-      M.map (\m -> searchModule n (mname m) m) (modules en)
-    
+    searchEnclave n e 
+      | isPrefixOf "_rpc_" (showName n) = Nothing
+      | otherwise = case searchModule n (mname m) m of
+        Just (_, g) -> case g of
+          GlobalDef f@A.Function{} | null (A.basicBlocks f) -> case allDefs of
+            [def] -> Just def
+            [] -> Just (mname m, g)
+            defs -> case filter (not . isWeak) defs of
+              [def] -> Just def
+              [] -> error $ "Multiple weak linkage definitions of @" ++ showName n ++ " in enclave: " ++ ename e
+              _ -> error $ "Function @" ++ showName n ++ " multiply defined with strong linkage in enclave: " ++ ename e
+          _ -> Just (mname m, g)
+        _ -> error $ "Global @" ++ showName n ++ " not found in module: " ++ mname m
+      where 
+        m = (forceLookup (curModule e) (modules e))
+        allDefs = filter isDef $ catMaybes $ 
+          M.elems $ M.map (\m' -> searchModule n (mname m') m') (modules e)
+
+    isDef (_, GlobalDef f@A.Function{}) = not $ null (A.basicBlocks f)
+    isDef _ = False
+
+    isWeak (_, GlobalDef f@A.Function{}) = A.linkage f == A.Weak
+    isWeak _ = False
+
     searchModule n mn m = 
       case M.lookup n (globals m) of
         Nothing -> Nothing
@@ -392,7 +414,7 @@ proveCongruence lName rName = do
       popMatching
 
     forceLookup k m = case M.lookup k m of
-      Nothing -> err "forceLookup" k
+      Nothing -> error $ "forced lookup of " ++ show k ++ " failed"
       Just x -> x
 
 ------------------------------------

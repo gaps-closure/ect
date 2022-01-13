@@ -1,5 +1,5 @@
-; ModuleID = './examples/secdesk/c/orange/fiobj_numbers.mod.c'
-source_filename = "./examples/secdesk/c/orange/fiobj_numbers.mod.c"
+; ModuleID = './examples/secdesk/c/fiobj_numbers.mod.c'
+source_filename = "./examples/secdesk/c/fiobj_numbers.mod.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
@@ -25,7 +25,7 @@ target triple = "x86_64-pc-linux-gnu"
 @fiobj_num_tmp.ret = internal thread_local global %struct.fiobj_num_s zeroinitializer, align 8
 @.str.5 = private unnamed_addr constant [44 x i8] c"ERROR: fiobj float couldn't allocate memory\00", align 1
 @.str.6 = private unnamed_addr constant [34 x i8] c"FIOBJ_TYPE_IS(obj, FIOBJ_T_FLOAT)\00", align 1
-@.str.7 = private unnamed_addr constant [48 x i8] c"./examples/secdesk/c/orange/fiobj_numbers.mod.c\00", align 1
+@.str.7 = private unnamed_addr constant [41 x i8] c"./examples/secdesk/c/fiobj_numbers.mod.c\00", align 1
 @__PRETTY_FUNCTION__.fiobj_float_set = private unnamed_addr constant [36 x i8] c"void fiobj_float_set(FIOBJ, double)\00", align 1
 @fiobj_float_tmp.ret = internal thread_local global %struct.fiobj_float_s zeroinitializer, align 8
 @num_buffer = internal thread_local global [512 x i8] zeroinitializer, align 16
@@ -498,7 +498,7 @@ define dso_local void @fiobj_float_set(i64, double) #0 {
   br label %10
 
 9:                                                ; preds = %2
-  call void @__assert_fail(i8* getelementptr inbounds ([34 x i8], [34 x i8]* @.str.6, i64 0, i64 0), i8* getelementptr inbounds ([48 x i8], [48 x i8]* @.str.7, i64 0, i64 0), i32 163, i8* getelementptr inbounds ([36 x i8], [36 x i8]* @__PRETTY_FUNCTION__.fiobj_float_set, i64 0, i64 0)) #10
+  call void @__assert_fail(i8* getelementptr inbounds ([34 x i8], [34 x i8]* @.str.6, i64 0, i64 0), i8* getelementptr inbounds ([41 x i8], [41 x i8]* @.str.7, i64 0, i64 0), i32 163, i8* getelementptr inbounds ([36 x i8], [36 x i8]* @__PRETTY_FUNCTION__.fiobj_float_set, i64 0, i64 0)) #10
   unreachable
 
 10:                                               ; preds = %8

@@ -1,5 +1,5 @@
-; ModuleID = './examples/secdesk/c/orange/fiobj_json.mod.c'
-source_filename = "./examples/secdesk/c/orange/fiobj_json.mod.c"
+; ModuleID = './examples/secdesk/c/fiobj_json.mod.c'
+source_filename = "./examples/secdesk/c/fiobj_json.mod.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
@@ -20,7 +20,7 @@ target triple = "x86_64-pc-linux-gnu"
 @.str.1 = private unnamed_addr constant [40 x i8] c"ERROR: log output error (can't write).\0A\00", align 1
 @stderr = external dso_local global %struct._IO_FILE*, align 8
 @.str.2 = private unnamed_addr constant [44 x i8] c"dest && FIOBJ_TYPE_IS(dest, FIOBJ_T_STRING)\00", align 1
-@.str.3 = private unnamed_addr constant [45 x i8] c"./examples/secdesk/c/orange/fiobj_json.mod.c\00", align 1
+@.str.3 = private unnamed_addr constant [38 x i8] c"./examples/secdesk/c/fiobj_json.mod.c\00", align 1
 @__PRETTY_FUNCTION__.fiobj_obj2json2 = private unnamed_addr constant [45 x i8] c"FIOBJ fiobj_obj2json2(FIOBJ, FIOBJ, uint8_t)\00", align 1
 @.str.4 = private unnamed_addr constant [5 x i8] c"null\00", align 1
 @FIO_LOG_LEVEL = weak dso_local global i32 0, align 4
@@ -35,7 +35,7 @@ target triple = "x86_64-pc-linux-gnu"
 @__const.fiobj_obj2cstr.ret.10 = private unnamed_addr constant %struct.fio_str_info_s { i64 0, i64 5, i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str.9, i32 0, i32 0) }, align 8
 @.str.11 = private unnamed_addr constant [5 x i8] c"true\00", align 1
 @__const.fiobj_obj2cstr.ret.12 = private unnamed_addr constant %struct.fio_str_info_s { i64 0, i64 4, i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str.11, i32 0, i32 0) }, align 8
-@.str.13 = private unnamed_addr constant [70 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/orange/fio.h:4920\00", align 1
+@.str.13 = private unnamed_addr constant [63 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.h:4920\00", align 1
 @.str.14 = private unnamed_addr constant [68 x i8] c"WARNING: (JSON parsing) malformed JSON, ignoring dangling Hash key.\00", align 1
 @JSON_NUMERAL = internal constant <{ [121 x i8], [134 x i8] }> <{ [121 x i8] c"\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\01\00\01\01\00\01\01\01\01\01\01\01\01\01\01\00\00\00\00\00\00\00\00\00\00\00\01\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\01\00\00\01\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\01", [134 x i8] zeroinitializer }>, align 16
 @fio_json_stack_s___const_invalid_object = internal constant i64 0, align 8
@@ -1313,7 +1313,7 @@ define dso_local i64 @fiobj_obj2json2(i64, i64, i8 zeroext) #0 {
   br label %18
 
 17:                                               ; preds = %12, %3
-  call void @__assert_fail(i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str.2, i64 0, i64 0), i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str.3, i64 0, i64 0), i32 419, i8* getelementptr inbounds ([45 x i8], [45 x i8]* @__PRETTY_FUNCTION__.fiobj_obj2json2, i64 0, i64 0)) #9
+  call void @__assert_fail(i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str.2, i64 0, i64 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.3, i64 0, i64 0), i32 419, i8* getelementptr inbounds ([45 x i8], [45 x i8]* @__PRETTY_FUNCTION__.fiobj_obj2json2, i64 0, i64 0)) #9
   unreachable
 
 18:                                               ; preds = %16
@@ -3806,7 +3806,7 @@ define internal void @fio_json_stack___require_on_top(%struct.fio_json_stack_s*,
   br i1 %47, label %48, label %49
 
 48:                                               ; preds = %45
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([70 x i8], [70 x i8]* @.str.13, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([63 x i8], [63 x i8]* @.str.13, i64 0, i64 0))
   br label %49
 
 49:                                               ; preds = %48, %45

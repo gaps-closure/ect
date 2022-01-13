@@ -1,5 +1,5 @@
-; ModuleID = './examples/secdesk/c/refactored/fiobj_data.mod.c'
-source_filename = "./examples/secdesk/c/refactored/fiobj_data.mod.c"
+; ModuleID = './examples/secdesk/c/fiobj_data.mod.c'
+source_filename = "./examples/secdesk/c/fiobj_data.mod.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
@@ -23,7 +23,7 @@ target triple = "x86_64-pc-linux-gnu"
 @FIOBJECT_VTABLE_DATA = dso_local constant %struct.fiobj_object_vtable_s { i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str.2, i32 0, i32 0), void (i64, void (i64, i8*)*, i8*)* @fiobj_data_dealloc, i64 (i64)* @fiobject___noop_count, i64 (i64)* @fiobj_data_is_true, i64 (i64, i64)* @fiobj_data_iseq, i64 (i64, i64, i32 (i64, i8*)*, i8*)* null, void (%struct.fio_str_info_s*, i64)* @fio_io2str, i64 (i64)* @fiobj_data_i, double (i64)* @fiobject___noop_to_f }, align 8
 @.str.3 = private unnamed_addr constant [47 x i8] c"FATAL ERROR: fiobj IO couldn't allocate memory\00", align 1
 @.str.4 = private unnamed_addr constant [31 x i8] c"FIOBJ_TYPE(io) == FIOBJ_T_DATA\00", align 1
-@.str.5 = private unnamed_addr constant [49 x i8] c"./examples/secdesk/c/refactored/fiobj_data.mod.c\00", align 1
+@.str.5 = private unnamed_addr constant [38 x i8] c"./examples/secdesk/c/fiobj_data.mod.c\00", align 1
 @__PRETTY_FUNCTION__.fiobj_data_assert_dynamic = private unnamed_addr constant [38 x i8] c"void fiobj_data_assert_dynamic(FIOBJ)\00", align 1
 @FIO_LOG_LEVEL = weak dso_local global i32 0, align 4
 @fio_hash_secret_marker1 = weak dso_local global i8 0, align 1
@@ -3189,7 +3189,7 @@ define dso_local void @fiobj_data_assert_dynamic(i64) #0 {
   br label %14
 
 13:                                               ; preds = %7
-  call void @__assert_fail(i8* getelementptr inbounds ([31 x i8], [31 x i8]* @.str.4, i64 0, i64 0), i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.5, i64 0, i64 0), i32 941, i8* getelementptr inbounds ([38 x i8], [38 x i8]* @__PRETTY_FUNCTION__.fiobj_data_assert_dynamic, i64 0, i64 0)) #10
+  call void @__assert_fail(i8* getelementptr inbounds ([31 x i8], [31 x i8]* @.str.4, i64 0, i64 0), i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str.5, i64 0, i64 0), i32 941, i8* getelementptr inbounds ([38 x i8], [38 x i8]* @__PRETTY_FUNCTION__.fiobj_data_assert_dynamic, i64 0, i64 0)) #10
   unreachable
 
 14:                                               ; preds = %12

@@ -1,5 +1,5 @@
-; ModuleID = './examples/secdesk/c/orange/fiobj_str.mod.c'
-source_filename = "./examples/secdesk/c/orange/fiobj_str.mod.c"
+; ModuleID = './examples/secdesk/c/fiobj_str.mod.c'
+source_filename = "./examples/secdesk/c/fiobj_str.mod.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
@@ -24,7 +24,7 @@ target triple = "x86_64-pc-linux-gnu"
 @.str.3 = private unnamed_addr constant [45 x i8] c"ERROR: fiobj string couldn't allocate memory\00", align 1
 @fiobj_str_tmp.tmp = internal thread_local global %struct.fiobj_str_s { %struct.fiobj_object_header_s { i8 40, i32 268435455 }, i64 0, %struct.fio_str_s { i8 1, i8 0, [14 x i8] zeroinitializer, i64 0, i64 0, void (i8*)* null, i8* null } }, align 8
 @.str.4 = private unnamed_addr constant [35 x i8] c"FIOBJ_TYPE_IS(str, FIOBJ_T_STRING)\00", align 1
-@.str.5 = private unnamed_addr constant [44 x i8] c"./examples/secdesk/c/orange/fiobj_str.mod.c\00", align 1
+@.str.5 = private unnamed_addr constant [37 x i8] c"./examples/secdesk/c/fiobj_str.mod.c\00", align 1
 @__PRETTY_FUNCTION__.fiobj_str_capa_assert = private unnamed_addr constant [44 x i8] c"size_t fiobj_str_capa_assert(FIOBJ, size_t)\00", align 1
 @__PRETTY_FUNCTION__.fiobj_str_capa = private unnamed_addr constant [29 x i8] c"size_t fiobj_str_capa(FIOBJ)\00", align 1
 @__PRETTY_FUNCTION__.fiobj_str_resize = private unnamed_addr constant [37 x i8] c"void fiobj_str_resize(FIOBJ, size_t)\00", align 1
@@ -41,12 +41,12 @@ target triple = "x86_64-pc-linux-gnu"
 @FIO_LOG_LEVEL = weak dso_local global i32 0, align 4
 @fio_hash_secret_marker1 = weak dso_local global i8 0, align 1
 @fio_hash_secret_marker2 = weak dso_local global i8 0, align 1
-@.str.8 = private unnamed_addr constant [70 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/orange/fio.h:4024\00", align 1
-@.str.9 = private unnamed_addr constant [70 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/orange/fio.h:4027\00", align 1
-@.str.10 = private unnamed_addr constant [70 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/orange/fio.h:4042\00", align 1
-@.str.11 = private unnamed_addr constant [70 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/orange/fio.h:4078\00", align 1
+@.str.8 = private unnamed_addr constant [63 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.h:4024\00", align 1
+@.str.9 = private unnamed_addr constant [63 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.h:4027\00", align 1
+@.str.10 = private unnamed_addr constant [63 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.h:4042\00", align 1
+@.str.11 = private unnamed_addr constant [63 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.h:4078\00", align 1
 @.str.12 = private unnamed_addr constant [5 x i8] c"HOME\00", align 1
-@.str.13 = private unnamed_addr constant [70 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/orange/fio.h:4497\00", align 1
+@.str.13 = private unnamed_addr constant [63 x i8] c"FATAL: memory allocation error ./examples/secdesk/c/fio.h:4497\00", align 1
 @.str.14 = private unnamed_addr constant [5 x i8] c"null\00", align 1
 @__const.fiobj_obj2cstr.ret = private unnamed_addr constant %struct.fio_str_info_s { i64 0, i64 4, i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str.14, i32 0, i32 0) }, align 8
 @__const.fiobj_obj2cstr.ret.15 = private unnamed_addr constant %struct.fio_str_info_s { i64 0, i64 4, i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str.14, i32 0, i32 0) }, align 8
@@ -474,7 +474,7 @@ define internal void @fio_str_capa_assert(%struct.fio_str_info_s* noalias sret, 
   br i1 %93, label %94, label %95
 
 94:                                               ; preds = %91
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([70 x i8], [70 x i8]* @.str.8, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([63 x i8], [63 x i8]* @.str.8, i64 0, i64 0))
   br label %95
 
 95:                                               ; preds = %94, %91
@@ -512,7 +512,7 @@ define internal void @fio_str_capa_assert(%struct.fio_str_info_s* noalias sret, 
   br i1 %113, label %114, label %115
 
 114:                                              ; preds = %111
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([70 x i8], [70 x i8]* @.str.9, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([63 x i8], [63 x i8]* @.str.9, i64 0, i64 0))
   br label %115
 
 115:                                              ; preds = %114, %111
@@ -615,7 +615,7 @@ define internal void @fio_str_capa_assert(%struct.fio_str_info_s* noalias sret, 
   br i1 %182, label %183, label %184
 
 183:                                              ; preds = %180
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([70 x i8], [70 x i8]* @.str.10, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([63 x i8], [63 x i8]* @.str.10, i64 0, i64 0))
   br label %184
 
 184:                                              ; preds = %183, %180
@@ -1302,7 +1302,7 @@ define dso_local i64 @fiobj_str_capa_assert(i64, i64) #0 {
   br label %12
 
 11:                                               ; preds = %2
-  call void @__assert_fail(i8* getelementptr inbounds ([35 x i8], [35 x i8]* @.str.4, i64 0, i64 0), i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str.5, i64 0, i64 0), i32 206, i8* getelementptr inbounds ([44 x i8], [44 x i8]* @__PRETTY_FUNCTION__.fiobj_str_capa_assert, i64 0, i64 0)) #9
+  call void @__assert_fail(i8* getelementptr inbounds ([35 x i8], [35 x i8]* @.str.4, i64 0, i64 0), i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.5, i64 0, i64 0), i32 206, i8* getelementptr inbounds ([44 x i8], [44 x i8]* @__PRETTY_FUNCTION__.fiobj_str_capa_assert, i64 0, i64 0)) #9
   unreachable
 
 12:                                               ; preds = %10
@@ -1354,7 +1354,7 @@ define dso_local i64 @fiobj_str_capa(i64) #0 {
   br label %8
 
 7:                                                ; preds = %1
-  call void @__assert_fail(i8* getelementptr inbounds ([35 x i8], [35 x i8]* @.str.4, i64 0, i64 0), i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str.5, i64 0, i64 0), i32 215, i8* getelementptr inbounds ([29 x i8], [29 x i8]* @__PRETTY_FUNCTION__.fiobj_str_capa, i64 0, i64 0)) #9
+  call void @__assert_fail(i8* getelementptr inbounds ([35 x i8], [35 x i8]* @.str.4, i64 0, i64 0), i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.5, i64 0, i64 0), i32 215, i8* getelementptr inbounds ([29 x i8], [29 x i8]* @__PRETTY_FUNCTION__.fiobj_str_capa, i64 0, i64 0)) #9
   unreachable
 
 8:                                                ; preds = %6
@@ -1432,7 +1432,7 @@ define dso_local void @fiobj_str_resize(i64, i64) #0 {
   br label %11
 
 10:                                               ; preds = %2
-  call void @__assert_fail(i8* getelementptr inbounds ([35 x i8], [35 x i8]* @.str.4, i64 0, i64 0), i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str.5, i64 0, i64 0), i32 221, i8* getelementptr inbounds ([37 x i8], [37 x i8]* @__PRETTY_FUNCTION__.fiobj_str_resize, i64 0, i64 0)) #9
+  call void @__assert_fail(i8* getelementptr inbounds ([35 x i8], [35 x i8]* @.str.4, i64 0, i64 0), i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.5, i64 0, i64 0), i32 221, i8* getelementptr inbounds ([37 x i8], [37 x i8]* @__PRETTY_FUNCTION__.fiobj_str_resize, i64 0, i64 0)) #9
   unreachable
 
 11:                                               ; preds = %9
@@ -1465,7 +1465,7 @@ define dso_local void @fiobj_str_compact(i64) #0 {
   br label %8
 
 7:                                                ; preds = %1
-  call void @__assert_fail(i8* getelementptr inbounds ([35 x i8], [35 x i8]* @.str.4, i64 0, i64 0), i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str.5, i64 0, i64 0), i32 229, i8* getelementptr inbounds ([30 x i8], [30 x i8]* @__PRETTY_FUNCTION__.fiobj_str_compact, i64 0, i64 0)) #9
+  call void @__assert_fail(i8* getelementptr inbounds ([35 x i8], [35 x i8]* @.str.4, i64 0, i64 0), i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.5, i64 0, i64 0), i32 229, i8* getelementptr inbounds ([30 x i8], [30 x i8]* @__PRETTY_FUNCTION__.fiobj_str_compact, i64 0, i64 0)) #9
   unreachable
 
 8:                                                ; preds = %6
@@ -1544,7 +1544,7 @@ define internal void @fio_str_compact(%struct.fio_str_s*) #0 {
   br i1 %43, label %44, label %45
 
 44:                                               ; preds = %41
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([70 x i8], [70 x i8]* @.str.11, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([63 x i8], [63 x i8]* @.str.11, i64 0, i64 0))
   br label %45
 
 45:                                               ; preds = %44, %41
@@ -1634,7 +1634,7 @@ define dso_local void @fiobj_str_clear(i64) #0 {
   br label %9
 
 8:                                                ; preds = %1
-  call void @__assert_fail(i8* getelementptr inbounds ([35 x i8], [35 x i8]* @.str.4, i64 0, i64 0), i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str.5, i64 0, i64 0), i32 236, i8* getelementptr inbounds ([28 x i8], [28 x i8]* @__PRETTY_FUNCTION__.fiobj_str_clear, i64 0, i64 0)) #9
+  call void @__assert_fail(i8* getelementptr inbounds ([35 x i8], [35 x i8]* @.str.4, i64 0, i64 0), i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.5, i64 0, i64 0), i32 236, i8* getelementptr inbounds ([28 x i8], [28 x i8]* @__PRETTY_FUNCTION__.fiobj_str_clear, i64 0, i64 0)) #9
   unreachable
 
 9:                                                ; preds = %7
@@ -1672,7 +1672,7 @@ define dso_local i64 @fiobj_str_write(i64, i8*, i64) #0 {
   br label %14
 
 13:                                               ; preds = %3
-  call void @__assert_fail(i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str.6, i64 0, i64 0), i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str.5, i64 0, i64 0), i32 246, i8* getelementptr inbounds ([52 x i8], [52 x i8]* @__PRETTY_FUNCTION__.fiobj_str_write, i64 0, i64 0)) #9
+  call void @__assert_fail(i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str.6, i64 0, i64 0), i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.5, i64 0, i64 0), i32 246, i8* getelementptr inbounds ([52 x i8], [52 x i8]* @__PRETTY_FUNCTION__.fiobj_str_write, i64 0, i64 0)) #9
   unreachable
 
 14:                                               ; preds = %12
@@ -1732,7 +1732,7 @@ define dso_local i64 @fiobj_str_write_i(i64, i64) #0 {
   br label %12
 
 11:                                               ; preds = %2
-  call void @__assert_fail(i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str.6, i64 0, i64 0), i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str.5, i64 0, i64 0), i32 259, i8* getelementptr inbounds ([41 x i8], [41 x i8]* @__PRETTY_FUNCTION__.fiobj_str_write_i, i64 0, i64 0)) #9
+  call void @__assert_fail(i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str.6, i64 0, i64 0), i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.5, i64 0, i64 0), i32 259, i8* getelementptr inbounds ([41 x i8], [41 x i8]* @__PRETTY_FUNCTION__.fiobj_str_write_i, i64 0, i64 0)) #9
   unreachable
 
 12:                                               ; preds = %10
@@ -1953,7 +1953,7 @@ define dso_local i64 @fiobj_str_printf(i64, i8*, ...) #0 {
   br label %13
 
 12:                                               ; preds = %2
-  call void @__assert_fail(i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str.6, i64 0, i64 0), i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str.5, i64 0, i64 0), i32 271, i8* getelementptr inbounds ([50 x i8], [50 x i8]* @__PRETTY_FUNCTION__.fiobj_str_printf, i64 0, i64 0)) #9
+  call void @__assert_fail(i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str.6, i64 0, i64 0), i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.5, i64 0, i64 0), i32 271, i8* getelementptr inbounds ([50 x i8], [50 x i8]* @__PRETTY_FUNCTION__.fiobj_str_printf, i64 0, i64 0)) #9
   unreachable
 
 13:                                               ; preds = %11
@@ -2084,7 +2084,7 @@ define dso_local i64 @fiobj_str_vprintf(i64, i8*, %struct.__va_list_tag*) #0 {
   br label %14
 
 13:                                               ; preds = %3
-  call void @__assert_fail(i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str.6, i64 0, i64 0), i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str.5, i64 0, i64 0), i32 283, i8* getelementptr inbounds ([70 x i8], [70 x i8]* @__PRETTY_FUNCTION__.fiobj_str_vprintf, i64 0, i64 0)) #9
+  call void @__assert_fail(i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str.6, i64 0, i64 0), i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.5, i64 0, i64 0), i32 283, i8* getelementptr inbounds ([70 x i8], [70 x i8]* @__PRETTY_FUNCTION__.fiobj_str_vprintf, i64 0, i64 0)) #9
   unreachable
 
 14:                                               ; preds = %12
@@ -2290,7 +2290,7 @@ define internal void @fio_str_readfile(%struct.fio_str_info_s* noalias sret, %st
   br i1 %95, label %96, label %97
 
 96:                                               ; preds = %93
-  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([70 x i8], [70 x i8]* @.str.13, i64 0, i64 0))
+  call void (i8*, ...) @FIO_LOG2STDERR(i8* getelementptr inbounds ([63 x i8], [63 x i8]* @.str.13, i64 0, i64 0))
   br label %97
 
 97:                                               ; preds = %96, %93
@@ -2479,7 +2479,7 @@ define dso_local i64 @fiobj_str_concat(i64, i64) #0 {
   br label %13
 
 12:                                               ; preds = %2
-  call void @__assert_fail(i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str.6, i64 0, i64 0), i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str.5, i64 0, i64 0), i32 311, i8* getelementptr inbounds ([38 x i8], [38 x i8]* @__PRETTY_FUNCTION__.fiobj_str_concat, i64 0, i64 0)) #9
+  call void @__assert_fail(i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str.6, i64 0, i64 0), i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.5, i64 0, i64 0), i32 311, i8* getelementptr inbounds ([38 x i8], [38 x i8]* @__PRETTY_FUNCTION__.fiobj_str_concat, i64 0, i64 0)) #9
   unreachable
 
 13:                                               ; preds = %11
@@ -2670,7 +2670,7 @@ define dso_local i64 @fiobj_str_hash(i64) #0 {
   br label %10
 
 9:                                                ; preds = %1
-  call void @__assert_fail(i8* getelementptr inbounds ([33 x i8], [33 x i8]* @.str.7, i64 0, i64 0), i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str.5, i64 0, i64 0), i32 325, i8* getelementptr inbounds ([31 x i8], [31 x i8]* @__PRETTY_FUNCTION__.fiobj_str_hash, i64 0, i64 0)) #9
+  call void @__assert_fail(i8* getelementptr inbounds ([33 x i8], [33 x i8]* @.str.7, i64 0, i64 0), i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.5, i64 0, i64 0), i32 325, i8* getelementptr inbounds ([31 x i8], [31 x i8]* @__PRETTY_FUNCTION__.fiobj_str_hash, i64 0, i64 0)) #9
   unreachable
 
 10:                                               ; preds = %8

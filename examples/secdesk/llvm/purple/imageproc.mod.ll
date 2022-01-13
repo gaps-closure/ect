@@ -1,13 +1,13 @@
-; ModuleID = './examples/secdesk/c/purple/imageproc.mod.c'
-source_filename = "./examples/secdesk/c/purple/imageproc.mod.c"
+; ModuleID = './examples/secdesk/c/imageproc.mod.c'
+source_filename = "./examples/secdesk/c/imageproc.mod.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
 @.str = private unnamed_addr constant [27 x i8] c"XDLINKAGE_START_RECOGNIZER\00", section "llvm.metadata"
-@.str.1 = private unnamed_addr constant [44 x i8] c"./examples/secdesk/c/purple/imageproc.mod.c\00", section "llvm.metadata"
+@.str.1 = private unnamed_addr constant [37 x i8] c"./examples/secdesk/c/imageproc.mod.c\00", section "llvm.metadata"
 @.str.2 = private unnamed_addr constant [26 x i8] c"XDLINKAGE_STOP_RECOGNIZER\00", section "llvm.metadata"
 @.str.3 = private unnamed_addr constant [20 x i8] c"XDLINKAGE_RECOGNIZE\00", section "llvm.metadata"
-@llvm.global.annotations = appending global [3 x { i8*, i8*, i8*, i32 }] [{ i8*, i8*, i8*, i32 } { i8* bitcast (i32 ()* @start_recognizer to i8*), i8* getelementptr inbounds ([27 x i8], [27 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str.1, i32 0, i32 0), i32 96 }, { i8*, i8*, i8*, i32 } { i8* bitcast (i32 ()* @stop_recognizer to i8*), i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str.2, i32 0, i32 0), i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str.1, i32 0, i32 0), i32 114 }, { i8*, i8*, i8*, i32 } { i8* bitcast (i32 (double*)* @recognize to i8*), i8* getelementptr inbounds ([20 x i8], [20 x i8]* @.str.3, i32 0, i32 0), i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str.1, i32 0, i32 0), i32 158 }], section "llvm.metadata"
+@llvm.global.annotations = appending global [3 x { i8*, i8*, i8*, i32 }] [{ i8*, i8*, i8*, i32 } { i8* bitcast (i32 ()* @start_recognizer to i8*), i8* getelementptr inbounds ([27 x i8], [27 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.1, i32 0, i32 0), i32 96 }, { i8*, i8*, i8*, i32 } { i8* bitcast (i32 ()* @stop_recognizer to i8*), i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str.2, i32 0, i32 0), i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.1, i32 0, i32 0), i32 114 }, { i8*, i8*, i8*, i32 } { i8* bitcast (i32 (double*)* @recognize to i8*), i8* getelementptr inbounds ([20 x i8], [20 x i8]* @.str.3, i32 0, i32 0), i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.1, i32 0, i32 0), i32 158 }], section "llvm.metadata"
 
 ; Function Attrs: noinline nounwind optnone uwtable
 define dso_local i32 @start_recognizer() #0 {
