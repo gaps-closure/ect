@@ -29,7 +29,7 @@ import CLEMap
 data FunctionCDF = FunctionCDF {
     remotelevel :: String,
     direction :: String,
-    guarddirective :: GD,
+    guarddirective :: Maybe GD,
     argtaints :: [S.Set String],
     codtaints :: S.Set String,
     rettaints :: S.Set String
@@ -38,7 +38,7 @@ data FunctionCDF = FunctionCDF {
 data VarCDF = VarCDF {
     varRemotelevel :: String,
     varDirection :: String,
-    varGuarddirective :: GD
+    varGuarddirective :: Maybe GD
 } deriving (Eq, Ord, Show)
 
 data CLEDef a = CLEDef {
@@ -110,19 +110,30 @@ loadCLEMap = fmap (fmap (interpret . toMap) . decode . LBS.fromStrict) . BS.read
 toVarType :: CLE' -> Maybe CLEType
 toVarType (Left (CLEDef level cdfs)) = Just $ VarType (level ++ "_E") remoteEnclaves
     where
-        remoteEnclaves = S.union (S.singleton $ level ++ "_E") $ S.map ((++ "_E") . varRemotelevel) cdfs
+        remoteEnclaves = S.map ((++ "_E") . varRemotelevel) cdfs
 toVarType _ = Nothing
     
-toFunType :: Int -> CLE' -> Maybe CLEType
-toFunType n (Left (CLEDef level cdfs)) = Just $ FunctionType (level ++ "_E") [flow]
+toFunType :: CLEMap' -> Int -> CLE' -> Maybe CLEType
+toFunType _ n (Left (CLEDef level cdfs)) = Just $ FunctionType (level ++ "_E") [flow]
     where
         flow = Flow (level ++ "_E") 
-            (replicate n (S.singleton $ withSelf remoteEnclaves)) 
-            (S.singleton $ withSelf remoteEnclaves) 
-            (S.singleton $ withSelf remoteEnclaves)
-        withSelf = S.union $ S.singleton (level ++ "_E")
+            (replicate n (S.singleton remoteEnclaves)) 
+            (S.singleton remoteEnclaves) 
+            (S.singleton remoteEnclaves)
         remoteEnclaves = S.map ((++ "_E") . varRemotelevel) cdfs 
-toFunType _ _ = Nothing
+toFunType clemap _ (Right (CLEDef level cdfs)) = Just $ FunctionType (level ++ "_E") flows
+    where
+        flows = flow <$> S.toList cdfs  
+        flow FunctionCDF {remotelevel, argtaints, codtaints, rettaints} = 
+            Flow (remotelevel ++ "_E") 
+                (fmap (mapMaybe' remoteEnclaves) argtaints) 
+                (mapMaybe' remoteEnclaves codtaints) 
+                (mapMaybe' remoteEnclaves rettaints)    
+        remoteEnclaves = fmap remoteEnclaves' . (`M.lookup` clemap) 
+        remoteEnclaves' (Left (CLEDef _ cdfs)) = S.map ((++ "_E") . varRemotelevel) cdfs  
+        remoteEnclaves' _ = S.empty 
+        mapMaybe' f m = S.map fromJust $ S.filter isJust (S.map f m)
+
  
 annotateInstr :: CLEMap' 
     -> Instruction (IndexedPair f IndexedAssignment)
@@ -156,7 +167,7 @@ annotateGlobal clemap (Function bbs (ll :& AssignedGlobal (Assignment _ lbl))) =
     bbs' <- mapM (annotateBB clemap) bbs
     consFun bbs' =<< M.lookup lbl clemap
     where
-        consFun bbs' cle = Function bbs' . (:&) ll . AnnotatedGlobal <$> toFunType numargs cle
+        consFun bbs' cle = Function bbs' . (:&) ll . AnnotatedGlobal <$> toFunType clemap numargs cle
         numargs = case ll of
             WrapGlobal LL.Function {parameters} -> length $ fst parameters
             _ -> 0 
@@ -166,9 +177,9 @@ run ::
     M.Map LL.Name (Global IndexedAssignment) ->
     CLEMap' ->
     IO ()
-run globals llmap clemap = print $
-    runTc ctx . checkGlobal <$> M.lookup (LL.mkName "get_b") annotated
+run globals llmap clemap = print $ tc <$> M.keys annotated
     where
+        tc n = (n, runTc ctx . checkGlobal <$> M.lookup n annotated)
         named = M.fromList $ zip (nameOf <$> globals) globals
         zipped = filterMaybe $ M.intersectionWith zipGlobal named llmap
         annotated = M.mapMaybe (annotateGlobal clemap) zipped   
