@@ -311,11 +311,16 @@ moduleFname :: A.Module -> String
 moduleFname = BS.toString . fromShort . A.moduleSourceFileName
 
 toLLModule :: A.Module -> LLModule
-toLLModule ll = LLModule n gs' annos (Nothing, Nothing, Nothing)
+toLLModule ll = LLModule n gs' attrs annos (Nothing, Nothing, Nothing)
   where
     n     = moduleFname ll
     gs    = findGlobals ll
     gs'   = M.map rmDbg gs
+
+    attrs = M.fromList $ concatMap findFA $ A.moduleDefinitions ll
+    findFA (A.FunctionAttributes gid fas) = [(gid, fas)]
+    findFA _ = []
+
     annos = M.union (findLocalAnnotations gs) (findGlobalAnnotations gs)
     rmDbg (GlobalDef g) = GlobalDef $ rmDbgCalls g
     rmDbg td = td
@@ -468,13 +473,18 @@ main = do
         }
         
   -- Begin proof
-  (_, _, proofLog) <-
+  (_, _, _) <-
     runProofEnvironment environmentOptions stateG initialEnv $ do
       liftIO $ comment "Encoding constraints..."
       pushMatching
       r <- proveEquiv pEntry rEntry
       assert =<< mkNot (z3equiv r)
-      logSMTLIB =<< solverToString
+      liftIO $ comment "Writing z3 proof certificate..."
+      s <- solverToString
+      case logFile of
+        Just name -> liftIO $ writeFile name s
+        _ -> return ()
+      -- logSMTLIB s
       liftIO $ comment "Solving..."
       z3Result <- check
       case z3Result of
@@ -483,6 +493,7 @@ main = do
         _     -> do logString $ show z3Result
                     liftIO $ comment $ "Invalid (" ++ show z3Result ++ ")"
       return r
-  case logFile of
-    Just name -> writeFile name $ unlines $ map show proofLog
-    _ -> return ()
+  return ()
+  -- case logFile of
+  --   Just name -> writeFile (name ++ ".log") $ unlines $ map show proofLog
+  --   _ -> return ()

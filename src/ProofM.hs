@@ -29,6 +29,7 @@ import qualified Data.Set as S
 
 import qualified LLVM.AST as A
 import qualified LLVM.AST.Global as A
+import qualified LLVM.AST.FunctionAttribute as FA
 --import qualified LLVM.AST.CallingConvention as A
 
 --import Data.Text.Lazy ( unpack )
@@ -127,10 +128,11 @@ type LabelMap = M.Map SourceLocation String
 type EquivFunctionMap = M.Map Sort FuncDecl
 
 data LLModule = LLModule
-  { mname    :: String
-  , globals  :: NameReferenceMap
-  , labels   :: LabelMap
-  , whereAmI :: SourceLocation
+  { mname      :: String
+  , globals    :: NameReferenceMap
+  , attributes :: M.Map FA.GroupID [FA.FunctionAttribute]
+  , labels     :: LabelMap
+  , whereAmI   :: SourceLocation
   } deriving (Eq, Show)
 
 data LLEnclave = LLEnclave

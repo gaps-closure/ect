@@ -283,6 +283,7 @@ initialEnv = do
                                       , [t| Maybe Word32 |]
                                       , [t| Maybe A.Type |]
                                       , [t| A.FunctionAttribute |]
+                                      , [t| [A.FunctionAttribute] |]
                                       , [t| NonEmpty A.Name |]
                                       , [t| (A.Operand, A.Name) |]
                                       , [t| [(A.Operand, A.Name)] |]

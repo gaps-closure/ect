@@ -231,7 +231,7 @@ define dso_local void @run_secdesk_service(i32, i8**) #0 {
   %34 = load i8*, i8** %6, align 8
   call void @start_database(i8* %34)
   %35 = call i32 @start_imageprocessor()
-  %36 = call i32 (...) @_rpc_start_recognizer()
+  %36 = call i32 @_rpc_start_recognizer()
   %37 = getelementptr inbounds %struct.fio_start_args, %struct.fio_start_args* %7, i32 0, i32 0
   %38 = call i32 @fio_cli_get_i(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str.10, i64 0, i64 0))
   %39 = trunc i32 %38 to i16
@@ -243,7 +243,7 @@ define dso_local void @run_secdesk_service(i32, i8**) #0 {
   %43 = bitcast %struct.fio_start_args* %7 to i32*
   %44 = load i32, i32* %43, align 2
   call void @fio_start(i32 %44)
-  %45 = call i32 (...) @_rpc_stop_recognizer()
+  %45 = call i32 @_rpc_stop_recognizer()
   %46 = call i32 @stop_imageprocessor()
   call void @stop_database()
   call void @fio_cli_end()
@@ -465,11 +465,11 @@ declare dso_local void @start_database(i8*) #4
 
 declare dso_local i32 @start_imageprocessor() #4
 
-declare dso_local i32 @_rpc_start_recognizer(...) #4
+declare dso_local i32 @_rpc_start_recognizer() #4
 
 declare dso_local void @fio_start(i32) #4
 
-declare dso_local i32 @_rpc_stop_recognizer(...) #4
+declare dso_local i32 @_rpc_stop_recognizer() #4
 
 declare dso_local i32 @stop_imageprocessor() #4
 

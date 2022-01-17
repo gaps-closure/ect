@@ -140,8 +140,6 @@ getLabels = do
     (Nothing, Nothing) -> return ()
     _ -> liftIO $ putStrLn $
       ";;; ProveEquiv CLE LABEL (" ++ show pLabel ++ ") (" ++ show rLabel ++ ")"
-  -- TODO: replace TAG_* labels with Nothing, since they aren't reflected in
-  -- the refactored code
   return (fmap toSbs pLabel, fmap toSbs rLabel)
 
 -----------------------------------------------
@@ -236,6 +234,17 @@ instance ProveEquiv A.Name where
     e <- assertEquivDefault (1 :: Word)
     proveEquivGeneral c_N_UnName [e] "UnName equivalent"
   proveEquiv _ _ = proofFail "Name != UnName"
+
+instance ProveEquiv FA.GroupID where
+  proveEquiv gid1 gid2 = do
+    (m1, m2) <- getLLModules
+    _ <- proveEquiv (getAttrs gid1 m1) (getAttrs gid2 m2)
+    e <- assertEquivDefault (1 :: Word)
+    proveEquivGeneral c_GID_GroupID [e] "UnName equivalent"
+    where
+      getAttrs gid m = case M.lookup gid (attributes m) of
+        Nothing -> error $ "unknown GroupID in module: " ++ mname m
+        Just a -> a
 
 -- | Return the object that may be named
 unName :: A.Named a -> a
@@ -343,9 +352,12 @@ proveCongruence lName rName = do
             (nextEnclave, lMN, lGlobal) <- searchPartition lName
             ProofM $ lift $ put $ ProofState { curEnclave = nextEnclave, .. }
             recurse lMN lGlobal rMN rGlobal
-            ProofM $ lift $ put $ ProofState { curEnclave = curEnclave, .. }
+            newPID <- getNewPID
+            ProofM $ lift $ put $ ProofState { curEnclave = curEnclave
+                                             , currentPID = newPID, .. }
       Nothing -> err "proveCongruence" rName
   where
+    getNewPID = ProofM $ lift $ gets currentPID
     err s n = error $ s ++ ": global @" ++ showName n ++ " not found in NameReferenceMap"
     
     searchPartition n = do
@@ -793,6 +805,12 @@ instance ProveEquiv [A.ParameterAttribute] where
     c_Nil_ParameterAttribute
     "ParameterAttribute"
 
+instance ProveEquiv [FA.FunctionAttribute] where
+  proveEquiv = proveEquivList
+    c_Cons_FunctionAttribute
+    c_Nil_FunctionAttribute
+    "FunctionAttribute"
+
 instance ProveEquiv [A.Named I.Instruction] where
   proveEquiv = proveEquivList
     c_Cons_Named_Instruction
@@ -934,6 +952,5 @@ $(genProveEquiv [t| A.BasicBlock |] )
 $(genProveEquiv [t| A.Model |] )
 $(genProveEquiv [t| A.UnnamedAddr |] )
 $(genProveEquiv [t| FPA.FloatingPointPredicate |] )
-$(genProveEquiv [t| FA.GroupID |] )
 $(genProveEquiv [t| FA.FunctionAttribute |] )
 $(genProveEquiv [t| I.Instruction |] )

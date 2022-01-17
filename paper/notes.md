@@ -60,3 +60,11 @@ pg.18) Verifying S3? How was this done?
 
 pg.19) Distributed systems should be verified incrementally. Ours is a
 distributed system, and we tackle one piece of it.
+
+## ECT Greatest Hits
+
+Discovered that #pragma pack(1) was being applied to almost everything in the partition, erroneously.
+
+Fix inconsistency with declaring zero-argument functions without (void) in header files.
+
+different debugging info printed as a result of using __FILE__ in code.

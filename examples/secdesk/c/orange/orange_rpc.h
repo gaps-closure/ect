@@ -102,7 +102,7 @@ extern void _master_rpc_init();
 #define SEC_RESPONSE_STOP_RECOGNIZER SEC_BASE + 2
 
 extern int _rpc_recognize(double embedding[]);
-extern int _rpc_start_recognizer();
-extern int _rpc_stop_recognizer();
+extern int _rpc_start_recognizer(void);
+extern int _rpc_stop_recognizer(void);
 
 #endif /* _ORANGE_RPC_ */

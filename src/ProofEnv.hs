@@ -123,6 +123,7 @@ genProofEnvDecl "ProofEnv"
    , [t| [A.Name] |]
    , [t| [A.Operand] |]
    , [t| [A.ParameterAttribute] |]
+   , [t| [A.FunctionAttribute] |]
    , [t| [A.Type] |]
    , [t| A.AddrSpace |]
    , [t| A.CallingConvention |]
