@@ -12,9 +12,8 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 module LLMap where
-import qualified Data.HashMap.Strict as HM
 import GHC.Generics ( Generic )
-import Data.Aeson ( FromJSON (parseJSON), ToJSON, withObject, (.:), Value (Object), (.:?) ) 
+import Data.Aeson ( FromJSON, ToJSON ) 
 import qualified Data.Map as M
 import TypeCheck
     ( LLWrapper,
@@ -23,11 +22,10 @@ import TypeCheck
       Instruction(Instruction),
       Terminator(Terminator),
       LLIndex(..),
-      globalZipWith,
+      zipWithIdx,
       nameFromString,
       IndexedPair ((:&)), type (&) )
 import Prelude hiding (return)
-import Debug.Trace
 
 data Assignment = Assignment {
     enclave :: String,
@@ -77,4 +75,4 @@ wrapGlobalDesc GlobalDesc { assignment, blocks = Just bl, .. } = Function (fromB
 wrapGlobalDesc GlobalDesc { assignment } = Global (AssignedGlobal assignment)    
 
 zipGlobal :: Global LLWrapper -> Global IndexedAssignment -> Maybe (Global (LLWrapper & IndexedAssignment))
-zipGlobal = globalZipWith (:&)  
+zipGlobal = zipWithIdx (:&)  
