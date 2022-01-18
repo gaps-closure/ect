@@ -1,0 +1,354 @@
+{
+    "get_a.a": {
+        "assignment": {
+            "label": "ORANGE",
+            "enclave": "orange_E" 
+        }
+    },
+    "calc_ewma.c": {
+        "assignment": {
+            "label": "PURPLE",
+            "enclave": "purple_E" 
+        }
+    },
+    "get_a": {
+        "assignment": {
+            "label": "XDLINKAGE_GET_A",
+            "enclave": "orange_E" 
+        },
+        "blocks": {
+            "0": {
+                "instructions": [
+                    {
+                        "label": "ORANGE",
+                        "enclave": "orange_E" 
+                    },
+                    {
+                        "label": "ORANGE",
+                        "enclave": "orange_E" 
+                    },
+                    {
+                        "label": "ORANGE",
+                        "enclave": "orange_E" 
+                    },
+                    {
+                        "label": "ORANGE",
+                        "enclave": "orange_E" 
+                    }
+                ],
+                "terminator": {
+                    "label": "TAG_RESPONSE_GET_A",
+                    "enclave": "orange_E" 
+                }
+            }
+        }
+    },
+    "get_b.b": {
+        "assignment": {
+            "label": "PURPLE",
+            "enclave": "purple_E" 
+        }
+    },
+    "get_b": {
+        "assignment": {
+            "label": "PURPLE",
+            "enclave": "purple_E" 
+        }, 
+        "blocks": {
+            "0": {
+                "instructions": [
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    }
+                ],
+                "terminator": {
+                    "label": "PURPLE",
+                    "enclave": "purple_E" 
+                }
+            }
+        }
+    },
+    "calc_ewma": {
+        "assignment": {
+            "label": "PURPLE",
+            "enclave": "purple_E" 
+        }, 
+        "blocks": {
+            "2": {
+                "instructions": [
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    null,
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    null, 
+                    null,
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    }
+                ],
+                "terminator": {
+                    "label": "PURPLE",
+                    "enclave": "purple_E" 
+                }
+            }
+        }
+    },
+    "ewma_main": {
+        "assignment": {
+            "label": "PURPLE",
+            "enclave": "purple_E" 
+        }, 
+        "blocks": {
+            "0": {
+                "instructions": [
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    null,
+                    null, 
+                    null,
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    null,
+                    null, 
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    }
+                ],
+                "terminator": {
+                    "label": "PURPLE",
+                    "enclave": "purple_E" 
+                }
+            },
+            "6": {
+                "instructions": [
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    }
+                ],
+                "terminator": {
+                    "label": "PURPLE",
+                    "enclave": "purple_E" 
+                }  
+            },
+            "9": {
+                "instructions": [
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    null
+                ],
+                "terminator": {
+                    "label": "PURPLE",
+                    "enclave": "purple_E" 
+                } 
+            },
+            "17": {
+                "instructions": [
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    },
+                    {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    }
+                ],
+                "terminator": {
+                    "label": "PURPLE",
+                    "enclave": "purple_E" 
+                }  
+            },
+            "20": {
+                "instructions": [],
+                "terminator": {
+                    "label": "PURPLE",
+                    "enclave": "purple_E" 
+                } 
+            }
+        },
+        "main": {
+            "assignment": {
+                "label": "PURPLE",
+                "enclave": "purple_E" 
+            }, 
+            "blocks": {
+                "2": {
+                    "instructions": [
+                        {
+                            "label": "PURPLE",
+                            "enclave": "purple_E" 
+                        },
+                        {
+                            "label": "PURPLE",
+                            "enclave": "purple_E" 
+                        },
+                        {
+                            "label": "PURPLE",
+                            "enclave": "purple_E" 
+                        },
+                        {
+                            "label": "PURPLE",
+                            "enclave": "purple_E" 
+                        },
+                        {
+                            "label": "PURPLE",
+                            "enclave": "purple_E" 
+                        },
+                        null, 
+                        {
+                            "label": "PURPLE",
+                            "enclave": "purple_E" 
+                        },
+                        null, 
+                        {
+                            "label": "PURPLE",
+                            "enclave": "purple_E" 
+                        },
+                        {
+                            "label": "PURPLE",
+                            "enclave": "purple_E" 
+                        }
+                    ],
+                    "terminator": {
+                        "label": "PURPLE",
+                        "enclave": "purple_E" 
+                    }
+                }
+            }
+        }
+    }
+}

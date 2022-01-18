@@ -1,0 +1,86 @@
+[
+  {
+    "cle-label": "TAG_RESPONSE_GET_A",
+    "cle-json": {
+      "level": "orange",
+      "cdf": [
+        {
+          "remotelevel": "purple",
+          "direction": "egress",
+          "guardhint": {
+            "operation": "allow",
+            "gapstag": [
+              2,
+              2,
+              4
+            ]
+          }
+        },
+        {
+          "remotelevel": "green",
+          "direction": "egress",
+          "guarddirective": {
+            "operation": "allow"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "cle-label": "PURPLE",
+    "cle-json": {
+      "level": "purple"
+    }
+  },
+  {
+    "cle-label": "ORANGE",
+    "cle-json": {
+      "level": "orange",
+      "cdf": [
+        {
+          "remotelevel": "purple",
+          "direction": "egress",
+          "guarddirective": {
+            "operation": "allow"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "cle-label": "XDLINKAGE_GET_A",
+    "cle-json": {
+      "level": "orange",
+      "cdf": [
+        {
+          "remotelevel": "purple",
+          "direction": "bidirectional",
+          "guarddirective": {
+            "operation": "allow"
+          },
+          "argtaints": [],
+          "codtaints": [
+            "ORANGE"
+          ],
+          "rettaints": [
+            "TAG_RESPONSE_GET_A"
+          ]
+        },
+        {
+          "remotelevel": "orange",
+          "direction": "bidirectional",
+          "guarddirective": {
+            "operation": "allow"
+          },
+          "argtaints": [],
+          "codtaints": [
+            "ORANGE"
+          ],
+          "rettaints": [
+            "TAG_RESPONSE_GET_A"
+          ]
+        }
+      ]
+    }
+  }
+]

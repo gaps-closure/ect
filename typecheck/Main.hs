@@ -4,6 +4,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE LambdaCase #-}
 module Main where
 
 import System.Environment (getArgs)
@@ -24,57 +25,6 @@ import qualified LLVM.AST as LL
 import TypeCheck
 import LLMap
 import CLEMap
-
-
-data FunctionCDF = FunctionCDF {
-    remotelevel :: String,
-    direction :: String,
-    guarddirective :: Maybe GD,
-    argtaints :: [S.Set String],
-    codtaints :: S.Set String,
-    rettaints :: S.Set String
-} deriving (Eq, Ord, Show)
-
-data VarCDF = VarCDF {
-    varRemotelevel :: String,
-    varDirection :: String,
-    varGuarddirective :: Maybe GD
-} deriving (Eq, Ord, Show)
-
-data CLEDef a = CLEDef {
-    level :: String,
-    cdf :: S.Set a
-} deriving (Eq, Ord, Show)
-
-type FunctionDef = CLEDef FunctionCDF
-type VarDef = CLEDef VarCDF
-type CLE' = Either VarDef FunctionDef  
-
-interpretCLEJSON :: CLEJSON -> CLE' 
-interpretCLEJSON (CLEJSON (Just cdfs) level) = definition
-    where
-        definition = case variants of
-            Left vcdfs -> Left $ CLEDef level $ S.fromList vcdfs
-            Right fcdfs -> Right $ CLEDef level $ S.fromList fcdfs
-        variants = foldl combine (Right []) (determineVariant <$> cdfs)
-        determineVariant CDF {remotelevel,
-            direction,
-            guarddirective,
-            argtaints = Just argtaints,
-            codtaints = Just codtaints,
-            rettaints = Just rettaints} =
-                Right $ FunctionCDF 
-                    remotelevel direction guarddirective 
-                    (S.fromList <$> argtaints) 
-                    (S.fromList codtaints) 
-                    (S.fromList rettaints)
-        determineVariant CDF {remotelevel, direction, guarddirective} =
-                Left (VarCDF remotelevel direction guarddirective)
-        combine (Right fcdfs) (Right fcdf) = Right (fcdf : fcdfs)
-        combine (Left vcdfs) (Right _) = Left vcdfs
-        combine (Right _) (Left vcdf) = Left [vcdf]
-        combine (Left vcdfs) (Left vcdf) = Left (vcdf : vcdfs)
-interpretCLEJSON (CLEJSON Nothing level) = Left (CLEDef level S.empty)
 
 
 loadBC :: FilePath -> IO LL.Module
@@ -99,56 +49,59 @@ llmapJson jsonsrc =
 loadLLMap :: FilePath -> IO (Maybe (M.Map LL.Name (Global IndexedAssignment)))
 loadLLMap = fmap llmapJson . BS.readFile
 
-type CLEMap' = M.Map String (Either VarDef FunctionDef)  
+
+type CLEMap' = M.Map String CLEJSON
 loadCLEMap :: FilePath -> IO (Maybe CLEMap')
-loadCLEMap = fmap (fmap (interpret . toMap) . decode . LBS.fromStrict) . BS.readFile
+loadCLEMap = fmap (fmap toMap . decode . LBS.fromStrict) . BS.readFile
     where
-        interpret = fmap interpretCLEJSON  
         toMap m = M.fromList (zip (CLEMap.label <$> m) (CLEMap.json <$> m))
 
 
-toVarType :: CLE' -> Maybe CLEType
-toVarType (Left (CLEDef level cdfs)) = Just $ VarType (level ++ "_E") remoteEnclaves
+toVarType :: CLEJSON -> CLEType
+toVarType CLEJSON {level, cdf} = VarType level remoteLevels
     where
-        remoteEnclaves = S.map ((++ "_E") . varRemotelevel) cdfs
-toVarType _ = Nothing
-    
-toFunType :: CLEMap' -> Int -> CLE' -> Maybe CLEType
-toFunType _ n (Left (CLEDef level cdfs)) = Just $ FunctionType (level ++ "_E") [flow]
-    where
-        flow = Flow (level ++ "_E") 
-            (replicate n (S.singleton remoteEnclaves)) 
-            (S.singleton remoteEnclaves) 
-            (S.singleton remoteEnclaves)
-        remoteEnclaves = S.map ((++ "_E") . varRemotelevel) cdfs 
-toFunType clemap _ (Right (CLEDef level cdfs)) = Just $ FunctionType (level ++ "_E") flows
-    where
-        flows = flow <$> S.toList cdfs  
-        flow FunctionCDF {remotelevel, argtaints, codtaints, rettaints} = 
-            Flow (remotelevel ++ "_E") 
-                (fmap (mapMaybe' remoteEnclaves) argtaints) 
-                (mapMaybe' remoteEnclaves codtaints) 
-                (mapMaybe' remoteEnclaves rettaints)    
-        remoteEnclaves = fmap remoteEnclaves' . (`M.lookup` clemap) 
-        remoteEnclaves' (Left (CLEDef _ cdfs)) = S.map ((++ "_E") . varRemotelevel) cdfs  
-        remoteEnclaves' _ = S.empty 
-        mapMaybe' f m = S.map fromJust $ S.filter isJust (S.map f m)
+        cdf' = fromMaybe [] cdf
+        remoteLevels = S.fromList $ remotelevel <$> cdf'
 
- 
+toFunType :: CLEMap' -> Int -> CLEJSON -> CLEType
+toFunType map nargs json@CLEJSON {level, cdf} = 
+    maybe defaultTy mkTy $ foldl1 pairwiseUnion <$> (mapM fromCDF =<< cdf)
+    where
+        remoteLevels = remoteLevelsOf json
+        -- used when cle json provided is a var annotation
+        defaultTy = 
+            FunctionType 
+                level 
+                (S.singleton level) 
+                (replicate nargs remoteLevels) 
+                remoteLevels 
+                remoteLevels
+        mkTy (args, body, ret) = FunctionType level remoteLevels args body ret  
+        pairwiseUnion (args, body, ret) (args', body', ret') =
+            (zipWith S.union args args', S.union body body', S.union ret ret')
+        fromCDF CDF {argtaints, codtaints, rettaints} = do
+            args <- mapM (fmap S.unions . mapM lookupRemoteLevel) =<< argtaints
+            body <- mapM lookupRemoteLevel =<< codtaints
+            ret <- mapM lookupRemoteLevel =<< rettaints
+            pure (args, S.unions body, S.unions ret)
+        lookupRemoteLevel label = remoteLevelsOf <$> M.lookup label map
+        remoteLevelsOf CLEJSON {cdf} = S.fromList $ remotelevel <$> fromMaybe [] cdf
+
+
 annotateInstr :: CLEMap' 
     -> Instruction (IndexedPair f IndexedAssignment)
     -> Maybe (Instruction (IndexedPair f Annotated))
 annotateInstr clemap (Instruction (ll :& AssignedInstruction (Just (Assignment _ lbl)))) =
-    consInstr ll =<< M.lookup lbl clemap
-    where consInstr ll cle = Instruction . (:&) ll . AnnotatedInstr <$> toVarType cle
+    consInstr ll <$> M.lookup lbl clemap
+    where consInstr ll = Instruction . (:&) ll . AnnotatedInstr . toVarType 
 annotateInstr _ _ = Nothing
 
 annotateTerm :: CLEMap'
     -> Terminator (IndexedPair f IndexedAssignment)
     -> Maybe (Terminator (IndexedPair f Annotated))
-annotateTerm clemap (Terminator (ll :& (AssignedTerminator (Assignment _ lbl)))) = 
-    consTerm ll =<< M.lookup lbl clemap
-    where consTerm ll cle = Terminator . (:&) ll . AnnotatedTerm <$> toVarType cle
+annotateTerm clemap (Terminator (ll :& (AssignedTerminator (Assignment _ lbl)))) = do 
+    consTerm ll <$> M.lookup lbl clemap
+    where consTerm ll = Terminator . (:&) ll . AnnotatedTerm . toVarType
 
 annotateBB :: CLEMap'  
     -> BasicBlock (IndexedPair f IndexedAssignment)
@@ -160,14 +113,14 @@ annotateBB clemap (BasicBlock n instrs term (ll :& _)) = do
 
 annotateGlobal :: CLEMap' -> Global (LLWrapper & IndexedAssignment) -> Maybe (Global (LLWrapper & Annotated))
 annotateGlobal clemap (Global (ll :& AssignedGlobal (Assignment _ lbl))) =
-    consGlobal =<< M.lookup lbl clemap
+    consGlobal <$> M.lookup lbl clemap
     where
-        consGlobal cle = Global . (:&) ll . AnnotatedGlobal <$> toVarType cle
+        consGlobal = Global . (:&) ll . AnnotatedGlobal . toVarType
 annotateGlobal clemap (Function bbs (ll :& AssignedGlobal (Assignment _ lbl))) = do
     bbs' <- mapM (annotateBB clemap) bbs
-    consFun bbs' =<< M.lookup lbl clemap
+    consFun bbs' <$> M.lookup lbl clemap
     where
-        consFun bbs' cle = Function bbs' . (:&) ll . AnnotatedGlobal <$> toFunType clemap numargs cle
+        consFun bbs' = Function bbs' . (:&) ll . AnnotatedGlobal . toFunType clemap numargs
         numargs = case ll of
             WrapGlobal LL.Function {parameters} -> length $ fst parameters
             _ -> 0 
@@ -183,7 +136,10 @@ run globals llmap clemap = print $ tc <$> M.keys annotated
         named = M.fromList $ zip (nameOf <$> globals) globals
         zipped = filterMaybe $ M.intersectionWith zipGlobal named llmap
         annotated = M.mapMaybe (annotateGlobal clemap) zipped   
-        ctx = (\(Global (_ :& (AnnotatedGlobal ty))) -> ty) <$> annotated  
+        ctx = (\case 
+                Global (_ :& (AnnotatedGlobal ty)) -> ty
+                Function _ (_ :& (AnnotatedGlobal ty)) -> ty 
+            ) <$> annotated  
         filterMaybe = fmap fromJust . M.filter isJust
 main :: IO ()
 main = do
