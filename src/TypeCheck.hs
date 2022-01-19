@@ -207,7 +207,8 @@ data Context
     universe :: Set Level  
   }
 
--- type Context = Map LL.Name CLEType
+type SeenBasicBlocks = Set LL.Name 
+type BBMap = Map LL.Name (BasicBlock (LLWrapper & Annotated))
 
 type Tc = ReaderT Context (Except Err)
 
@@ -234,10 +235,6 @@ lookupLocal name = do
 
 runTc :: Context -> Tc a -> Either Err a
 runTc ctx tc = runExcept $ runReaderT tc ctx
-
-data TermResult
-  = Return RemoteLevels
-  | Break RemoteLevels  
 
 intersectAll :: [RemoteLevels] -> Tc RemoteLevels
 intersectAll levels = do
@@ -268,38 +265,32 @@ checkGlobal (Global (_ :& AnnotatedGlobal ty@FunctionType {})) = throw $ Expecte
 checkGlobal (Function _ (_ :& AnnotatedGlobal ty@(VarType _ _))) = throw $ ExpectedFunType ty
 checkGlobal (Function bbs (WrapGlobal LL.Function {parameters} :& AnnotatedGlobal FunctionType {level, args, ret})) = do
   assert UnsupportedVarArgs (not $ snd parameters)
-  actualRet <- basicBlocksResult
+  firstBB <- firstBasicBlock
+  uni <- asks universe 
+  actualRet <- withLocals argMap $ checkBasicBlock level uni bbMap S.empty firstBB
   let expectedRet = ret
-  assert (ShareabilityViolation expectedRet actualRet) (expectedRet `S.isSubsetOf` actualRet)
+  assert (ShareabilityViolation actualRet expectedRet) (actualRet `S.isSubsetOf` expectedRet) 
   where
     argMap = M.fromList $ zip (nameOfParameter <$> fst parameters) args
     nameOfParameter (LL.Parameter _ n _) = n
-    basicBlocksResult = first <$> foldl foldCheck init' bbs
-    init' = do 
-      uni <- asks universe
-      pure (uni, argMap, uni) 
-    first (a, _, _) = a
-    foldCheck prev bb = do
-      (ty, lcls, constr) <- prev
-      (lcls', res) <- withLocals lcls $ checkBasicBlock level constr bb
-      case res of
-        Return ty' -> do
-          resTy <- intersectAll [ty, ty']  
-          pure (resTy, M.union lcls lcls', constr)
-        Break constr' -> 
-          pure (ty, M.union lcls lcls', constr')
-
+    firstBasicBlock = case bbs of 
+      [] -> throw NoBasicBlocks 
+      (bb : _) -> pure bb
+    bbMap = M.fromList $ zip (bbName <$> bbs) bbs
+    bbName (BasicBlock n _ _ _) = n 
+  
 checkGlobal (Function _ (WrapGlobal ll :& _)) = throw $ ExpectedFun ll
 
 checkBasicBlock ::
   Level
   -> RemoteLevels  
+  -> BBMap 
+  -> SeenBasicBlocks 
   -> BasicBlock (LLWrapper & Annotated)
-  -> Tc (Map LL.Name RemoteLevels, TermResult)
-checkBasicBlock level constr (BasicBlock _ instrs term _) = do
+  -> Tc RemoteLevels
+checkBasicBlock level constr bbMap seen (BasicBlock n instrs term _) = do
   locals' <- checkInstrs
-  res <- withLocals locals' (checkTerm level term)
-  pure (locals', res)
+  withLocals locals' (checkTerm level constr bbMap (S.insert n seen) term)
   where
     checkInstrs = foldl checkOver (asks locals) instrs
     checkOver tclocals instr = do
@@ -364,20 +355,6 @@ checkOp :: Level -> LL.Operand -> Tc RemoteLevels
 checkOp l (LL.ConstantOperand c) = checkConst l c
 checkOp _ (LL.LocalReference _ name) = lookupLocal name  
 checkOp _ _ = asks universe 
-
--- operandTy ::
---   LL.Operand
---   -> Tc (Maybe CLEType)
--- operandTy (LL.LocalReference _ n) = Just <$> lookup' n
--- operandTy (LL.ConstantOperand (LC.GlobalReference _ n)) = Just <$> lookup' n
--- -- TODO: check the constant since it may recursively refer to globals  
--- -- e.g. @a + @b 
--- operandTy (LL.ConstantOperand _) = pure Nothing
--- operandTy (LL.MetadataOperand _) = throw UnsupportedMetadataOp
-
-levelOf :: CLEType -> Level    
-levelOf (VarType l _) = l 
-levelOf FunctionType {level = l} = l 
 
 checkInstr ::
   Level
@@ -463,18 +440,42 @@ checkInstr level constr (Instruction (WrapInstruction ll :& AnnotatedInstr (VarT
 
 checkTerm ::
   Level
+  -> RemoteLevels
+  -> BBMap 
+  -> SeenBasicBlocks 
   -> Terminator (LLWrapper & Annotated)
-  -> Tc TermResult
-checkTerm level (Terminator ((WrapTerminator term) :& (AnnotatedTerm (VarType level' remotes)))) = do
+  -> Tc RemoteLevels
+checkTerm level constr bbMap seen (Terminator ((WrapTerminator term) :& (AnnotatedTerm (VarType level' remotes)))) = do
   assert (LevelMismatch level level') (level == level')
   case term of
     LL.Do (LL.Ret (Just op) _) -> do
       remotes' <- checkOp level op
       assert (ShareabilityViolation remotes remotes') (remotes `S.isSubsetOf` remotes')   
-      pure $ Return remotes 
-    LL.Do LL.CondBr {condition} -> do
-      remotes' <- checkOp level condition
+      pure remotes
+    LL.Do LL.CondBr {condition, trueDest, falseDest} -> do
+      opRemotes <- checkOp level condition
+      bbTrue <- lookupBB trueDest  
+      bbFalse <- lookupBB falseDest 
+      constr' <- intersectAll [opRemotes, constr] 
+      trueRemotes <- checkBB constr' bbTrue
+      falseRemotes <- checkBB constr' bbFalse
+      remotes' <- intersectAll [trueRemotes, falseRemotes]
       assert (ShareabilityViolation remotes remotes') (remotes `S.isSubsetOf` remotes')   
-      pure $ Break remotes 
-    LL.Do LL.Br {} -> Break <$> asks universe 
+      pure remotes
+    LL.Do LL.Br {dest} -> do
+      bb <- lookupBB dest   
+      remotes' <- checkBB constr bb   
+      assert (ShareabilityViolation remotes remotes') (remotes `S.isSubsetOf` remotes')   
+      pure remotes
     _ -> throw $ UnsupportedTerminator term
+    where
+      lookupBB n = 
+        case M.lookup n bbMap of
+          Just bb -> pure bb
+          Nothing -> throw $ LookupFailure n
+      checkBB constr' bb = 
+        if S.member (bbName bb) seen then
+          asks universe
+        else 
+          checkBasicBlock level constr' bbMap seen bb
+      bbName (BasicBlock n _ _ _) = n
