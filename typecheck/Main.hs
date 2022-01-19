@@ -22,6 +22,7 @@ import TypeCheck
 import LLMap
 import CLEMap hiding (CLEMap)
 import Convert
+import qualified Data.Set as S
 
 loadBC :: FilePath -> IO LL.Module
 loadBC bc = withContext $ \c -> withModuleFromBitcode c (File bc) moduleAST
@@ -61,10 +62,11 @@ run globals llmap clemap = mapM_ print $ tc <$> M.keys annotated
         named = M.fromList $ zip (nameOf <$> globals) globals
         zipped = filterMaybe $ M.intersectionWith zipGlobal named llmap
         annotated = M.mapMaybe (convert clemap) zipped   
-        ctx = (\case 
+        globalMap = (\case 
                 Global (_ :& (AnnotatedGlobal ty)) -> ty
                 Function _ (_ :& (AnnotatedGlobal ty)) -> ty 
             ) <$> annotated  
+        ctx = Context M.empty globalMap (S.fromList ["orange", "purple", "green"])
         filterMaybe = fmap fromJust . M.filter isJust
 
 main :: IO ()

@@ -32,10 +32,11 @@ toFunType clemap nargs json@CLEJSON {level, cdf} =
         defaultTy = 
             FunctionType 
                 level 
+                []
                 (S.singleton level) 
                 (replicate nargs remoteLevels) 
                 remoteLevels
-        mkTy (args, ret) = FunctionType level remoteLevels args ret  
+        mkTy (args, ret) = FunctionType level [] remoteLevels args ret  
         pairwiseUnion (args, ret) (args',  ret') =
             (zipWith S.union args args', S.union ret ret')
         fromCDF CDF {argtaints, codtaints, rettaints} = do

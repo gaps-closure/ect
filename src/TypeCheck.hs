@@ -15,7 +15,7 @@ module TypeCheck where
 
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Except (Except, ExceptT, runExcept, throwE)
-import Control.Monad.Trans.Reader (Reader, ReaderT (ReaderT, runReaderT), ask, local)
+import Control.Monad.Trans.Reader (Reader, ReaderT (ReaderT, runReaderT), ask, local, asks)
 import Data.List (find, sortBy)
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -152,10 +152,15 @@ type Level = String
 
 type RemoteLevels = Set Level
 
+data Flow = (:<:) RemoteLevels RemoteLevels
+  deriving (Show, Eq)
+infix 5 :<:
+
 data CLEType
     = VarType Level RemoteLevels
     | FunctionType {
       level :: Level,
+      flows :: [Flow],
       callableFrom :: RemoteLevels,
       args :: [RemoteLevels],
       ret :: RemoteLevels
@@ -174,10 +179,9 @@ instance Show (Annotated i) where
     show UnAnnotatedBasicBlock = "UnAnnotatedBasicBlock"
     show (AnnotatedGlobal g) = show g
 
--- -- newtype IndexedMaybe f (i :: LLIndex) = IndexedMaybe (Maybe (f i))
 
 data Err
-    = ShareabilityViolation CLEType CLEType
+    = ShareabilityViolation RemoteLevels RemoteLevels
     | LookupFailure LL.Name
     | ExpectedVarType CLEType
     | ExpectedFunType CLEType
@@ -196,7 +200,14 @@ data Err
 
 -- Map from names to type
 -- for basic blocks the type refers to the return type
-type Context = Map LL.Name CLEType
+data Context 
+  = Context {
+    locals :: Map LL.Name RemoteLevels,   
+    globals :: Map LL.Name CLEType,
+    universe :: Set Level  
+  }
+
+-- type Context = Map LL.Name CLEType
 
 type Tc = ReaderT Context (Except Err)
 
@@ -207,35 +218,49 @@ assert :: Err -> Bool -> Tc ()
 assert _ True = pure ()
 assert e _ = throw e
 
-lookup' :: LL.Name -> Tc CLEType
-lookup' name = do
-    ctx <- ask
-    case M.lookup name ctx of
-        Just t -> return t
-        _ -> throw $ LookupFailure name
+lookupGlobal :: LL.Name -> Tc CLEType
+lookupGlobal name = do
+  ctx <- asks globals 
+  case M.lookup name ctx of
+      Just t -> return t
+      _ -> throw $ LookupFailure name
+
+lookupLocal :: LL.Name -> Tc RemoteLevels
+lookupLocal name = do
+  ctx <- asks locals 
+  case M.lookup name ctx of
+      Just t -> return t
+      _ -> throw $ LookupFailure name 
 
 runTc :: Context -> Tc a -> Either Err a
 runTc ctx tc = runExcept $ runReaderT tc ctx
 
 data TermResult
-  = Return CLEType
-  | Break (Maybe CLEType)
+  = Return RemoteLevels
+  | Break RemoteLevels  
 
-intersect :: CLEType -> CLEType -> Tc CLEType
-intersect (VarType l r) (VarType l' r') = do
-  assert (LevelMismatch l l') (l == l')
-  pure $ VarType l (S.intersection r r')
-intersect ty@FunctionType {} _ = throw $ ExpectedVarType ty
+intersectAll :: [RemoteLevels] -> Tc RemoteLevels
+intersectAll levels = do
+  uni <- asks universe 
+  pure $ foldl S.intersection uni levels
 
-intersectAll :: [CLEType] -> Tc CLEType
-intersectAll (x : y : xs) = do
-  z <- x `intersect` y
-  intersectAll (z : xs)
-intersectAll [x] = pure x
+withLocals :: Map LL.Name RemoteLevels -> Tc a -> Tc a 
+withLocals lcls tc = do
+  local combineCtx tc
+  where
+    combineCtx ctx = ctx { locals = lcls } 
 
-(<:) :: CLEType -> CLEType -> Bool
-(VarType level remotes) <: (VarType level' remotes') = level == level' && remotes `S.isSubsetOf` remotes'
-_ <: _ = False
+combineContexts :: Context -> Context -> Context 
+combineContexts 
+  (Context locals globals universe) 
+  (Context locals' globals' universe')
+  = Context (M.union locals locals') (M.union globals globals') (S.union universe universe')
+
+nameOfCallable :: LL.CallableOperand -> Tc LL.Name 
+nameOfCallable (Right (LL.ConstantOperand (LC.GlobalReference _ n))) = return n
+nameOfCallable (Right (LL.LocalReference _ _)) = throw UnsupportedLocalFunction
+nameOfCallable (Right _) = throw UnsupportedMetadataCall
+nameOfCallable (Left _) = throw UnsupportedInlineASM
 
 checkGlobal :: Global (LLWrapper & Annotated) -> Tc ()
 checkGlobal (Global (_ :& AnnotatedGlobal (VarType _ _))) = return ()
@@ -243,220 +268,213 @@ checkGlobal (Global (_ :& AnnotatedGlobal ty@FunctionType {})) = throw $ Expecte
 checkGlobal (Function _ (_ :& AnnotatedGlobal ty@(VarType _ _))) = throw $ ExpectedFunType ty
 checkGlobal (Function bbs (WrapGlobal LL.Function {parameters} :& AnnotatedGlobal FunctionType {level, args, ret})) = do
   assert UnsupportedVarArgs (not $ snd parameters)
-  tys <- basicBlocksResult
-  actualRet <- intersectAll tys
-  let expectedRet = VarType level ret
-  assert (ShareabilityViolation expectedRet actualRet) (expectedRet <: actualRet)
+  actualRet <- basicBlocksResult
+  let expectedRet = ret
+  assert (ShareabilityViolation expectedRet actualRet) (expectedRet `S.isSubsetOf` actualRet)
   where
-    argMap = M.fromList $ zip (nameOfParameter <$> fst parameters) (VarType level <$> args)
+    argMap = M.fromList $ zip (nameOfParameter <$> fst parameters) args
     nameOfParameter (LL.Parameter _ n _) = n
-    basicBlocksResult = second <$> foldl foldCheck ((Nothing, [],) . M.union argMap <$> ask) bbs
-    second (_,x,_) = x
+    basicBlocksResult = first <$> foldl foldCheck init' bbs
+    init' = do 
+      uni <- asks universe
+      pure (uni, argMap, uni) 
+    first (a, _, _) = a
     foldCheck prev bb = do
-      (c, tys, ctx) <- prev
-      (ctx', res) <- local (M.union ctx) $ checkBasicBlock level c bb
+      (ty, lcls, constr) <- prev
+      (lcls', res) <- withLocals lcls $ checkBasicBlock level constr bb
       case res of
-        Return ty -> pure (c, ty : tys, M.union ctx ctx')
-        Break c' -> pure (c' <|> c, tys, M.union ctx ctx')
+        Return ty' -> do
+          resTy <- intersectAll [ty, ty']  
+          pure (resTy, M.union lcls lcls', constr)
+        Break constr' -> 
+          pure (ty, M.union lcls lcls', constr')
 
 checkGlobal (Function _ (WrapGlobal ll :& _)) = throw $ ExpectedFun ll
 
 checkBasicBlock ::
   Level
-  -> Maybe CLEType -- constraining type, provides upper bound on shareability
+  -> RemoteLevels  
   -> BasicBlock (LLWrapper & Annotated)
-  -> Tc (Context, TermResult)
-checkBasicBlock level constraining (BasicBlock _ instrs term _) = do
-  ctx <- checkInstrs
-  res <- local (M.union ctx) (checkTerm term)
-  pure (ctx, res)
+  -> Tc (Map LL.Name RemoteLevels, TermResult)
+checkBasicBlock level constr (BasicBlock _ instrs term _) = do
+  locals' <- checkInstrs
+  res <- withLocals locals' (checkTerm level term)
+  pure (locals', res)
   where
-    checkInstrs = foldl checkOver ask instrs
-    checkOver tcctx instr = do
-      ctx <- tcctx
-      ctx' <- local (M.union ctx) (checkInstr level constraining instr)
-      pure $ M.union ctx ctx'
+    checkInstrs = foldl checkOver (asks locals) instrs
+    checkOver tclocals instr = do
+      lcls <- tclocals
+      lcls' <- withLocals lcls (checkInstr level constr instr)
+      pure $ M.union lcls lcls'
 
-operandTy ::
-  LL.Operand
-  -> Tc (Maybe CLEType)
-operandTy (LL.LocalReference _ n) = Just <$> lookup' n
-operandTy (LL.ConstantOperand (LC.GlobalReference _ n)) = Just <$> lookup' n
--- TODO: check the constant since it may recursively refer to globals  
--- e.g. @a + @b 
-operandTy (LL.ConstantOperand _) = pure Nothing
-operandTy (LL.MetadataOperand _) = throw UnsupportedMetadataOp
+checkConst :: Level -> LC.Constant -> Tc RemoteLevels
+checkConst level (LC.GlobalReference _ name) = do
+  ty <- lookupGlobal name 
+  case ty of
+    VarType glevel gremotes -> do
+      assert (LevelMismatch level glevel) (level == glevel)  
+      pure gremotes
+    _ -> throw $ ExpectedVarType ty 
+checkConst level (LC.Struct _ _ members) = intersectAll =<< mapM (checkConst level) members      
+checkConst level (LC.Array _ members) = intersectAll =<< mapM (checkConst level) members
+checkConst level (LC.Vector members) = intersectAll =<< mapM (checkConst level) members
+checkConst level (LC.Add _ _ c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.Sub _ _ c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.Mul _ _ c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.UDiv _ c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.SDiv _ c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.FAdd c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.FSub c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.FMul c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.FDiv c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.URem c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.SRem c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.FRem c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.Shl _ _ c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.LShr _ c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.AShr _ c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.And c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.Or c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.Xor c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.GetElementPtr _ c cs) = intersectAll =<< mapM (checkConst level) (c : cs)
+checkConst level (LC.Trunc c _) = checkConst level c
+checkConst level (LC.ZExt c _) = checkConst level c
+checkConst level (LC.SExt c _) = checkConst level c
+checkConst level (LC.FPToUI c _) = checkConst level c
+checkConst level (LC.FPToSI c _) = checkConst level c
+checkConst level (LC.UIToFP c _) = checkConst level c
+checkConst level (LC.SIToFP c _) = checkConst level c
+checkConst level (LC.FPTrunc c _) = checkConst level c
+checkConst level (LC.PtrToInt c _) = checkConst level c
+checkConst level (LC.IntToPtr c _) = checkConst level c
+checkConst level (LC.BitCast c _) = checkConst level c
+checkConst level (LC.AddrSpaceCast c _) = checkConst level c
+checkConst level (LC.ICmp _ c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.FCmp _ c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.Select c c' c'') = intersectAll =<< mapM (checkConst level) [c, c', c'']
+checkConst level (LC.ExtractElement c c') = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst level (LC.InsertElement c c' c'') = intersectAll =<< mapM (checkConst level) [c, c', c'']
+checkConst level (LC.ShuffleVector c c' c'') = intersectAll =<< mapM (checkConst level) [c, c', c'']
+checkConst level (LC.ExtractValue c _) = checkConst level c
+checkConst level (LC.InsertValue c c' _) = intersectAll =<< mapM (checkConst level) [c, c']
+checkConst _ _ = asks universe
 
 
+checkOp :: Level -> LL.Operand -> Tc RemoteLevels
+checkOp l (LL.ConstantOperand c) = checkConst l c
+checkOp _ (LL.LocalReference _ name) = lookupLocal name  
+checkOp _ _ = asks universe 
 
+-- operandTy ::
+--   LL.Operand
+--   -> Tc (Maybe CLEType)
+-- operandTy (LL.LocalReference _ n) = Just <$> lookup' n
+-- operandTy (LL.ConstantOperand (LC.GlobalReference _ n)) = Just <$> lookup' n
+-- -- TODO: check the constant since it may recursively refer to globals  
+-- -- e.g. @a + @b 
+-- operandTy (LL.ConstantOperand _) = pure Nothing
+-- operandTy (LL.MetadataOperand _) = throw UnsupportedMetadataOp
+
+levelOf :: CLEType -> Level    
+levelOf (VarType l _) = l 
+levelOf FunctionType {level = l} = l 
 
 checkInstr ::
   Level
-  -> Maybe CLEType -- constraining type, provides upper bound on shareability
+  -> RemoteLevels -- constraining type, provides upper bound on shareability
   -> Instruction (LLWrapper & Annotated)
-  -> Tc Context
-checkInstr level constr (Instruction (WrapInstruction ll :& AnnotatedInstr ty)) = do
+  -> Tc (Map LL.Name RemoteLevels)  
+checkInstr level constr (Instruction (WrapInstruction ll :& AnnotatedInstr (VarType level' remotes))) = do
+  assert (LevelMismatch level level') (level == level')
   case ll of
     name LL.:= instr -> do
-      mty' <- checkInstr' instr
-      case mty' of
-        Just ty' -> assert (ShareabilityViolation ty ty') (ty <: ty')
-        _ -> pure ()
-      case constr of
-        Just constrTy -> assert (ShareabilityViolation ty constrTy) (ty <: constrTy)
-        _ -> pure ()
-      return (M.singleton name ty)
+      remotes' <- checkInstr' instr
+      assert (ShareabilityViolation remotes remotes') (remotes `S.isSubsetOf` remotes') 
+      assert (ShareabilityViolation remotes constr) (remotes `S.isSubsetOf` constr) 
+      return (M.singleton name remotes) 
     LL.Do instr -> do
-      mty' <- checkInstr' instr
-      case mty' of
-        Just ty' -> assert (ShareabilityViolation ty ty') (ty <: ty')
-        _ -> pure ()
-      case constr of
-        Just constrTy -> assert (ShareabilityViolation ty constrTy) (ty <: constrTy)
-        _ -> pure ()
-      return M.empty
+      remotes' <- checkInstr' instr
+      assert (ShareabilityViolation remotes remotes') (remotes `S.isSubsetOf` remotes') 
+      assert (ShareabilityViolation remotes constr) (remotes `S.isSubsetOf` constr) 
+      return M.empty 
   where
-    checkInstr' (LL.Add _ _ op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.Sub _ _ op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.Mul _ _ op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.UDiv _ op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.SDiv _ op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.FAdd _ op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.FSub _ op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.FMul _ op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.FDiv _ op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.URem op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.SRem op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.FRem _ op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.Shl _ _ op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.LShr _ op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.AShr _ op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.And op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.Or op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.Xor op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.Alloca _ (Just op) _ _) = checkOp op
-    checkInstr' LL.Alloca {} = return Nothing
-    checkInstr' (LL.Load _ op _ _ _) = checkOp op
-    checkInstr' (LL.Store _ op0 op1 _ _ _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.GetElementPtr _ op ops _) = mapM intersectAll =<< mapMaybeM checkOp (op : ops)
-    checkInstr' (LL.CmpXchg _ op0 op1 op2 _ _ _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1, op2]
-    checkInstr' (LL.AtomicRMW _ _ op0 op1 _ _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.Trunc op0 _ _) = checkOp op0
-    checkInstr' (LL.ZExt op0 _ _) = checkOp op0
-    checkInstr' (LL.SExt op0 _ _) = checkOp op0
-    checkInstr' (LL.FPToUI op0 _ _) = checkOp op0
-    checkInstr' (LL.FPToSI op0 _ _) = checkOp op0
-    checkInstr' (LL.UIToFP op0 _ _) = checkOp op0
-    checkInstr' (LL.SIToFP op0 _ _) = checkOp op0
-    checkInstr' (LL.FPTrunc op0 _ _) = checkOp op0
-    checkInstr' (LL.FPExt op0 _ _) = checkOp op0
-    checkInstr' (LL.PtrToInt op0 _ _) = checkOp op0
-    checkInstr' (LL.IntToPtr op0 _ _) = checkOp op0
-    checkInstr' (LL.BitCast op0 _ _) = checkOp op0
-    checkInstr' (LL.AddrSpaceCast op0 _ _) = checkOp op0
-    checkInstr' (LL.ICmp _ op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.Select op0 op1 op2 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1, op2]
-    checkInstr' (LL.ExtractElement op0 op1 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-    checkInstr' (LL.InsertElement op0 op1 op2 _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1, op2]
+    checkOp' = checkOp level
+    checkInstr' (LL.Add _ _ op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.Sub _ _ op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.Mul _ _ op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.UDiv _ op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.SDiv _ op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.FAdd _ op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.FSub _ op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.FMul _ op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.FDiv _ op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.URem op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.SRem op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.FRem _ op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.Shl _ _ op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.LShr _ op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.AShr _ op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.And op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.Or op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.Xor op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.Alloca _ (Just op) _ _) = checkOp' op
+    checkInstr' LL.Alloca {} = asks universe 
+    checkInstr' (LL.Load _ op _ _ _) = checkOp' op
+    checkInstr' (LL.Store _ op0 op1 _ _ _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.GetElementPtr _ op ops _) = intersectAll =<< mapM checkOp' (op : ops)
+    checkInstr' (LL.CmpXchg _ op0 op1 op2 _ _ _) = intersectAll =<< mapM checkOp' [op0, op1, op2]
+    checkInstr' (LL.AtomicRMW _ _ op0 op1 _ _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.Trunc op0 _ _) = checkOp' op0
+    checkInstr' (LL.ZExt op0 _ _) = checkOp' op0
+    checkInstr' (LL.SExt op0 _ _) = checkOp' op0
+    checkInstr' (LL.FPToUI op0 _ _) = checkOp' op0
+    checkInstr' (LL.FPToSI op0 _ _) = checkOp' op0
+    checkInstr' (LL.UIToFP op0 _ _) = checkOp' op0
+    checkInstr' (LL.SIToFP op0 _ _) = checkOp' op0
+    checkInstr' (LL.FPTrunc op0 _ _) = checkOp' op0
+    checkInstr' (LL.FPExt op0 _ _) = checkOp' op0
+    checkInstr' (LL.PtrToInt op0 _ _) = checkOp' op0
+    checkInstr' (LL.IntToPtr op0 _ _) = checkOp' op0
+    checkInstr' (LL.BitCast op0 _ _) = checkOp' op0
+    checkInstr' (LL.AddrSpaceCast op0 _ _) = checkOp' op0
+    checkInstr' (LL.ICmp _ op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.Select op0 op1 op2 _) = intersectAll =<< mapM checkOp' [op0, op1, op2]
+    checkInstr' (LL.ExtractElement op0 op1 _) = intersectAll =<< mapM checkOp' [op0, op1]
+    checkInstr' (LL.InsertElement op0 op1 op2 _) = intersectAll =<< mapM checkOp' [op0, op1, op2]
     checkInstr' (LL.ShuffleVector op0 op1 c _) = do
-      mty <- mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
-      mty' <- checkConst c
-      case (mty, mty') of
-        (Just tya, Just tyb) -> Just <$> intersect tya tyb
-        (a, b) -> pure $ a <|> b
-    checkInstr' (LL.ExtractValue op _ _) = checkOp op
-    checkInstr' (LL.InsertValue op0 op1 _ _) = mapM intersectAll =<< mapMaybeM checkOp [op0, op1]
+      mty <- intersectAll =<< mapM checkOp' [op0, op1]
+      mty' <- checkConst level c
+      intersectAll [mty, mty']
+    checkInstr' (LL.ExtractValue op _ _) = checkOp' op
+    checkInstr' (LL.InsertValue op0 op1 _ _) = intersectAll =<< mapM checkOp' [op0, op1]
     checkInstr' LL.Call {function, arguments} = do
       name <- nameOfCallable function
-      funTy <- lookup' name
+      funTy <- lookupGlobal name
       case funTy of
-        FunctionType _ remotes' args' ret' -> do
+        FunctionType {callableFrom = remotes', args = args', ret = ret'} -> do
           assert (MissingRemote level remotes') (S.member level remotes')
-          actualArgTys <- mapM operandTy (fst <$> arguments)
-          let expectedArgTys = VarType level <$> args'
-          zipWithM_ (\expected mActual ->
-            case mActual of
-              Just actual -> assert (ShareabilityViolation expected actual) (expected <: actual)
-              _ -> pure ()) expectedArgTys actualArgTys
-          pure $ Just $ VarType level ret'
+          actualArgTys <- mapM checkOp' (fst <$> arguments)
+          let expectedArgTys = args'
+          zipWithM_ (\expected actual ->  
+            assert (ShareabilityViolation expected actual) (expected `S.isSubsetOf` actual)) expectedArgTys actualArgTys  
+          pure ret'
         _ -> throw $ ExpectedFunType funTy
-
     checkInstr' i = throw $ UnsupportedInstruction i
 
-    checkOp (LL.ConstantOperand c) = checkConst c
-    checkOp _ = return Nothing
-
-    mapMaybeM f l = do
-        l' <- catMaybes <$> mapM f l
-        case l' of
-          [] -> pure Nothing
-          (x : xs) -> pure $ Just (x : xs)
-
-    checkConst (LC.GlobalReference _ name) = Just <$> lookup' name
-    checkConst (LC.Struct _ _ members) = mapM intersectAll =<< mapMaybeM checkConst members
-    checkConst (LC.Array _ members) = mapM intersectAll =<< mapMaybeM checkConst members
-    checkConst (LC.Vector members) = mapM intersectAll =<< mapMaybeM checkConst members
-    checkConst (LC.Add _ _ c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.Sub _ _ c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.Mul _ _ c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.UDiv _ c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.SDiv _ c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.FAdd c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.FSub c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.FMul c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.FDiv c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.URem c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.SRem c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.FRem c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.Shl _ _ c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.LShr _ c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.AShr _ c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.And c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.Or c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.Xor c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.GetElementPtr _ c cs) = mapM intersectAll =<< mapMaybeM checkConst (c : cs)
-    checkConst (LC.Trunc c _) = checkConst c
-    checkConst (LC.ZExt c _) = checkConst c
-    checkConst (LC.SExt c _) = checkConst c
-    checkConst (LC.FPToUI c _) = checkConst c
-    checkConst (LC.FPToSI c _) = checkConst c
-    checkConst (LC.UIToFP c _) = checkConst c
-    checkConst (LC.SIToFP c _) = checkConst c
-    checkConst (LC.FPTrunc c _) = checkConst c
-    checkConst (LC.PtrToInt c _) = checkConst c
-    checkConst (LC.IntToPtr c _) = checkConst c
-    checkConst (LC.BitCast c _) = checkConst c
-    checkConst (LC.AddrSpaceCast c _) = checkConst c
-    checkConst (LC.ICmp _ c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.FCmp _ c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.Select c c' c'') = mapM intersectAll =<< mapMaybeM checkConst [c, c', c'']
-    checkConst (LC.ExtractElement c c') = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst (LC.InsertElement c c' c'') = mapM intersectAll =<< mapMaybeM checkConst [c, c', c'']
-    checkConst (LC.ShuffleVector c c' c'') = mapM intersectAll =<< mapMaybeM checkConst [c, c', c'']
-    checkConst (LC.ExtractValue c _) = checkConst c
-    checkConst (LC.InsertValue c c' _) = mapM intersectAll =<< mapMaybeM checkConst [c, c']
-    checkConst _ = pure Nothing
-
-    nameOfCallable (Right (LL.ConstantOperand (LC.GlobalReference _ n))) = return n
-    nameOfCallable (Right (LL.LocalReference _ _)) = throw UnsupportedLocalFunction
-    nameOfCallable (Right _) = throw UnsupportedMetadataCall
-    nameOfCallable (Left _) = throw UnsupportedInlineASM
-
-checkTerm :: Terminator (LLWrapper & Annotated)
+checkTerm ::
+  Level
+  -> Terminator (LLWrapper & Annotated)
   -> Tc TermResult
-checkTerm (Terminator ((WrapTerminator term) :& (AnnotatedTerm ty))) = do
+checkTerm level (Terminator ((WrapTerminator term) :& (AnnotatedTerm (VarType level' remotes)))) = do
+  assert (LevelMismatch level level') (level == level')
   case term of
     LL.Do (LL.Ret (Just op) _) -> do
-      mty' <- operandTy op
-      case mty' of
-        Just ty' -> assert (ShareabilityViolation ty ty') (ty <: ty')
-        _ -> pure ()
-      pure $ Return ty
+      remotes' <- checkOp level op
+      assert (ShareabilityViolation remotes remotes') (remotes `S.isSubsetOf` remotes')   
+      pure $ Return remotes 
     LL.Do LL.CondBr {condition} -> do
-      mty' <- operandTy condition
-      case mty' of
-        Just ty' -> assert (ShareabilityViolation ty ty') (ty <: ty')
-        _ -> pure ()
-      pure $ Break $ Just ty
-    LL.Do LL.Br {} -> pure $ Break Nothing
+      remotes' <- checkOp level condition
+      assert (ShareabilityViolation remotes remotes') (remotes `S.isSubsetOf` remotes')   
+      pure $ Break remotes 
+    LL.Do LL.Br {} -> Break <$> asks universe 
     _ -> throw $ UnsupportedTerminator term
