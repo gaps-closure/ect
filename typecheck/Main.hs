@@ -66,7 +66,7 @@ run globals llmap clemap = mapM_ print $ tc <$> M.keys annotated
                 Global (_ :& (AnnotatedGlobal ty)) -> ty
                 Function _ (_ :& (AnnotatedGlobal ty)) -> ty 
             ) <$> annotated  
-        ctx = Context M.empty globalMap (S.fromList ["orange", "purple", "green"])
+        ctx = mkContext globalMap (S.fromList ["orange", "purple", "green"])
         filterMaybe = fmap fromJust . M.filter isJust
 
 main :: IO ()

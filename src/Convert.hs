@@ -32,17 +32,21 @@ toFunType clemap nargs json@CLEJSON {level, cdf} =
         defaultTy = 
             FunctionType 
                 level 
-                []
+                S.empty 
                 (S.singleton level) 
                 (replicate nargs remoteLevels) 
                 remoteLevels
-        mkTy (args, ret) = FunctionType level [] remoteLevels args ret  
-        pairwiseUnion (args, ret) (args',  ret') =
-            (zipWith S.union args args', S.union ret ret')
+        mkTy (args, ret, flows) = FunctionType level flows remoteLevels args ret  
+        pairwiseUnion (args, ret, flows) (args',  ret', flows') =
+            (zipWith S.union args args', S.union ret ret', flows `S.union` flows')
         fromCDF CDF {argtaints, codtaints, rettaints} = do
             args <- mapM (fmap S.unions . mapM lookupRemoteLevel) =<< argtaints
-            ret <- mapM lookupRemoteLevel =<< rettaints
-            pure (args, S.unions ret)
+            cod <- mapM lookupRemoteLevel =<< codtaints
+            ret <- S.unions <$> (mapM lookupRemoteLevel =<< rettaints)
+            let argFlows = S.fromList $ (:<:) <$> cod <*> args
+            let codFlows = S.fromList $ (:<:) <$> cod <*> cod  
+            let retFlows = S.fromList $ (ret :<:) <$> cod
+            pure (args, ret, argFlows `S.union` codFlows `S.union` retFlows)
         lookupRemoteLevel label = remoteLevelsOf <$> M.lookup label clemap
         remoteLevelsOf CLEJSON {cdf = x} = S.fromList $ remotelevel <$> fromMaybe [] x
 
