@@ -230,7 +230,7 @@ data Context
 mkContext :: Map LL.Name CLEType -> Set Level -> Context
 mkContext = Context M.empty S.empty []
 
-type SeenBasicBlocks = Set LL.Name
+type SeenBasicBlocks = Map LL.Name RemoteLevels 
 type BBMap = Map LL.Name (BasicBlock (LLWrapper & Annotated))
 
 type Tc = RWST Context [Flow] () (Except Err)
@@ -316,7 +316,7 @@ checkGlobal fn@(Function bbs (WrapGlobal LL.Function {parameters} :& AnnotatedGl
   uni <- asks universe
   actualRet <-
     withFlows funFlows $
-    withLocals argMap $ checkBasicBlock level uni bbMap S.empty firstBB
+    withLocals argMap $ checkBasicBlock level uni bbMap M.empty firstBB
   let expectedRet = ret
   shareable <- actualRet <: expectedRet
   assert (ShareabilityViolation actualRet expectedRet) shareable
@@ -340,7 +340,7 @@ checkBasicBlock ::
   -> Tc RemoteLevels
 checkBasicBlock level constr bbMap seen bb@(BasicBlock n instrs term _) = withStackItem (InBasicBlock bb) $ do
   locals' <- checkInstrs
-  withLocals locals' (checkTerm level constr bbMap (S.insert n seen) term)
+  withLocals locals' (checkTerm level constr bbMap (M.insert n constr seen) term)
   where
     checkInstrs = foldl checkOver (asks locals) instrs
     checkOver tclocals instr = do
@@ -528,8 +528,12 @@ checkTerm level constr bbMap seen tm@(Terminator ((WrapTerminator term) :& (Anno
           Just bb -> pure bb
           Nothing -> throw $ LookupFailure n
       checkBB constr' bb =
-        if S.member (bbName bb) seen then
-          asks universe
-        else
-          checkBasicBlock level constr' bbMap seen bb
+        case M.lookup (bbName bb) seen of
+          Just constr'' -> 
+            if constr' == constr'' then 
+              pure constr' 
+            else 
+              checkBasicBlock level constr' bbMap seen bb
+          _ -> 
+            checkBasicBlock level constr' bbMap seen bb
       bbName (BasicBlock n _ _ _) = n
