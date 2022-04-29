@@ -26,7 +26,7 @@ Each of the following processes succeeds on a fresh docker image of Ubuntu 20.04
 #### Quickest build and run (use pre-built examples)
 
 ```
-apt install llvm-9 llvm-9-dev
+sudo apt install llvm-9 llvm-9-dev
 curl -sSL https://get.haskellstack.org/ | sh
 git clone https://github.com/gaps-closure/build.git
 cd build/capo
@@ -39,7 +39,7 @@ scripts/run_ex.sh example1 # identifies inconsistency: zero-argument function be
 #### Quick build and run (prepares examples from source before running)
 
 ```
-apt install llvm-9 llvm-9-dev clang-9 libclang-9-dev python3-pip libzmq3-dev sqlite3 libsqlite3-dev
+sudo apt install llvm-9 llvm-9-dev clang-9 libclang-9-dev python3-pip libzmq3-dev sqlite3 libsqlite3-dev
 pip3 install 'clang==9' jsonschema lark
 curl -sSL https://get.haskellstack.org/ | sh
 git clone https://github.com/gaps-closure/build.git
