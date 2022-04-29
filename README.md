@@ -25,6 +25,7 @@ Each of the following processes succeeds on a fresh docker image of Ubuntu 20.04
 
 #### Quickest build and run (use pre-built examples)
 
+```
 apt install llvm-9 llvm-9-dev
 curl -sSL https://get.haskellstack.org/ | sh
 git clone https://github.com/gaps-closure/build.git
@@ -33,9 +34,11 @@ git submodule update --init --recursive
 cd C/ect
 scripts/run_ex.sh secdesk  # proves original and refactored equivalent, outputs secdesk_proof.smt2
 scripts/run_ex.sh example1 # identifies inconsistency: zero-argument function becomes vararg
+```
 
 #### Quick build and run (prepares examples from source before running)
 
+```
 apt install llvm-9 llvm-9-dev clang-9 libclang-9-dev python3-pip libzmq3-dev sqlite3 libsqlite3-dev
 pip3 install 'clang==9' jsonschema lark
 curl -sSL https://get.haskellstack.org/ | sh
@@ -47,6 +50,7 @@ python3 scripts/build_ex.py secdesk
 python3 scripts/build_ex.py example1
 scripts/run_ex.sh secdesk
 scripts/run_ex.sh example1
+```
 
 #### Entire process (copy source from build/apps, prepare examples, run)
 
