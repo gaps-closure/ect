@@ -1,0 +1,29 @@
+[
+    {
+      "cle-label": "PURPLE",
+      "cle-json": {
+        "level": "purple"
+      }
+    },
+    {
+      "cle-label": "ORANGE",
+      "cle-json": {
+        "level": "orange"
+      }
+    },
+    {
+      "cle-label": "ORANGE_SHAREABLE",
+      "cle-json": {
+        "level": "orange",
+        "cdf": [
+          {
+            "remotelevel": "purple",
+            "direction": "egress",
+            "guarddirective": {
+              "operation": "allow"
+            }
+          }
+        ]
+      }
+    }
+]

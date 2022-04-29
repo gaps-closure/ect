@@ -56,8 +56,12 @@ run ::
     M.Map LL.Name (Global IndexedAssignment) ->
     CLEMap ->
     IO ()
-run globals llmap clemap = mapM_ print $ tc <$> M.keys annotated
+run globals llmap clemap = mapM_ printRes $ tc <$> M.keys annotated
     where
+        printRes (n, Nothing) = putStrLn $ "Failure reading: " ++ show n
+        printRes (n, Just (Right (_, []))) = putStrLn $ "Success: " ++ show n
+        printRes (n, Just (Right (_, flows))) = putStrLn $ "Success: " ++ show n ++ " with flows " ++ show flows
+        printRes (n, Just (Left err)) = putStrLn $ "Error at " ++ show n ++ ": " ++ prettyErr err
         tc n = (n, runTc ctx . checkGlobal <$> M.lookup n annotated)
         named = M.fromList $ zip (nameOf <$> globals) globals
         zipped = filterMaybe $ M.intersectionWith zipGlobal named llmap
