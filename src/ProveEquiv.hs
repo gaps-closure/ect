@@ -122,9 +122,9 @@ writeLocation ls = do
         ((_, bb1@(Just _), _), (_, bb2@(Just _), _)) ->
           ((gP, bb1, Nothing), (gR, bb2, Nothing))
         _ -> case (iP, iR) of
-          (Nothing, Nothing) -> 
+          (Nothing, Nothing) ->
             ((gP, bbP, Just 0), (gR, bbR, Just 0))
-          (Just xP, Just xR) -> 
+          (Just xP, Just xR) ->
             ((gP, bbP, Just $ xP + 1), (gR, bbR, Just $ xR + 1))
           _ -> error "writeLocation: source locations out of sync"
   putEnclave (\m a -> m { whereAmI = a }) newloc
@@ -359,7 +359,7 @@ proveCongruence lName rName = do
   where
     getNewPID = ProofM $ lift $ gets currentPID
     err s n = error $ s ++ ": global @" ++ showName n ++ " not found in NameReferenceMap"
-    
+    prefix = "_err_handle_rpc_"
     searchPartition n = do
       ProofState{..} <- ProofM $ lift get
       case concatMap enclaveDefs (otherEnclaves curEnclave partition) of
@@ -367,18 +367,18 @@ proveCongruence lName rName = do
         _ -> error $ "ambiguous / non-existent rpc call to definition: " ++ showName n
       where
         otherEnclaves cur p = [ e | (en, e) <- M.toList p, en /= cur ]
-        enclaveDefs e = map (\(mn, g) -> (ename e, mn, g)) $ filter isDef $ catMaybes $ 
+        enclaveDefs e = map (\(mn, g) -> (ename e, mn, g)) $ filter isDef $ catMaybes $
           M.elems $ M.map (\m -> searchModule n' (mname m) m) (modules e)
         n' = case n of
           A.Name bytes
-            | isPrefixOf "_rpc_" s -> A.Name $ toShort $ C.pack $ drop 5 s
+            | prefix `isPrefixOf` s -> A.Name $ toShort $ C.pack $ drop (length prefix) s
             | otherwise -> error rpc_err
             where s = C.unpack $ fromShort bytes
           _ -> error rpc_err
         rpc_err = "searchPartition: @" ++ showName n ++ " is not an RPC call"
 
-    searchEnclave n e 
-      | isPrefixOf "_rpc_" (showName n) = Nothing
+    searchEnclave n e
+      | prefix `isPrefixOf` showName n = Nothing
       | otherwise = case searchModule n (mname m) m of
         Just (_, g) -> case g of
           GlobalDef f@A.Function{} | null (A.basicBlocks f) -> case allDefs of
@@ -390,9 +390,9 @@ proveCongruence lName rName = do
               _ -> error $ "Function @" ++ showName n ++ " multiply defined with strong linkage in enclave: " ++ ename e
           _ -> Just (mname m, g)
         _ -> error $ "Global @" ++ showName n ++ " not found in module: " ++ mname m
-      where 
+      where
         m = (forceLookup (curModule e) (modules e))
-        allDefs = filter isDef $ catMaybes $ 
+        allDefs = filter isDef $ catMaybes $
           M.elems $ M.map (\m' -> searchModule n (mname m') m') (modules e)
 
     isDef (_, GlobalDef f@A.Function{}) = not $ null (A.basicBlocks f)
@@ -401,11 +401,11 @@ proveCongruence lName rName = do
     isWeak (_, GlobalDef f@A.Function{}) = A.linkage f == A.Weak
     isWeak _ = False
 
-    searchModule n mn m = 
+    searchModule n mn m =
       case M.lookup n (globals m) of
         Nothing -> Nothing
         Just g -> Just (mn, g)
-    
+
     recurse ln lg rn rg = do
       pushMatching
       locs <- fromEnclave whereAmI
@@ -414,8 +414,8 @@ proveCongruence lName rName = do
       _ <- case (lg, rg) of
         (GlobalDef lg', GlobalDef rg') -> do
           _ <- proveEquiv lg' rg'
-          liftIO $ putStrLn $ ";;;            " 
-                               ++ showName lName ++ " == " 
+          liftIO $ putStrLn $ ";;;            "
+                               ++ showName lName ++ " == "
                                ++ showName rName
         (TypeDef lg', TypeDef rg') -> do
           _ <- proveEquiv lg' rg'
