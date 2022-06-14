@@ -4,9 +4,9 @@ packages:
 - .
 
 extra-deps:
-- git: git@github.com:gaps-closure/haskell-z3.git
+- git: https://github.com/gaps-closure/haskell-z3.git
   commit: fad1fe11ab9dda192bb89e90ea14a80d90140fcb
-- git: git@github.com:llvm-hs/llvm-hs.git
+- git: https://github.com/llvm-hs/llvm-hs.git
   commit: b518fe11241e8aea40760eee9cd95421ef772646
   subdirs:
   - llvm-hs
