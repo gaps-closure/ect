@@ -6,12 +6,12 @@
 #define DST_ADDR "ipc:///tmp/websrvsubgreen"
 
 void _rpc_get_frame(int flag, char* buf, int* err);
-void get_frame(int flag, char* buf) {
+void get_frame(int flag, char buf[static FRAME_SIZE]) {
     for (int i = 0; i < FRAME_SIZE; i++) buf[i] = i * 2;
 }
 
 int main() {
-    char* buf = malloc(sizeof(char) * FRAME_SIZE);
+    char buf[FRAME_SIZE];
     int flag = 1;
     int err = 0;
     _rpc_get_frame(flag, buf, &err);
@@ -19,7 +19,6 @@ int main() {
     if (!err) // Do something with the contents of buf
     else      // handle error
 
-    free(buf);
     return 0;
 }
 

@@ -6,12 +6,12 @@
 #define DST_ADDR "ipc:///tmp/websrvsubgreen"
 
 void _rpc_get_frame(int flag, char* buf);
-void get_frame(int flag, char* buf) {
+void get_frame(int flag, char buf[static FRAME_SIZE]) {
     for (int i = 0; i < FRAME_SIZE; i++) buf[i] = i * 2;
 }
 
 int main() {
-    char* buf = malloc(sizeof(char) * FRAME_SIZE);
+    char buf[FRAME_SIZE];
     int flag = 1;
 
     _rpc_get_frame(arg, buf);
@@ -19,7 +19,6 @@ int main() {
     // Do something with the contents of buf
 
 
-    free(buf);
     return 0;
 }
 
@@ -31,10 +30,10 @@ typedef struct net_context {} net_context;
 typedef struct net_socket  {} net_socket;
 typedef struct net_packet  {} net_packet;
 
-void net_ctx_new();
+net_context* net_ctx_new();
 void net_ctx_close(net_context* ctx);
 
-void net_socket(char* addr);
+net_socket* net_socket(char* addr);
 void net_connect(net_socket* s, net_context* ctx);
 void net_socket_close(net_socket* s);
 

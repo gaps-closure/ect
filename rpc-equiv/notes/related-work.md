@@ -16,6 +16,7 @@ Since this is interesting stuff, there is probably a lot of cutting edge work on
 - https://www.cse.unsw.edu.au/~ikuz/publications/fm.15.pdf (M Fernandez, J Andronick, G Klein, I Kuz)
 - https://apps.dtic.mil/sti/pdfs/AD1039782.pdf (the above paper is mentioned in this big overview of a DARPA-adjacent project)
 - https://drops.dagstuhl.de/opus/volltexte/2022/16736/pdf/LIPIcs-ITP-2022-27.pdf (integration in larger project?)
+- https://drops.dagstuhl.de/opus/volltexte/2021/13927/pdf/LIPIcs-ITP-2021-32.pdf (suggested approach to model from Ben)
 
 ## Backburner
 
