@@ -1,0 +1,49 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: a5e05f4274ae2f123ee173f0e4bfc71da8d26fb8f427f58888ff885f51a7f588
+
+name:           rpc-imp
+version:        0.1.0.0
+homepage:       https://github.com/gaps-closure/ect#readme
+bug-reports:    https://github.com/gaps-closure/ect/issues
+author:         GAPS CLOSURE project
+maintainer:     sedwards@cs.columbia.edu
+copyright:      2023 GAPS CLOSURE project
+license:        BSD3
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/gaps-closure/ect
+
+library
+  exposed-modules:
+      Interpreter
+      Parser
+      RpcImp
+  other-modules:
+      Paths_rpc_imp
+  hs-source-dirs:
+      src
+  ghc-options: -Wall
+  build-depends:
+      base >=4.7 && <5
+    , containers
+  default-language: Haskell2010
+
+executable generator
+  main-is: Generator.hs
+  other-modules:
+      Paths_rpc_imp
+  hs-source-dirs:
+      app
+  ghc-options: -Wall
+  build-depends:
+      base >=4.7 && <5
+    , containers
+    , rpc-imp
+  default-language: Haskell2010
