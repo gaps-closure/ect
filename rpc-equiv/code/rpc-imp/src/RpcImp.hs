@@ -45,3 +45,5 @@ data Definition =
     RSortDef Name [(Name, Sort)]
   | RGlobDef Name (Maybe Val) Sort
   | RFuncDef Name [(Name, Sort)] Sort Cmd
+
+data Program = Program [Definition] Name

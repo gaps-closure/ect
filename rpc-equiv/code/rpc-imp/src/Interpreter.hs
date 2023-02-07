@@ -1,4 +1,4 @@
-module Interpreter (Program (..), rpcImpRun, display) where
+module Interpreter (rpcImpRun, display) where
 
 import Data.Map as M hiding (map, foldr)
 import Data.List
@@ -49,8 +49,6 @@ assignUndefError n =
       ++ n ++ "' is assigned to before it is defined"
 
 -- Interpreter for an Rpc-IMP program --
-
-data Program = Program [Definition] Name
 
 type SortTable = M.Map Name [(Name, Sort)]
 type VarTable  = M.Map Name (Sort, Maybe Val)

@@ -1,5 +1,11 @@
 import Interpreter
 import Parser
+import RpcImp
+import Transpiler
+
+-- TODO:
+-- Accept RPC function signature as input 
+-- and auto-generate the RpcIMP program
 
 sample1 :: Program
 sample1 =
@@ -40,4 +46,6 @@ runProgram :: Program -> IO ()
 runProgram prog = putStrLn $ display $ rpcImpRun prog
 
 main :: IO ()
-main = runProgram sample1
+main = do
+  runProgram sample1
+  putStrLn $ transpile sample1
