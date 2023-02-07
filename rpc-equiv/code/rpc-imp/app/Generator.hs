@@ -3,6 +3,8 @@ import Parser
 import RpcImp
 import Transpiler
 
+import System.IO
+
 -- TODO:
 -- Accept RPC function signature as input 
 -- and auto-generate the RpcIMP program
@@ -48,4 +50,4 @@ runProgram prog = putStrLn $ display $ rpcImpRun prog
 main :: IO ()
 main = do
   runProgram sample1
-  putStrLn $ transpile sample1
+  writeFile "out.c" $ transpile sample1

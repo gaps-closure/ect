@@ -22,8 +22,18 @@ transpileTyped (n, s) = transpileSort s ++ " " ++ n
 transpileDecl :: (Name, Sort) -> String
 transpileDecl (n, s) =  transpileTyped (n, s) ++ ";"
 
+transpileExpr :: Expr -> String
+transpileExpr e = "EXPR"
+
 transpileBody :: Cmd -> String
-transpileBody c = ""
+transpileBody RSkip = ""
+transpileBody (RSeq c1 c2) = transpileBody c1 ++ "\n    " ++ transpileBody c2 ++ "\n    "
+transpileBody (RDeclare n s) = transpileDecl (n, s)
+transpileBody (RAssign n e) = n ++ " = " ++ transpileExpr e ++ ";"
+transpileBody (RMemberAssign n1 n2 e) = n1 ++ "." ++ n2 ++ " = " ++ transpileExpr e ++ ";"
+transpileBody (RIte e c1 c2) = 
+    "if (" ++ transpileExpr e ++ ") {\n    " ++ transpileBody c1 ++ "\n} else {\n    " ++ transpileBody c2 ++ "\n}"
+transpileBody (RReturn e) = "return " ++ transpileExpr e ++ ";"
 
 transpileDef :: Definition -> String
 transpileDef (RSortDef n fields) =
