@@ -3,8 +3,6 @@ import Parser
 import RpcImp
 import Transpiler
 
-import System.IO
-
 -- TODO:
 -- Accept RPC function signature as input 
 -- and auto-generate the RpcIMP program
@@ -17,11 +15,11 @@ sample1 =
 
     (q, qDef) = declGlob "q" int
 
-    double =
+    dbl =
       let
         (num, num2) = ("num", "num2")
       in
-        mkFunc "double" [(num, int)] int [
+        mkFunc "dbl" [(num, int)] int [
           declare' num2 int
         , num2 ^<- (num ^+ num)
         , return' num2
@@ -36,13 +34,13 @@ sample1 =
         , declare' y tup
         , declare' z bool
         , q ^<- (5 :: Int)
-        , x ^<- (invoke' double [q])
+        , x ^<- (invoke' dbl [q])
         , (y ^. "fst") ^.<- (x ^+ q)
         , ite' ((y ^. "fst") ^> (14 :: Int)) (z ^<- True) (z ^<- False)
         , return' z
         ]
   in
-    Program [tupDef, qDef, double, gen_main] "main"
+    Program [tupDef, qDef, dbl, gen_main] "main"
 
 runProgram :: Program -> IO ()
 runProgram prog = putStrLn $ display $ rpcImpRun prog

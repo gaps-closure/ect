@@ -7,32 +7,23 @@ typedef struct tup {
 
 int q;
 
-int double (int num) {
-int num2;
-    num2 = EXPR;
-    return EXPR;
-    
-    
+int dbl (int num) {
+    int num2;
+    num2 = (num + num);
+    return num2;
 }
 
-bool main () {
-int x;
+int main () {
+    int x;
     tup y;
     bool z;
-    q = EXPR;
-    x = EXPR;
-    y.fst = EXPR;
-    if (EXPR) {
-    z = EXPR;
+    q = 5;
+    x = dbl(q);
+    y.fst = (x + q);
+    if ((y.fst > 14)) {
+    z = true;
 } else {
-    z = EXPR;
+    z = false;
 }
-    return EXPR;
-    
-    
-    
-    
-    
-    
-    
+    return z;
 }
