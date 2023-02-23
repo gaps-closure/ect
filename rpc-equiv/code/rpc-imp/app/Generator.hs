@@ -48,4 +48,4 @@ runProgram prog = putStrLn $ display $ rpcImpRun prog
 main :: IO ()
 main = do
   runProgram sample1
-  writeFile "out.c" $ transpile sample1
+  writeFile "transpiled.c" $ transpile sample1
