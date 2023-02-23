@@ -32,29 +32,28 @@ genProgram (n, args, ret) =
     marshal_args =
       let
         m = "argmarshal"
-        struct_assigns = map (\a -> (m ^. a) ^.<- a) argnames
+        (t, err, seqn) = ("t", "err", "seq")
+        struct_assigns = map (\a -> (m ^. a) ^<- a) argnames
       in
         mkFunc "marshal_args" named_args m_args $ [
           declare' m m_args
         ] ++ struct_assigns ++ [
-          -- TODO: support nested struct assign
-          -- set trailer err to false
-          -- set trailer seq to 1
-          return' m
+          m ^. t ^. err ^<- False
+        , m ^. t ^. seqn ^<- (1 :: Int)
+        , return' m
         ]
     marshal_ret =
       let
         m = "retmarshal"
         res = "res"
+        (t, err, seqn) = ("t", "err", "seq")
       in
         mkFunc "marshal_ret" [(res, ret)] m_ret $ [
           declare' m m_ret
-        , (m ^. res) ^.<- res
-        , 
-          -- TODO: support nested struct assign
-          -- set trailer err to false
-          -- set trailer seq to 1
-          return' m
+        , m ^. res ^<- res
+        , m ^. t ^. err ^<- False
+        , m ^. t ^. seqn ^<- (1 :: Int)
+        , return' m
         ]
     handler =
       let
@@ -68,7 +67,7 @@ genProgram (n, args, ret) =
           arg_decls ++ 
           arg_assigns ++ [
           declare' res ret
-        , res ^<- (invokeLinked n argnames)
+        , res ^<- (invokeLinked' n argnames)
         , declare' m2 m_ret
         , m2 ^<- (invoke' marshal_ret [res])
         , return' m2
@@ -136,7 +135,7 @@ main = do
 --         , declare' z bool
 --         , q ^<- (5 :: Int)
 --         , x ^<- (invoke' dbl [q])
---         , (y ^. "fst") ^.<- (x ^+ q)
+--         , (y ^. "fst") ^<- (x ^+ q)
 --         , ite' ((y ^. "fst") ^> (14 :: Int)) (z ^<- True) (z ^<- False)
 --         , return' z
 --         ]

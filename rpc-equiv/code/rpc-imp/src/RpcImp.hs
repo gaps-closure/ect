@@ -9,6 +9,7 @@ data Sort =
   | RIntSort
   | RFloatSort
   | RStructSort Name
+  | RArraySort Sort Int
   deriving (Eq, Show)
 
 data Val =
@@ -16,12 +17,18 @@ data Val =
   | RInt Int
   | RFloat Float
   | RStruct Name [(Name, Maybe Val)]
+  | RArray Sort Int [Maybe Val]
   deriving (Eq, Show)
+
+data NameExpr =
+    RName Name
+  | RStructMember NameExpr Name
+  | RArrayElement NameExpr Expr
+  deriving (Show)
 
 data Expr =
     RVal Val
-  | RVar Name
-  | RAccess Name Name
+  | RVar NameExpr
   | RAdd Expr Expr
   | RSub Expr Expr
   | RNot Expr
@@ -35,8 +42,7 @@ data Cmd =
     RSkip
   | RSeq Cmd Cmd
   | RDeclare Name Sort
-  | RAssign Name Expr
-  | RMemberAssign Name Name Expr
+  | RAssign NameExpr Expr
   | RIte Expr Cmd Cmd
   | RReturn Expr
   deriving (Show)

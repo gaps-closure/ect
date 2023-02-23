@@ -8,13 +8,7 @@ transpileSort RBoolSort       = "bool"
 transpileSort RIntSort        = "int"
 transpileSort RFloatSort      = "double"
 transpileSort (RStructSort n) = n
-
-transpileVal :: Val -> String
-transpileVal (RBool True)  = "true"
-transpileVal (RBool False) = "false"
-transpileVal (RInt i)      = show i
-transpileVal (RFloat f)    = show f
-transpileVal (RStruct _ _) = error "struct value transpile unsupported"
+transpileSort (RArraySort s i) = transpileSort s ++ "[" ++ show i ++ "]"
 
 transpileTyped :: (Name, Sort) -> String
 transpileTyped (n, s) = transpileSort s ++ " " ++ n
@@ -22,10 +16,22 @@ transpileTyped (n, s) = transpileSort s ++ " " ++ n
 transpileDecl :: (Name, Sort) -> String
 transpileDecl (n, s) = transpileTyped (n, s) ++ ";"
 
+transpileVal :: Val -> String
+transpileVal (RBool True)   = "true"
+transpileVal (RBool False)  = "false"
+transpileVal (RInt i)       = show i
+transpileVal (RFloat f)     = show f
+transpileVal (RStruct _ _)  = error "struct value transpile unsupported"
+transpileVal (RArray _ _ _) = error "array value transpile unsupported"
+
+transpileNameExpr :: NameExpr -> String
+transpileNameExpr (RName n) = n
+transpileNameExpr (RStructMember ne n) = transpileNameExpr ne ++ "." ++ n
+transpileNameExpr (RArrayElement ne e) = transpileNameExpr ne ++ "[" ++ transpileExpr e ++ "]"
+
 transpileExpr :: Expr -> String
 transpileExpr (RVal v)         = transpileVal v
-transpileExpr (RVar n)         = n
-transpileExpr (RAccess n1 n2)  = n1 ++ "." ++ n2
+transpileExpr (RVar ne)        = transpileNameExpr ne
 transpileExpr (RAdd e1 e2)     = "("  ++ transpileExpr e1 ++ " + "  ++ transpileExpr e2 ++ ")"
 transpileExpr (RSub e1 e2)     = "("  ++ transpileExpr e1 ++ " - "  ++ transpileExpr e2 ++ ")"
 transpileExpr (RNot e1)        = "!(" ++ transpileExpr e1 ++ ")"
@@ -43,13 +49,9 @@ transpileBody i (RSeq c1 c2) = transpileBody i c1 ++ "\n" ++ transpileBody i c2
 transpileBody i (RDeclare n s) =
   indent i 
     ++ transpileDecl (n, s)
-transpileBody i (RAssign n e) = 
+transpileBody i (RAssign ne e) = 
   indent i
-    ++ n ++ " = " 
-    ++ transpileExpr e ++ ";"
-transpileBody i (RMemberAssign n1 n2 e) = 
-  indent i
-    ++ n1 ++ "." ++ n2 ++ " = "
+    ++ transpileNameExpr ne ++ " = " 
     ++ transpileExpr e ++ ";"
 transpileBody i (RIte e c1 c2) =
   indent i
@@ -68,11 +70,10 @@ transpileDef (RSortDef n fields) =
     ++ intercalate "\n    " (map transpileDecl fields) ++ "\n} " ++ n ++ ";"
 transpileDef (RGlobDef n v srt) =
   case v of
-    Just v' -> transpileSort srt ++ " " ++ n ++ " = " ++ transpileVal v' ++ ";"
+    Just v' -> transpileTyped (n, srt) ++ " = " ++ transpileVal v' ++ ";"
     Nothing -> transpileDecl (n, srt)
 transpileDef (RFuncDef n args ret body) =
-  transpileSort ret 
-    ++ " " ++ n ++ "("
+  transpileTyped (n, ret) ++ "("
     ++ intercalate ", " (map transpileTyped args) ++ ") {\n"
     ++ transpileBody 4 body ++ "\n}"
 

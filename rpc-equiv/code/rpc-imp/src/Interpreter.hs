@@ -57,10 +57,11 @@ type FuncTable = M.Map Name ([(Name, Sort)], Sort, Cmd)
 type State = (SortTable, FuncTable, VarTable, VarTable)
 
 sortOf :: Val -> Sort
-sortOf (RBool _)     = RBoolSort
-sortOf (RInt _)      = RIntSort
-sortOf (RFloat _)    = RFloatSort
-sortOf (RStruct n _) = RStructSort n
+sortOf (RBool _)      = RBoolSort
+sortOf (RInt _)       = RIntSort
+sortOf (RFloat _)     = RFloatSort
+sortOf (RStruct n _)  = RStructSort n
+sortOf (RArray s i _) = RArraySort s i
 
 lookupVar :: State -> Name -> Val
 lookupVar (_, _, gs, ls) n =
@@ -74,8 +75,8 @@ lookupVar (_, _, gs, ls) n =
 
 evalExpr :: State -> Expr -> (Val, State)
 evalExpr st (RVal v) = (v, st)
-evalExpr st (RVar name) = (lookupVar st name, st)
-evalExpr st (RAccess name field) =
+evalExpr st (RVar name) = (lookupVar st name, st) -- TODO: name is a NameExpr now, resolve
+evalExpr st (RAccess name field) = -- TODO: RAccess DNE, bundle functionality into the above case
   case lookupVar st name of
     RStruct _ fields ->
       case find (\(n, _) -> n == field) fields of
@@ -143,7 +144,7 @@ evalExpr st (RSub e1 e2) =
 evalExpr st (RInvoke n arg_exprs) =
   let
     evalExpr' (_, st') = evalExpr st'
-    argscan = scanl evalExpr' (RBool False, st) arg_exprs -- RBool False unused
+    argscan = scanl evalExpr' (RBool False, st) arg_exprs
     argvals = tail $ map fst argscan
     final_st = snd $ last argscan
   in
@@ -183,6 +184,7 @@ evalCmd st (RAssign a expr) =
   let
     (v, (ss, fs, gs, ls)) = evalExpr st expr
   in
+    -- TODO: a is a NameExpr now, resolve the name before assigning to map
     case M.lookup a ls of
       Just (srt, _) | sortOf v == srt -> (Nothing, (ss, fs, gs, M.insert a (srt, Just v) ls))
       Just (srt, _) -> assignTypeError v a srt
@@ -191,7 +193,7 @@ evalCmd st (RAssign a expr) =
           Just (srt, _) | sortOf v == srt -> (Nothing, (ss, fs, M.insert a (srt, Just v) gs, ls))
           Just (srt, _) -> assignTypeError v a srt
           Nothing -> assignUndefError a
-evalCmd st (RMemberAssign n field expr) =
+evalCmd st (RMemberAssign n field expr) = -- TODO: RMemberAssign DNE, bundle functionality into above case
   let
     (v, (ss, fs, gs, ls)) = evalExpr st expr
     updateVarTable tb srt sv =
@@ -256,10 +258,11 @@ rpcImpRun :: Program -> (Val, State)
 rpcImpRun = evalProgram (M.empty, M.empty, M.empty, M.empty)
 
 showSort :: Sort -> String
-showSort (RBoolSort)     = "BOOL"
-showSort (RIntSort)      = "INT"
-showSort (RFloatSort)    = "FLOAT"
-showSort (RStructSort n) = "STRUCT " ++ n
+showSort (RBoolSort)      = "BOOL"
+showSort (RIntSort)       = "INT"
+showSort (RFloatSort)     = "FLOAT"
+showSort (RStructSort n)  = "STRUCT " ++ n
+showSort (RArraySort s i) = "ARRAY[" ++ show i ++ "] OF " ++ showSort s
 
 showVal :: Val -> String
 showVal (RBool b)  = show b
@@ -272,6 +275,11 @@ showVal (RStruct n fields) =
       case v of
         Just v' -> n' ++ " <- " ++ showVal v'
         Nothing -> n'
+showVal (RArray vs) =
+  "[" ++ intercalate ", " (map showElement vs) ++ "]"
+  where
+    showElement (Just v) = showVal v
+    showElement _ = "_"
 
 dumpState :: State -> String
 dumpState (ss, fs, gs, _) =
