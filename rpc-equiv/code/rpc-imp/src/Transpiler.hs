@@ -72,7 +72,7 @@ transpileDef (RGlobDef n v srt) =
     Nothing -> transpileDecl (n, srt)
 transpileDef (RFuncDef n args ret body) =
   transpileSort ret 
-    ++ " " ++ n ++ " ("
+    ++ " " ++ n ++ "("
     ++ intercalate ", " (map transpileTyped args) ++ ") {\n"
     ++ transpileBody 4 body ++ "\n}"
 

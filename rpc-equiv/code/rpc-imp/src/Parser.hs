@@ -14,6 +14,7 @@ class Primitive a where
   if' :: a -> Cmd -> Cmd
   ite' :: a -> Cmd -> Cmd -> Cmd
   invoke' :: Definition -> [a] -> Expr
+  invokeLinked :: String -> [a] -> Expr
   
   (^.<-) :: Expr -> a -> Cmd
   (^<-) :: String -> a -> Cmd
@@ -30,6 +31,7 @@ class Primitive a where
   ite' b = RIte (asExpr b)
   invoke' (RFuncDef n _ _ _) args = RInvoke n (map asExpr args)
   invoke' _ _ = error "parse error: non-function is invoked"
+  invokeLinked n args = RInvoke n (map asExpr args)
   
   (RAccess n1 n2) ^.<- p1 = RMemberAssign n1 n2 $ asExpr p1
   _ ^.<- _ = error "parse error: struct assignment to non struct member"
