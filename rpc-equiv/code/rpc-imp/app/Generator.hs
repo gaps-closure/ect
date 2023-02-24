@@ -4,7 +4,6 @@ import RpcImp
 import Transpiler
 
 import System.Environment
-import Data.List (findIndex)
 
 type Signature = (Name, [Sort], Sort)
 

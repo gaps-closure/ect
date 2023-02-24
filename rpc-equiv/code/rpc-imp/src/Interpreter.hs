@@ -6,6 +6,30 @@ import RpcImp
 
 -- Rpc-IMP interpreter error messages --
 
+showSort :: Sort -> String
+showSort (RBoolSort)      = "BOOL"
+showSort (RIntSort)       = "INT"
+showSort (RFloatSort)     = "FLOAT"
+showSort (RStructSort n)  = "STRUCT " ++ n
+showSort (RArraySort s i) = "ARRAY[" ++ show i ++ "] OF " ++ showSort s
+
+showVal :: Val -> String
+showVal (RBool b)  = show b
+showVal (RInt i)   = show i
+showVal (RFloat f) = show f
+showVal (RStruct n fields) =
+  "struct " ++ n ++ " { " ++ intercalate ", " (map showField fields) ++ " }"
+  where 
+    showField (n', v) =
+      case v of
+        Just v' -> n' ++ " <- " ++ showVal v'
+        Nothing -> n'
+showVal (RArray _ _ vs) =
+  "[" ++ intercalate ", " (map showElement vs) ++ "]"
+  where
+    showElement (Just v) = showVal v
+    showElement _ = "_"
+
 iteTypeError :: Expr -> a
 iteTypeError e = 
   error $
@@ -18,11 +42,11 @@ compTypeError e1 e2 =
     "type error: invalid types for comparision between expressions '"
      ++ show e1 ++ "' and '" ++ show e2 ++ "'"
 
-assignTypeError :: Val -> String -> Sort -> a
-assignTypeError v a s = 
+assignTypeError :: Val -> Sort -> a
+assignTypeError v s = 
   error $ 
     "type error: mismatched types for assignment of '" 
-      ++ show v ++ "' to '" ++ a ++ "' which has type '" ++ show s ++ "'"
+      ++ showVal v ++ "' to a variable of type '" ++ show s ++ "'"
 
 arithTypeError :: String -> Expr -> Expr -> a
 arithTypeError s e1 e2 =
@@ -36,7 +60,7 @@ negTypeError e =
     "type error: negated term '"
       ++ show e ++ "' is not a boolean expression"
 
-useDefError :: String -> a
+useDefError :: Name -> a
 useDefError n =
   error $
     "undef error: identifier '"
@@ -48,6 +72,21 @@ assignUndefError n =
     "undef error: identifier '"
       ++ n ++ "' is assigned to before it is defined"
 
+arrayIndexError :: Val -> a
+arrayIndexError v =
+  error $
+    "type error: array index '" ++ showVal v ++ "' is not an integer"
+
+notStructError :: Val -> a
+notStructError v =
+  error $
+    "type error: member access on '" ++ showVal v ++ "' which is not a struct"
+
+notArrayError :: Val -> a
+notArrayError v =
+  error $
+    "type error: non-array value '" ++ showVal v ++ "' cannot be indexed"
+
 -- Interpreter for an Rpc-IMP program --
 
 type SortTable = M.Map Name [(Name, Sort)]
@@ -55,6 +94,7 @@ type VarTable  = M.Map Name (Sort, Maybe Val)
 type FuncTable = M.Map Name ([(Name, Sort)], Sort, Cmd)
 
 type State = (SortTable, FuncTable, VarTable, VarTable)
+type IdentifierChain = [Either Name Int]
 
 sortOf :: Val -> Sort
 sortOf (RBool _)      = RBoolSort
@@ -63,27 +103,107 @@ sortOf (RFloat _)     = RFloatSort
 sortOf (RStruct n _)  = RStructSort n
 sortOf (RArray s i _) = RArraySort s i
 
-lookupVar :: State -> Name -> Val
-lookupVar (_, _, gs, ls) n =
-  case M.lookup n ls of
-    Just (_, Just v) -> v
-    Just (_, Nothing) -> useDefError n
+defaultVal :: SortTable -> Sort -> Maybe Val
+defaultVal ss (RStructSort n) =
+  let
+    emptyfields = 
+      case M.lookup n ss of
+        Just fields -> map (\(fn, _) -> (fn, Nothing)) fields 
+        _ -> error $ "Struct type '" ++ n ++ "' is not defined"
+  in
+    Just $ RStruct n emptyfields
+defaultVal _ (RArraySort arr_srt i) =
+  Just $ RArray arr_srt i $ replicate i Nothing
+defaultVal _ _ = Nothing
+
+lookupChainIn :: Maybe Val -> VarTable -> IdentifierChain -> Maybe Val
+lookupChainIn v _ [] = v
+lookupChainIn v vs ((Left n):chain) =
+  case v of
     Nothing ->
-      case M.lookup n gs of
-        Just (_, Just v) -> v
-        _ -> useDefError n
+      case M.lookup n vs of
+        Just (_, Just v')  -> lookupChainIn (Just v') vs chain
+        Just (_, Nothing) -> useDefError n
+        _ -> Nothing
+    Just (RStruct sn fields) ->
+      case find (\(field, _) -> field == n) fields of
+        Just (_, Just v') -> lookupChainIn (Just v') vs chain
+        Just _  -> useDefError n
+        Nothing -> error $ "Struct '" ++ sn ++ "' has no field '" ++ n ++ "'"
+    Just v' -> notStructError v'
+lookupChainIn v vs ((Right i):chain) =
+  case v of
+    Nothing -> error "bad identifier chain: resolveNameExpr has a bug"
+    Just av@(RArray _ _ eles) ->
+      case eles !! i of
+        Nothing ->
+          error $ "Array '" ++ showVal av ++ "' is not defined at " ++ show i
+        Just v' -> lookupChainIn (Just v') vs chain
+    Just v' -> notArrayError v'
+
+assignChain :: IdentifierChain -> Maybe Val -> Val -> Val
+assignChain [] v newval =
+  -- TODO: type-check even in nothing case
+  case v of
+    Just v' | sortOf v' /= sortOf newval -> error $ assignTypeError newval (sortOf v')
+    _ -> newval
+assignChain ((Left n):chain) (Just (RStruct sn fields)) newval =
+  let
+      -- TODO: type-check, validate the fieldname exists
+      updateRec (fn, fv) = 
+        (fn, if fn == n then (Just $ assignChain chain fv newval) else fv)
+      fields' = map updateRec fields
+  in
+    RStruct sn fields'
+assignChain ((Right i):chain) (Just (RArray asrt len eles)) newval =
+  let
+    -- TODO: check i not out of bounds
+    updateEle (j, ele) =
+      (if j == i then (Just $ assignChain chain ele newval) else ele)
+    eles' = map updateEle $ zip [0..] eles
+  in
+    RArray asrt len eles'
+assignChain _ (Just v) newval = assignTypeError newval (sortOf v)
+assignChain _ _ _ = error "Undefined value encounted when resolving NameExpr"
+
+assignChainIn :: VarTable -> IdentifierChain -> Val -> Maybe VarTable
+assignChainIn vs ((Left n):chain) newval = 
+  case M.lookup n vs of
+    Just (srt, v) -> Just $ M.insert n (srt, Just $ assignChain chain v newval) vs
+    _ -> Nothing
+assignChainIn _ _ _ = error "bad identifier chain: resolveNameExpr has a bug"
+
+resolveNameExpr :: State -> NameExpr -> (IdentifierChain, State)
+resolveNameExpr st (RName n) = ([Left n], st)
+resolveNameExpr st (RStructMember ne n) =
+  let
+    (chain, st') = resolveNameExpr st ne
+  in
+    (chain ++ [Left n], st')
+resolveNameExpr st (RArrayElement ne e) =
+  let
+    (chain, st') = resolveNameExpr st ne
+    (v, st'') = evalExpr st' e
+  in
+    case v of
+      RInt i -> (chain ++ [Right i], st'')
+      _ -> arrayIndexError v
+
+lookupNameExpr :: State -> NameExpr -> (Val, State)
+lookupNameExpr st@(_, _, gs, ls) ne =
+  let
+    (chain, st') = resolveNameExpr st ne
+  in
+    case lookupChainIn Nothing ls chain of
+      Just v -> (v, st')
+      _ ->
+        case lookupChainIn Nothing gs chain of
+          Just v -> (v, st')
+          _ -> error $ "undefined: " ++ show ne
 
 evalExpr :: State -> Expr -> (Val, State)
 evalExpr st (RVal v) = (v, st)
-evalExpr st (RVar name) = (lookupVar st name, st) -- TODO: name is a NameExpr now, resolve
-evalExpr st (RAccess name field) = -- TODO: RAccess DNE, bundle functionality into the above case
-  case lookupVar st name of
-    RStruct _ fields ->
-      case find (\(n, _) -> n == field) fields of
-        Just (_, Just v) -> (v, st)
-        Just _ -> (useDefError field, st)
-        Nothing -> error $ "Struct '" ++ name ++ "' has no field '" ++ field ++ "'"
-    _ -> error $ "Member access on '" ++ name ++ "' which is not a struct"
+evalExpr st (RVar ne) = lookupNameExpr st ne
 evalExpr st (RNot e1) =
   let 
     (v, st') = evalExpr st e1
@@ -153,19 +273,7 @@ evalExpr st (RInvoke n arg_exprs) =
 evalCmd :: State -> Cmd -> (Maybe Val, State)
 evalCmd st RSkip = (Nothing, st)
 evalCmd (ss, fs, gs, ls) (RDeclare a srt) =
-  let
-    newvar =
-      case srt of
-        RStructSort n ->
-          (srt, Just $ RStruct n emptyfields)
-          where
-            emptyfields = 
-              case M.lookup n ss of
-                Just fields -> map (\(fn, _) -> (fn, Nothing)) fields 
-                _ -> error $ "Struct type '" ++ n ++ "' is not defined"
-        _ -> (srt, Nothing)
-  in
-    (Nothing, (ss, fs, gs, M.insert a newvar ls))
+  (Nothing, (ss, fs, gs, M.insert a (srt, defaultVal ss srt) ls))
 evalCmd st (RReturn e) = (Just ret, final_st)
   where (ret, final_st) = evalExpr st e
 evalCmd st (RSeq c1 c2) =
@@ -180,42 +288,17 @@ evalCmd st (RIte b c1 c2) =
       RBool True  -> evalCmd new_st c1
       RBool False -> evalCmd new_st c2
       _ -> iteTypeError b
-evalCmd st (RAssign a expr) =
+evalCmd st (RAssign ne expr) =
   let
-    (v, (ss, fs, gs, ls)) = evalExpr st expr
+    (v, st') = evalExpr st expr
+    (chain, (ss, fs, gs, ls)) = resolveNameExpr st' ne
   in
-    -- TODO: a is a NameExpr now, resolve the name before assigning to map
-    case M.lookup a ls of
-      Just (srt, _) | sortOf v == srt -> (Nothing, (ss, fs, gs, M.insert a (srt, Just v) ls))
-      Just (srt, _) -> assignTypeError v a srt
+    case assignChainIn ls chain v of
+      Just ls' -> (Nothing, (ss, fs, gs, ls'))
       Nothing ->
-        case M.lookup a gs of
-          Just (srt, _) | sortOf v == srt -> (Nothing, (ss, fs, M.insert a (srt, Just v) gs, ls))
-          Just (srt, _) -> assignTypeError v a srt
-          Nothing -> assignUndefError a
-evalCmd st (RMemberAssign n field expr) = -- TODO: RMemberAssign DNE, bundle functionality into above case
-  let
-    (v, (ss, fs, gs, ls)) = evalExpr st expr
-    updateVarTable tb srt sv =
-      case sv of
-        Just (RStruct sn fields) ->
-          let
-            -- TODO: type-check this assignment
-            -- And validate that the field name actually exists
-            fields' = map (\(fn, fv) -> (fn, if fn == field then (Just v) else fv)) fields
-            sv' = Just $ RStruct sn fields'
-          in
-            M.insert n (srt, sv') tb
-        _ -> error $ "Variable '" ++ n ++ "' is not a struct"
-    st' =
-      case M.lookup n ls of
-        Just (srt, sv) -> (ss, fs, gs, updateVarTable ls srt sv)
-        Nothing ->
-          case M.lookup n gs of
-            Just (srt, sv) -> (ss, fs, updateVarTable gs srt sv, ls)
-            Nothing -> assignUndefError n
-  in
-    (Nothing, st')
+        case assignChainIn gs chain v of
+          Just gs' -> (Nothing, (ss, fs, gs', ls))
+          Nothing -> assignUndefError $ show ne
 
 evalFunc :: State -> Name -> [Val] -> (Val, State)
 evalFunc (ss, fs, gs, ls) n args =
@@ -242,7 +325,9 @@ evalProgram st (Program defs entry) =
     addDefinition (RSortDef n fields) (ss, fs, gs, ls) =
       (M.insert n fields ss, fs, gs, ls)
     addDefinition (RGlobDef n v s) (ss, fs, gs, ls) =
-      (ss, fs, M.insert n (s, v) gs, ls)
+      case v of
+        Just v' -> (ss, fs, M.insert n (s, Just v')         gs, ls)
+        Nothing -> (ss, fs, M.insert n (s, defaultVal ss s) gs, ls)
     addDefinition (RFuncDef n args ret body) (ss, fs, gs, ls) =
       (ss, M.insert n (args, ret, body) fs, gs, ls)
     init_st@(_, fs', _, _) = foldr addDefinition st defs
@@ -256,30 +341,6 @@ evalProgram st (Program defs entry) =
 
 rpcImpRun :: Program -> (Val, State)
 rpcImpRun = evalProgram (M.empty, M.empty, M.empty, M.empty)
-
-showSort :: Sort -> String
-showSort (RBoolSort)      = "BOOL"
-showSort (RIntSort)       = "INT"
-showSort (RFloatSort)     = "FLOAT"
-showSort (RStructSort n)  = "STRUCT " ++ n
-showSort (RArraySort s i) = "ARRAY[" ++ show i ++ "] OF " ++ showSort s
-
-showVal :: Val -> String
-showVal (RBool b)  = show b
-showVal (RInt i)   = show i
-showVal (RFloat f) = show f
-showVal (RStruct n fields) =
-  "struct " ++ n ++ " { " ++ intercalate ", " (map showField fields) ++ " }"
-  where 
-    showField (n', v) =
-      case v of
-        Just v' -> n' ++ " <- " ++ showVal v'
-        Nothing -> n'
-showVal (RArray vs) =
-  "[" ++ intercalate ", " (map showElement vs) ++ "]"
-  where
-    showElement (Just v) = showVal v
-    showElement _ = "_"
 
 dumpState :: State -> String
 dumpState (ss, fs, gs, _) =
