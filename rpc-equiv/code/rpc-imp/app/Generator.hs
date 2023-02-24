@@ -4,6 +4,7 @@ import RpcImp
 import Transpiler
 
 import System.Environment
+import Data.List (findIndex)
 
 type Signature = (Name, [Sort], Sort)
 
@@ -11,12 +12,10 @@ strToSort :: String -> Sort
 strToSort "int" = mkIntSort
 strToSort "bool" = mkBoolSort
 strToSort "float" = mkFloatSort
-strToSort s = error $ "argument '" ++ s ++ "' is not a type"
--- TODO: support "linked" struct types of the form 
--- "structname(a:int,b:bool,s:innerstruct(z:int,x:float))"
+strToSort s = RStructSort s
 
 genProgram :: Signature -> Program
-genProgram (n, args, ret) = 
+genProgram (n, args, ret) =
   let
     wrapper_n = "_rpc_"     ++ n
     handler_n = "_handler_" ++ n
