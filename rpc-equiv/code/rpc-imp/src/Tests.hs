@@ -1,4 +1,4 @@
-module Tests where
+module Tests (interpreterTests) where
 
 import Parser
 import RpcImp
@@ -6,25 +6,24 @@ import RpcImp
 interpreterTests :: [(Program, String)]
 interpreterTests = [itest1]
 
+int, bool, float :: Sort
+(int, bool, float) = (mkIntSort, mkBoolSort, mkFloatSort)
+
+x, y, z :: String
+(x, y, z) = ("x", "y", "z")
+
 itest1 :: (Program, String)
 itest1 =
   let
-    (int, bool, float) = (mkIntSort, mkBoolSort, mkFloatSort)
     (tup, tupDef) = mkStructSort "tup" [("fst", int), ("snd", float)]
     (q, qDef) = declGlob "q" int
     dbl =
-      let
-        (num, num2) = ("num", "num2")
-      in
-        mkFunc "dbl" [(num, int)] int [
-          declare' num2 int
-        , num2 ^<- (num ^+ num)
-        , return' num2
+        mkFunc "dbl" [(x, int)] int [
+          declare' y int
+        , y ^<- (x ^+ x)
+        , return' y
         ]
-    gen_main = 
-      let
-        (x, y, z) = ("x", "y", "z")
-      in
+    gen_main =
         mkFunc "main" [] bool [
           declare' x int
         , declare' y tup
