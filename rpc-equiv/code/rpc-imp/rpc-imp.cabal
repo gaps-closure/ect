@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7d48fe85597c9e06f38c79ec3975390cd457743b08fd299438a9dd164dfdfd0d
+-- hash: a7858c06bc8b750437ee23f70d952b5cb0db00fef882e0848675d0e63c6b1ed8
 
 name:           rpc-imp
 version:        0.1.0.0
@@ -25,6 +25,7 @@ library
       Interpreter
       Parser
       RpcImp
+      Tests
       Transpiler
       VCGen
   other-modules:

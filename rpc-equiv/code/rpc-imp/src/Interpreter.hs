@@ -344,22 +344,22 @@ rpcImpRun = evalProgram (M.empty, M.empty, M.empty, M.empty)
 
 dumpState :: State -> String
 dumpState (ss, fs, gs, _) =
-  "Sorts:\n" ++ dumpSorts ++ "\nFunctions:\n" ++ dumpFuncs ++ "\nGlobals:\n" ++ dumpGlobals
+  "Sorts:\n" ++ dumpSorts ++ "Functions:\n" ++ dumpFuncs ++ "Globals:\n" ++ dumpGlobals
   where
     dumpSorts   = M.foldrWithKey ss_acc "" ss
     dumpFuncs   = M.foldrWithKey fs_acc "" fs
     dumpGlobals = M.foldrWithKey gs_acc "" gs
     fieldType (n, t) = n ++ " : " ++ showSort t
     ss_acc key v s = 
-      s ++ "STRUCT " ++ key ++ " { " ++ intercalate ", " (map fieldType v) ++ " }\n"
+      s ++ "  STRUCT " ++ key ++ " { " ++ intercalate ", " (map fieldType v) ++ " }\n"
     fs_acc key (args, ret, _) s =
-      s ++ key ++ "(" ++ intercalate ", " (map fieldType args) ++ ") : " ++ showSort ret ++ "\n"
+      s ++ "  " ++ key ++ "(" ++ intercalate ", " (map fieldType args) ++ ") : " ++ showSort ret ++ "\n"
     gs_acc key v s =
       case v of 
         (t, Just val) ->
-          s ++ showSort t ++ " " ++ key ++ " <- " ++ showVal val ++ "\n"
+          s ++ "  " ++ showSort t ++ " " ++ key ++ " <- " ++ showVal val ++ "\n"
         (t, Nothing) ->
-          s ++ showSort t ++ " " ++ key ++ "\n"
+          s ++ "  " ++ showSort t ++ " " ++ key ++ "\n"
 
 display :: (Val, State) -> String
-display (ret, st) = "\nOutput:\n" ++ showVal ret ++ "\n\n" ++ dumpState st
+display (ret, st) = "Output:   " ++ showVal ret ++ "\n" ++ dumpState st

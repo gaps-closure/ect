@@ -3,6 +3,8 @@ import Parser
 import RpcImp
 import Transpiler
 
+import Tests
+
 import System.Environment
 
 type Signature = (Name, [Sort], Sort)
@@ -94,6 +96,16 @@ genProgram (n, args, ret) =
 runProgram :: Program -> IO ()
 runProgram prog = putStrLn $ display $ rpcImpRun prog
 
+runTest :: (Program, String) -> IO ()
+runTest (p, expected) = do
+  putStrLn $ "Expected: " ++ expected
+  runProgram p
+
+runTests :: IO ()
+runTests = do
+  putStrLn ""
+  mapM_ runTest interpreterTests
+
 usage :: IO ()
 usage = putStrLn "usage: ./rpc-imp fxn_name [arg_type]+ ret_type"
 
@@ -101,41 +113,10 @@ main :: IO ()
 main = do
   args <- getArgs
   case args of
+    ["-test"] -> runTests
     []  -> usage
     [_] -> usage
     (n:params) ->
       writeFile "transpiled.c" $ transpile $ genProgram sig
       where 
         sig = (n, map strToSort $ init params, strToSort $ last params)
-
--- sample :: Program
--- sample =
---   let 
---     (int, bool, float) = (mkIntSort, mkBoolSort, mkFloatSort)
---     (tup, tupDef) = mkStructSort "tup" [("fst", int), ("snd", float)]
---     (q, qDef) = declGlob "q" int
---     dbl =
---       let
---         (num, num2) = ("num", "num2")
---       in
---         mkFunc "dbl" [(num, int)] int [
---           declare' num2 int
---         , num2 ^<- (num ^+ num)
---         , return' num2
---         ]
---     gen_main = 
---       let
---         (x, y, z) = ("x", "y", "z")
---       in
---         mkFunc "main" [] bool [
---           declare' x int
---         , declare' y tup
---         , declare' z bool
---         , q ^<- (5 :: Int)
---         , x ^<- (invoke' dbl [q])
---         , (y ^. "fst") ^<- (x ^+ q)
---         , ite' ((y ^. "fst") ^> (14 :: Int)) (z ^<- True) (z ^<- False)
---         , return' z
---         ]
---   in
---     Program [tupDef, qDef, dbl, gen_main] "main"
