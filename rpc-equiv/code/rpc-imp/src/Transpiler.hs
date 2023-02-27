@@ -4,14 +4,17 @@ import Data.List
 import RpcImp
 
 transpileSort :: Sort -> String
-transpileSort RBoolSort       = "bool"
-transpileSort RIntSort        = "int"
-transpileSort RFloatSort      = "double"
-transpileSort (RStructSort n) = n
+transpileSort RBoolSort        = "bool"
+transpileSort RIntSort         = "int"
+transpileSort RFloatSort       = "double"
+transpileSort (RStructSort n)  = n
 transpileSort (RArraySort s i) = transpileSort s ++ "[" ++ show i ++ "]"
 
 transpileTyped :: (Name, Sort) -> String
-transpileTyped (n, s) = transpileSort s ++ " " ++ n
+transpileTyped (n, s) = 
+  case s of
+    RArraySort s' i -> transpileSort s' ++ " " ++ n ++ "[" ++ show i ++ "]"
+    _               -> transpileSort s ++ " " ++ n
 
 transpileDecl :: (Name, Sort) -> String
 transpileDecl (n, s) = transpileTyped (n, s) ++ ";"
@@ -79,5 +82,5 @@ transpileDef (RFuncDef n args ret body) =
 
 transpile :: Program -> String
 transpile (Program defs _) =
-  "#include <stdbool.h>" ++ "\n\n" 
+  "#include <stdbool.h>\n#include <stdio.h>\n\n"
     ++ (intercalate "\n\n" $ map transpileDef defs)

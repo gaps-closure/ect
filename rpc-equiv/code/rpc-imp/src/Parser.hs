@@ -31,6 +31,7 @@ class Primitive a where
   (^@)  :: (IsName b) => b -> a -> NameExpr
   (^==) :: (Primitive b) => a -> b -> Expr
   (^+)  :: (Primitive b) => a -> b -> Expr
+  (^-)  :: (Primitive b) => a -> b -> Expr
   (^<)  :: (Primitive b) => a -> b -> Expr
   (^>)  :: (Primitive b) => a -> b -> Expr
   (^<=) :: (Primitive b) => a -> b -> Expr
@@ -48,6 +49,7 @@ class Primitive a where
   arr ^@ i  = RArrayElement (asNameExpr arr) $ asExpr i
   p1 ^== p2 = REq  (asExpr p1) (asExpr p2)
   p1 ^+  p2 = RAdd (asExpr p1) (asExpr p2)
+  p1 ^-  p2 = RSub (asExpr p1) (asExpr p2)
   p1 ^<  p2 = RLT  (asExpr p1) (asExpr p2)
   p1 ^>  p2 = RGT  (asExpr p1) (asExpr p2)
   p1 ^<= p2 = RNot $ p1 ^>  p2

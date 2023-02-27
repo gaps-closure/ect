@@ -96,15 +96,16 @@ genProgram (n, args, ret) =
 runProgram :: Program -> IO ()
 runProgram prog = putStrLn $ display $ rpcImpRun prog
 
-runTest :: (Program, String) -> IO ()
-runTest (p, expected) = do
+runTest :: (Int, (Program, String)) -> IO ()
+runTest (i, (p, expected)) = do
   putStrLn $ "Expected: " ++ expected
   runProgram p
+  writeFile ("transpiled/test" ++ show i ++ ".c") $ transpile p
 
 runTests :: IO ()
 runTests = do
   putStrLn ""
-  mapM_ runTest interpreterTests
+  mapM_ runTest allTests
 
 usage :: IO ()
 usage = putStrLn "usage: ./rpc-imp fxn_name [arg_type]+ ret_type"
@@ -117,6 +118,6 @@ main = do
     []  -> usage
     [_] -> usage
     (n:params) ->
-      writeFile "transpiled.c" $ transpile $ genProgram sig
+      writeFile "transpiled/transpiled.c" $ transpile $ genProgram sig
       where 
         sig = (n, map strToSort $ init params, strToSort $ last params)

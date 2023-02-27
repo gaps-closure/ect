@@ -108,7 +108,7 @@ defaultVal ss (RStructSort n) =
   let
     emptyfields = 
       case M.lookup n ss of
-        Just fields -> map (\(fn, _) -> (fn, Nothing)) fields 
+        Just fields -> map (\(fn, srt) -> (fn, defaultVal ss srt)) fields 
         _ -> error $ "Struct type '" ++ n ++ "' is not defined"
   in
     Just $ RStruct n emptyfields
@@ -164,7 +164,9 @@ assignChain ((Right i):chain) (Just (RArray asrt len eles)) newval =
   in
     RArray asrt len eles'
 assignChain _ (Just v) newval = assignTypeError newval (sortOf v)
-assignChain _ _ _ = error "Undefined value encounted when resolving NameExpr"
+assignChain _ _ nv = 
+  error $ "Undefined value encountered when resolving NameExpr to assign '" 
+    ++ showVal nv ++ "'"
 
 assignChainIn :: VarTable -> IdentifierChain -> Val -> Maybe VarTable
 assignChainIn vs ((Left n):chain) newval = 
