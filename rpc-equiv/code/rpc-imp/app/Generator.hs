@@ -2,18 +2,13 @@ import Interpreter
 import Parser
 import RpcImp
 import Transpiler
+import VCGen
 
 import Tests
 
 import System.Environment
 
 type Signature = (Name, [Sort], Sort)
-
-strToSort :: String -> Sort
-strToSort "int" = mkIntSort
-strToSort "bool" = mkBoolSort
-strToSort "float" = mkFloatSort
-strToSort s = RStructSort s
 
 genProgram :: Signature -> Program
 genProgram (n, args, ret) =
@@ -96,16 +91,15 @@ genProgram (n, args, ret) =
 runProgram :: Program -> IO ()
 runProgram prog = putStrLn $ display $ rpcImpRun prog
 
-runTest :: (Int, (Program, String)) -> IO ()
-runTest (i, (p, expected)) = do
-  putStrLn $ "Expected: " ++ expected
-  runProgram p
-  writeFile ("transpiled/test" ++ show i ++ ".c") $ transpile p
-
 runTests :: IO ()
 runTests = do
   putStrLn ""
   mapM_ runTest allTests
+  where
+    runTest (i, (p, result)) = do
+      putStrLn $ "Expected: " ++ result
+      runProgram p
+      writeFile ("transpiled/test" ++ show i ++ ".c") $ transpile p
 
 usage :: IO ()
 usage = putStrLn "usage: ./rpc-imp fxn_name [arg_type]+ ret_type"
@@ -117,7 +111,12 @@ main = do
     ["-test"] -> runTests
     []  -> usage
     [_] -> usage
-    (n:params) ->
-      writeFile "transpiled/transpiled.c" $ transpile $ genProgram sig
+    (n:pms) -> do
+      writeFile "vc.smt2" $ genVerificationCondition p
+      writeFile "transpiled/transpiled.c" $ transpile p
       where 
-        sig = (n, map strToSort $ init params, strToSort $ last params)
+        p = genProgram (n, map toSort $ init pms, toSort $ last pms)
+        toSort "int" = mkIntSort
+        toSort "bool" = mkBoolSort
+        toSort "float" = mkFloatSort
+        toSort s = RStructSort s
