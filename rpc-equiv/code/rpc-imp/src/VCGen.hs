@@ -2,16 +2,28 @@ module VCGen (genVerificationCondition) where
 
 import RpcImp
 
--- TODO
-data GuardedCommand =
-    Todooo Name Name
-  | Todoooo Name Name
+data LogicVal =
+    LInt Int
+  | LBool Bool
+  | LFloat Float
   deriving (Eq, Show)
 
--- TODO
-data WeakestPrecondition =
-    Todo Name Name
-  | Todoo Name Name
+data LogicExpr =
+    LVar Name
+  | LVal LogicVal
+  | LEq LogicExpr LogicExpr
+  | LImplies LogicExpr LogicExpr
+  | LAnd LogicExpr LogicExpr
+  | LOr LogicExpr LogicExpr
+  | LNot LogicExpr
+  deriving (Eq, Show)
+
+data GuardedCommand =
+    Assume LogicExpr
+  | Assert LogicExpr
+  | Assign LogicVar LogicExpr
+  | Havoc LogicVar
+  | Box [GuardedCommand] [GuardedCommand]
   deriving (Eq, Show)
 
 -- TODO
@@ -78,7 +90,7 @@ mkGC p = error "not implemented"
 -- return gc_list
 
 -- TODO
-mkWP :: [GuardedCommand] -> WeakestPrecondition
+mkWP :: [GuardedCommand] -> LogicExpr
 mkWP gcs = error "not implemented"
 -- def compute_wp(gc_list, B=['true']):
 -- if len(gc_list) > 1:
@@ -101,7 +113,7 @@ mkWP gcs = error "not implemented"
 -- return B
 
 -- TODO
-toSMT :: WeakestPrecondition -> String
+toSMT :: LogicExpr -> String
 toSMT wp = error "not implemented"
 -- arr_string = ''
 -- for arr_name in arr_dict:
