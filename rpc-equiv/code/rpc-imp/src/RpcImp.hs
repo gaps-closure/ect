@@ -2,6 +2,11 @@ module RpcImp where
 
 -- Syntax of an Rpc-IMP program --
 
+-- For second draft, refer to CLight syntax and semantics:
+-- https://github.com/AbsInt/CompCert/blob/master/cfrontend/Clight.v
+-- C semantics encoded in Z3 also available here:
+-- https://people.csail.mit.edu/stellal/papers/masters-thesis.pdf
+
 type Name = String
 
 data Sort =
@@ -31,6 +36,8 @@ data Expr =
   | RVar NameExpr
   | RAdd Expr Expr
   | RSub Expr Expr
+  | RAnd Expr Expr
+  | ROr Expr Expr
   | RNot Expr
   | REq Expr Expr
   | RLT Expr Expr

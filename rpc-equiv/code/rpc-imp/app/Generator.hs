@@ -2,7 +2,7 @@ import Interpreter
 import Parser
 import RpcImp
 import Transpiler
-import VCGen
+-- import VCGen
 
 import Tests
 
@@ -112,7 +112,7 @@ main = do
     []  -> usage
     [_] -> usage
     (n:pms) -> do
-      writeFile "vc.smt2" $ genVerificationCondition p
+      -- writeFile "vc.smt2" $ genVerificationCondition p
       writeFile "transpiled/transpiled.c" $ transpile p
       where 
         p = genProgram (n, map toSort $ init pms, toSort $ last pms)
