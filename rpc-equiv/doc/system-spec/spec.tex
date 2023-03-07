@@ -1,6 +1,7 @@
 % packages and config
 \documentclass[11pt, oneside]{article}
 \usepackage{float}
+\usepackage{xcolor}
 \usepackage{algorithm}
 \usepackage{algorithmicx}
 \usepackage{algpseudocode}
@@ -17,8 +18,10 @@
 \geometry{letterpaper}
 \newtheorem{theorem}{Theorem}
 
+\newcommand{\todo}{\textcolor{red}{TK.}}
+
 % title
-\title{GAPS-CLOSURE auto-generated xdcomms system model and behavioral specification}
+\title{GAPS-CLOSURE auto-generated xdcomms: system model and behavioral specification}
 \author{Max Levatich}
 \date{\today}
 
@@ -27,136 +30,229 @@
     \maketitle
     \tableofcontents
 
-    \section{Introduction}
+    \section{Introduction} \label{intro}
 
-        TK. (one sentence)
+        \todo (one sentence)
 
         \subsection{About xdcomms and the GAPS-CLOSURE project}
 
-            TK.
+            \todo
 
         \subsection{About this document}
 
-            TK.
+            \todo
 
-    \section{Summary}
+    \section{Summary}  \label{summary}
 
-        TK. (one sentence)
+        \todo (one sentence)
 
         \subsection{High-level overview of xdcomms auto-generation}
 
-            TK.
+            \todo
 
         \subsection{Goals of xdcomms design and implementation}
 
-            TK.
+            \todo
 
-    \section{Information Model}
+    \section{Information Model} \label{imodel}
 
-        TK. (describe section)
+        In this section we formally model all of the datatypes and classes
+        used in the xdcomms system, and provide intuition as to their purpose;
+        the application control flow and function behavior is fully specified
+        in Section~\ref{behavior}.
 
         \subsection{Summary diagram}
 
-            TK. (a UML diagram)
+            The following UML diagram provides a bird's eye summary of the
+            information model. \todo
 
         \subsection{Primitives and Aliases}
 
-            TK. (describe subsection)
+            \todo
 
         \subsection{Cross-domain data format}
 
-            TK. (describe subsection)
+            This subsection describes the format of program data which can be 
+            transferred from one application endpoint to another via xdcomms, and
+            the intermediate representations of said data.
 
-            \subsubsection{Data}
+            \subsubsection{The \texttt{Data} type}
 
-                TK.
+                xdcomms uses a simple type, \texttt{Data}, to capture a collection
+                of program data which is eligible to be transferred cross-domain 
+                to another application endpoint. It is isomorphic to a struct in C;
+                the purpose is to \textit{lift} valid, serializable structs into
+                the xdcomms information model.
 
-            \subsubsection{The Marshalled datatype}
+                \texttt{Data} has two fields:
+                \begin{itemize}
+                    \item \texttt{dtype : DataType} is a string identifier for this data format.
+                    \item \texttt{contents : [CValue]} is the ordered list of fields, where 
+                    \texttt{CValue} refers to a typed value in C that is a scalar, vector,
+                    or serializable struct.
+                \end{itemize}
 
-                TK.
+                We restrict \texttt{CValue} to \textit{serializable} datatypes, meaning a \texttt{CValue} is not a
+                pointer, or, if it is a struct, the struct fields are all serializable (i.e.
+                not pointers). Because application endpoints are physically and memory 
+                isolated, pointers cannot be transferred cross-domain. Fixed-length arrays,
+                however, are valid \texttt{CValue}s (because fixed-length arrays are stored by value
+                in C structs).
 
-            \subsubsection{The Serialized datatype}
+            \subsubsection{The \texttt{Marshalled} type}
+
+                \todo From function arguments to struct with trailer.
+
+            \subsubsection{The \texttt{Serialized} type}
             
-                TK.
+                Before being sent cross-domain, data converted into an in-memory
+                \texttt{Marshalled} struct with a sequence number and
+                error correction codes must additionally be:
+                \begin{itemize}
+                    \item Tagged with a \texttt{GTag}.
+                    \item Given a unique ID to distinguish it from other
+                    incoming request or response packets at the destination.
+                    \item Coerced into the packet format expected at the destination
+                    device.
+                    \item Serialized into a stream of bytes in network order.
+                \end{itemize}
+
+                This transformation is mediated through the \texttt{Serialized} type.
+                
+                The GAPS tag, or \texttt{GTag}, is a tuple of three tags: a \texttt{MuxTag}
+                identifying the source and destination applications, a \texttt{SecTag} 
+                identifying the security levels between which the data is being 
+                transferred, and a \texttt{TypTag} encoding the \texttt{DataType} as
+                an integer (so that it can be unmarshalled at the destination). So for
+                \texttt{GTag} we have the type \texttt{GTag : (MuxTag, SecTag, TypTag)}.
+
+                \todo IDs, packet format, bytes, network ordering.
+
+                Conversion between a \texttt{Marshalled} struct and its corresponding 
+                \texttt{Serialized} struct is mediated by the \texttt{serialize()}
+                and \texttt{deserialize()} functions in the device-aware 
+                \texttt{Codec} class (Section~\ref{codec}).
 
         \subsection{The hardware interface}
 
-            TK. (describe subsection)
+            \todo (describe subsection)
 
-            \subsubsection{The HALConfig class}
+            \subsubsection{The \texttt{HALConfig} class}
 
-                TK.
+                \todo
 
-            \subsubsection{The Device class}
+            \subsubsection{The \texttt{Device} class}
 
-                TK.
+                \todo
 
-            \subsubsection{The Codec class}
+            \subsubsection{The \texttt{Codec} class} \label{codec}
 
-                TK.
+                \todo
 
-        \subsection{The network interface}
+        \subsection{The network abstraction}
 
-            TK. (describe subsection)
+            \todo (describe subsection)
 
-            \subsubsection{The Binding datatype}
+            \subsubsection{The \texttt{Binding} type}
 
-                TK.
+                \todo
 
-            \subsubsection{The XDContext datatype}
+            \subsubsection{The \texttt{XDContext} type}
 
-                TK.
+                \todo
 
-            \subsubsection{The Wrapper class}
+            \subsubsection{The \texttt{Wrapper} class}
 
-                TK.
+                \todo
 
-            \subsubsection{The Handler class}
+            \subsubsection{The \texttt{Handler} class}
 
-                TK.
+                \todo
 
-    \section{Application model}
+    \section{Application model} \label{amodel}
 
-        TK. (describe section)
+        \todo (describe section)
 
-        \subsection{The MasterSequence class}
+        \subsection{The \texttt{MasterSequence} class}
 
-            TK.
+            \todo
 
-        \subsection{The EventQueue class}
+        \subsection{The \texttt{EventQueue} class}
 
-            TK.
+            \todo
 
-        \subsection{The RPCTransaction class}
+        \subsection{The \texttt{RPCTransaction} class}
 
-            TK.
+            \todo
 
-        \subsection{The HAL class}
+        \subsection{The \texttt{HAL} class}
 
-            TK.
+            \todo
 
-        \subsection{The App class}
+        \subsection{The \texttt{App} class}
         
-            TK.
+            \todo
 
-        \subsection{The AppThread}
+        \subsection{The \texttt{AppThread}}
 
-            TK.
+            \todo
 
-    \section{Behavioral specification}
+    \section{Behavioral specification} \label{behavior}
 
-        TK. (describe section)
+        \todo (describe section)
 
         \subsection{Control flow}
 
-            TK. (should include both an english description and detailed diagrams)
+            \todo (should include both an english description and detailed diagrams)
 
         \subsection{Function-level contracts}
 
-            TK. (go function by function)
+            \subsubsection{\texttt{Wrapper.marshall()}}
 
-    \section{Whole-system correctness properties and associated proofs}
+                The \texttt{marshall()} function is called by the \texttt{Wrapper}
+                to marshall the incoming arguments (the arguments to the cross-
+                domain function in the original, unpartitioned program) into one
+                serializable data structure with error correction and a sequence
+                number.
 
-        TK. (describe section)
+                Arguments: \texttt{d: Data, req\_counter: int}
+                (\texttt{d} is unpacked and may represent multiple or no arguments)
+
+                Return value: \texttt{m: Marshalled}
+
+                Pre-conditions:
+                \begin{itemize}
+                    \item The value of \texttt{req\_counter} is either non-negative
+                    or \texttt{INT\_MIN}.
+                    \item The \texttt{Marshalled} struct defines, in 
+                    the same order as the arguments to \texttt{marshall()}, one 
+                    field of the same type and name as each argument, followed 
+                    by a trailer datatype.
+                \end{itemize}
+
+                Post-conditions:
+                \begin{itemize}
+                    \item For each incoming argument, the
+                    corresponding field in \texttt{m} is set to the value of that
+                    argument.
+                    \item The \texttt{trailer} of \texttt{m} has its \texttt{seq} 
+                    field set to the value of \texttt{req\_counter}.
+                \end{itemize}
+
+    \section{Generator operation} \label{generator}
+
+        \todo (describe section)
+
+        \subsection{Inputs: The GEDL}
+
+            \todo
+
+        \subsection{Outputs}
+
+            \todo
+
+    \section{Whole-system correctness properties and proofs}
+
+        \todo (describe section)
 
 \end{document}
