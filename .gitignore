@@ -3,3 +3,9 @@ stack.yaml.lock
 z3-4.8.8-x64-ubuntu-16.04
 transpiled/
 vc.smt2
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.synctex.gz
+*.toc
