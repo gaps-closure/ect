@@ -9,3 +9,4 @@ vc.smt2
 *.log
 *.synctex.gz
 *.toc
+*.cabal
