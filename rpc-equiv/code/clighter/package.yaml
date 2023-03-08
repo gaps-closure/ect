@@ -1,0 +1,26 @@
+name:                clighter
+version:             0.1.0.0
+github:              "gaps-closure/ect"
+license:             BSD3
+author:              "GAPS CLOSURE project"
+maintainer:          "sedwards@cs.columbia.edu"
+copyright:           "2023 GAPS CLOSURE project"
+dependencies:
+- base >= 4.7 && < 5
+    
+library:
+  source-dirs: src
+  ghc-options:
+  - -Wall
+  dependencies:
+  - containers
+
+executables:
+  generator:
+    main:        Main.hs
+    source-dirs: app
+    ghc-options:
+    - -Wall
+    dependencies:
+    - clighter
+    - containers
