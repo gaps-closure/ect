@@ -1,6 +1,7 @@
 module CLighter where
 
 import Data.Int
+import Data.Map as M
 
 -- CLight syntax and semantics:
 -- https://github.com/AbsInt/CompCert/blob/master/cfrontend/Clight.v
@@ -43,6 +44,7 @@ data BinaryOp =
   | OEq  | ONe  
   | OLt  | OGt | OLe | OGe
 
+-- Omitted: sizeof, alignof, cast
 data Expr =
     EConstInt Int32 CType
   | EConstFloat Double CType
@@ -56,8 +58,6 @@ data Expr =
   | EBinOp BinaryOp Expr Expr CType
   | ECast Expr CType
   | EField Expr Ident CType
-  | ESizeOf CType CType
-  | EAlignOf CType CType
 
 -- Omitted: builtin, loops, break, continue, switch, labels, goto
 data Statement =
@@ -78,6 +78,8 @@ type Function =
   , Statement        -- Body
   )
 
+type Ptrofs = Int32
+
 data InitData = -- Initialization data for global variable
     InitInt8 Int32
   | InitInt16 Int32
@@ -86,7 +88,7 @@ data InitData = -- Initialization data for global variable
   | InitFloat32 Float
   | InitFloat64 Double
   | InitSpace Int
-  | InitAddrOf Ident Int32 -- pointer offset
+  | InitAddrOf Ident Ptrofs
 
 -- Omitted: booleans for read-only, volatile
 type GlobVar = (CType, [InitData])
@@ -101,7 +103,16 @@ data Member = MemberPlain Ident CType
 -- Omitted: unions (all composites are structs)
 data CompositeDefinition = StructDef Ident [Member]
 
-type Program = ([(Ident, GlobalDefinition)], [CompositeDefinition], Ident)
+-- Omitted: seperate Composite type with attributes, sizeof, alignof, rank
+type CompositeEnv = M.Map Ident CompositeDefinition
+
+-- Omitted: static functions (all definitions are public)
+type Program = 
+  ( [(Ident, GlobalDefinition)]
+  , Ident
+  , [CompositeDefinition]
+  , CompositeEnv
+  )
 
 typeof :: Expr -> CType
 typeof (EConstInt    _ t) = t
@@ -116,18 +127,3 @@ typeof (EUnOp      _ _ t) = t
 typeof (EBinOp   _ _ _ t) = t
 typeof (ECast        _ t) = t
 typeof (EField     _ _ t) = t
-typeof (ESizeOf      _ t) = t
-typeof (EAlignOf     _ t) = t
-
--- data Val =
---     RBool Bool
---   | RInt Int
---   | RFloat Float
---   | RStruct Name [(Name, Maybe Val)]
---   | RArray Sort Int [Maybe Val]
---   deriving (Eq, Show)
--- data NameExpr = -- lvalue
---     RName Name
---   | RStructMember NameExpr Name
---   | RArrayElement NameExpr Expr
---   deriving (Show)
