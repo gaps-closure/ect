@@ -35,6 +35,11 @@ data CType =
   | TFunction [CType] CType
   | TStruct Ident
 
+classifyFun :: CType -> ([CType], Type)
+classifyFun (TFunction args res) = (args, res)
+classifyFun (TPointer (TFunction args res)) = (args, res)
+classifyFun _ = error "classifyFun: type is not a function or function pointer"
+
 data UnaryOp = ONotBool | ONotInt | ONeg | OAbsFloat
 
 data BinaryOp =

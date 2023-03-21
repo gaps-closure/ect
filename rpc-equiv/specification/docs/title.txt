@@ -1,0 +1,16 @@
+---
+title: Auto-generated xdcomms system model and specification
+author: Columbia University, as part of the GAPS-CLOSURE project
+date: March 21, 2023
+keywords: [books,programming,GAPS,CLOSURE,CLE,partitioning,cross-domain,multi-level-security]
+language: en-US
+titlepage: true
+documentclass: scrartcl
+toc: true
+toc-own-page: true
+numbersections: true
+colorlinks: true
+header-includes:
+ - \usepackage{fvextra}
+ - \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+---

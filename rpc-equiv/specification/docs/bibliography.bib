@@ -1,0 +1,157 @@
+@misc{minizinc_handbook,
+  title={The minizinc handbook},
+  url={https://www.minizinc.org/doc-2.5.5/en/index.html},
+  journal={The MiniZinc Handbook - The MiniZinc Handbook 2.5.5},
+  author={Stuckey, Peter J. and Marriott, Kim and Tack, Guido},
+  year={2022}
+}
+
+@misc{llvm_manual,
+  title={LLVM language reference manual},
+  url={https://llvm.org/docs/LangRef.html},
+  journal={LLVM Language Reference Manual},
+  publisher={LLVM Project},
+  year={2022},
+  month={Jul}
+}
+
+@inproceedings{llvm,
+  author={Lattner, C. and Adve, V.},
+  booktitle={International Symposium on Code Generation and Optimization, 2004. CGO 2004.},
+  title={LLVM: a compilation framework for lifelong program analysis and transformation},
+  year={2004},
+  volume={},
+  number={},
+  pages={75-86},
+  doi={10.1109/CGO.2004.1281665}
+}
+
+@article{haskell,
+  title={Haskell 2010 language report},
+  author={Marlow, Simon and others},
+  journal={Available online http://www.haskell.org/(May 2011)},
+  year={2010}
+}
+
+@inproceedings{Z3,
+  author = {De Moura, Leonardo and Bj\o{}rner, Nikolaj},
+  title = {Z3: An Efficient SMT Solver},
+  year = {2008},
+  isbn = {3540787992},
+  publisher = {Springer-Verlag},
+  address = {Berlin, Heidelberg},
+  abstract = {Satisfiability Modulo Theories (SMT) problem is a decision problem for logical first order formulas with respect to combinations of background theories such as: arithmetic, bit-vectors, arrays, and uninterpreted functions. Z3 is a new and efficient SMT Solver freely available from Microsoft Research. It is used in various software verification and analysis applications.},
+  booktitle = {Proceedings of the Theory and Practice of Software, 14th International Conference on Tools and Algorithms for the Construction and Analysis of Systems},
+  pages = {337–340},
+  location = {Budapest, Hungary},
+  series = {TACAS'08/ETAPS'08}
+}
+
+@inproceedings{program_mandering,
+  author = {Liu, Shen and Zeng, Dongrui and Huang, Yongzhe and Capobianco, Frank and McCamant, Stephen and Jaeger, Trent and Tan, Gang},
+  title = {Program-Mandering: Quantitative Privilege Separation},
+  year = {2019},
+  isbn = {9781450367479},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3319535.3354218},
+  doi = {10.1145/3319535.3354218},
+  abstract = {Privilege separation is an effective technique to improve software security. However, past partitioning systems do not allow programmers to make quantitative tradeoffs between security and performance. In this paper, we describe our toolchain called PM. It can automatically find the optimal boundary in program partitioning. This is achieved by solving an integer-programming model that optimizes for a user-chosen metric while satisfying the remaining security and performance constraints on other metrics. We choose security metrics to reason about how well computed partitions enforce information flow control to: (1) protect the program from low-integrity inputs or (2) prevent leakage of program secrets. As a result, functions in the sensitive module that fall on the optimal partition boundaries automatically identify where declassification is necessary. We used PM to experiment on a set of real-world programs to protect confidentiality and integrity; results show that, with moderate user guidance, PM can find partitions that have better balance between security and performance than partitions found by a previous tool that requires manual declassification.},
+  booktitle = {Proceedings of the 2019 ACM SIGSAC Conference on Computer and Communications Security},
+  pages = {1023–1040},
+  keywords = {integer programming, automatic program partitioning, privilege separation},
+  location = {London, United Kingdom},
+  series = {CCS '19}
+}
+
+@inproceedings {kSplit,
+  author = {Yongzhe Huang and Vikram Narayanan and David Detweiler and Kaiming Huang and Gang Tan and Trent Jaeger and Anton Burtsev},
+  title = {{KSplit}: Automating Device Driver Isolation},
+  booktitle = {16th USENIX Symposium on Operating Systems Design and Implementation (OSDI 22)},
+  year = {2022},
+  isbn = {978-1-939133-28-1},
+  address = {Carlsbad, CA},
+  pages = {613--631},
+  url = {https://www.usenix.org/conference/osdi22/presentation/huang-yongzhe},
+  publisher = {USENIX Association},
+  month = {Jul}
+}
+
+@misc{cprogpartv,
+  author = {Levatich, Maxwell and Brotzmann, Robert and Flin, Benjamin and Chen, Ta and Krishnan, Rajesh and Edwards, Stephen A.},
+  title = {C Program Partitioning with Fine-Grained Security Constraints and Post-Partition Verification},
+  journal = {Under Submission},
+  abstract = {We address the problem of program partitioning: dividing a program into isolated compartments that communicate via remote procedure calls to follow a security policy. Existing solutions for C programs often use a simple model that offers only “sensitive or not” control and do not provide formal guarantees of partition correctness. We present a C program partitioner for security-conscious applications that addresses these shortcomings through annotation with fine-grained security constraints (chiefly, declassification of sensitive data to select parties); from these annotations, we automatically determine a partition and autogenerate code for marshalling, serialization, and remote procedure calls. We provide post-partition verification, which leverages translation validation to show that output program partitions are behaviorally equivalent to their input programs and satisfy the security policy specified by annotations. We present results that show our approach is practical when partitioning large realistic C applications with non-trivial security constraints.},
+  year = {2022}
+}
+
+@inproceedings{ptrsplit,
+  author = {Liu, Shen and Tan, Gang and Jaeger, Trent},
+  title = {PtrSplit: Supporting General Pointers in Automatic Program Partitioning},
+  year = {2017},
+  isbn = {9781450349468},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3133956.3134066},
+  doi = {10.1145/3133956.3134066},
+  abstract = {Partitioning a security-sensitive application into least-privileged components and putting each into a separate protection domain have long been a goal of security practitioners and researchers. However, a stumbling block to automatically partitioning C/C++ applications is the presence of pointers in these applications. Pointers make calculating data dependence, a key step in program partitioning, difficult and hard to scale; furthermore, C/C++ pointers do not carry bounds information, making it impossible to automatically marshall and unmarshall pointer data when they are sent across the boundary of partitions. In this paper, we propose a set of techniques for supporting general pointers in automatic program partitioning. Our system, called PtrSplit, constructs a Program Dependence Graph (PDG) for tracking data and control dependencies in the input program and employs a parameter-tree approach for representing data of pointer types; this approach is modular and avoids global pointer analysis. Furthermore, it performs selective pointer bounds tracking to enable automatic marshalling/unmarshalling of pointer data, even when there is circularity and arbitrary aliasing. As a result, PtrSplit can automatically generate executable partitions for C applications that contain arbitrary pointers.},
+  booktitle = {Proceedings of the 2017 ACM SIGSAC Conference on Computer and Communications Security},
+  pages = {2359–2371},
+  keywords = {data marshalling, automatic program partitioning, bounds tracking},
+  location = {Dallas, Texas, USA},
+  series = {CCS '17}
+}
+
+@misc{gaps_github,
+  year={2022},
+  title={GAPS CLOSURE Project},
+  url={https://github.com/gaps-closure},
+  publisher={GitHub}
+}
+
+@misc{CORE,
+  year={2022},
+  url={https://www.nrl.navy.mil/Our-Work/Areas-of-Research/Information-Technology/NCS/CORE/},
+  title={Common Open Research Emulator (CORE)},
+  publisher={U.S. Naval Research Laboratory}
+}
+
+@inproceedings{QEMU,
+  author = {Bellard, Fabrice},
+  title = {QEMU, a Fast and Portable Dynamic Translator},
+  year = {2005},
+  publisher = {USENIX Association},
+  address = {USA},
+  abstract = {We present the internals of QEMU, a fast machine emulator using an original portable dynamic translator. It emulates several CPUs (x86, PowerPC, ARM and Sparc) on several hosts (x86, PowerPC, ARM, Sparc, Alpha and MIPS). QEMU supports full system emulation in which a complete and unmodified operating system is run in a virtual machine and Linux user mode emulation where a Linux process compiled for one target CPU can be run on another CPU.},
+  booktitle = {Proceedings of the Annual Conference on USENIX Annual Technical Conference},
+  pages = {41},
+  location = {Anaheim, CA},
+  series = {ATEC '05}
+}
+
+@article{Docker,
+  title={Docker: lightweight linux containers for consistent development and deployment},
+  author={Merkel, Dirk},
+  journal={Linux journal},
+  volume={2014},
+  number={239},
+  pages={2},
+  year={2014}
+}
+
+@misc{VSCode,
+  year={2022},
+  title={VSCode},
+  url={https://code.visualstudio.com/},
+  journal={Visual Studio Code -  Code editing. Redefined.},
+  publisher={Microsoft}
+}
+
+@misc{DFDL,
+  year={2022},
+  title={Data Format Description Language (DFDL) v1.0 Specification},
+  url={https://daffodil.apache.org/docs/dfdl/},
+  journal={Data Format Description Language (DFDL) v1.0 Specification},
+  publisher={The Apache Software Foundation},
+  author={Beckerle, Michael  J and Hanson, Stephen M}
+}
