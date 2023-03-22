@@ -11,8 +11,13 @@ import Data.Map as M
 -- https://people.csail.mit.edu/stellal/papers/masters-thesis.pdf
 
 -- Some hacker news comments section saying Coq can compile to Haskell? Could I get CLight parsing into Haskell?
--- In general, need some way off parsing
 -- https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=&cad=rja&uact=8&ved=2ahUKEwiyg5Gh9Mr9AhWhkYkEHSQvDOoQFnoECCUQAQ&url=https%3A%2F%2Fnews.ycombinator.com%2Fitem%3Fid%3D14819093&usg=AOvVaw2kyO4enjc5NVBpQJVfOL3t
+-- Option 2 for parsing is to just roll our own parser using a trusted parser generator.
+-- CLight will parse directly into our Haskell ADT,
+-- and the parser generator just needs the grammar file, which is small
+-- and easy to audit. The grammar can be scraped from CompCert, since we use the
+-- same ADT, but a small hurdle is their grammar probably parses to their AST, not
+-- to CLight directly. Perhaps I can circumvent this.
 
 -- Will just have to prove exhaustively that CLight semantics are translated into VCGen
 -- But if can solve both the above problems, we're good! Then just have to generate
@@ -35,7 +40,7 @@ data CType =
   | TFunction [CType] CType
   | TStruct Ident
 
-classifyFun :: CType -> ([CType], Type)
+classifyFun :: CType -> ([CType], CType)
 classifyFun (TFunction args res) = (args, res)
 classifyFun (TPointer (TFunction args res)) = (args, res)
 classifyFun _ = error "classifyFun: type is not a function or function pointer"
@@ -84,6 +89,12 @@ type Function =
   )
 
 type Ptrofs = Int32
+
+toPtrofs :: Int -> Ptrofs
+toPtrofs = fromIntegral
+
+fromPtrofs :: Ptrofs -> Int
+fromPtrofs = fromIntegral
 
 data InitData = -- Initialization data for global variable
     InitInt8 Int32
