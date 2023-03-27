@@ -1,11 +1,9 @@
 import CLighter
 import Sem
+import Gen
 
+import System.Environment
 import Data.Int
-import Data.Map as M
-
-test :: Program
-test = ([], "main", [], M.empty) -- TODO
 
 simStep :: (State -> State) -> State -> (State -> Maybe Int32) -> Int32
 simStep stp cur isFinal =
@@ -15,12 +13,27 @@ simStep stp cur isFinal =
     where
       next = stp cur
 
-simulateProgram :: Program -> Int32
-simulateProgram p =
+simulate :: Program -> Int32
+simulate p =
   simStep (stp ge) start isFinal
   where
     (stp, start, isFinal, ge) = mkSemantics p
 
+usage :: IO ()
+usage = putStrLn "usage: ./clighter fxn_name [arg_type]+ ret_type"
+
 main :: IO ()
 main = do
-  putStrLn $ show $ simulateProgram test
+  args <- getArgs
+  case args of
+    []  -> usage
+    [_] -> usage
+    (n:pms) -> do
+      writeFile "gen_xdcomms.c" prog_text
+      -- Run verification condition check
+      where
+        sig = (n, init pms, last pms)
+        prog_text = genC sig
+        -- p = parse prog_text
+        -- sim = simulate p
+        -- vc = genVC p
