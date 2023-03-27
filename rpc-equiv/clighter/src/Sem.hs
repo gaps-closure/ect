@@ -57,13 +57,23 @@ boolVal _ _ _ = error "boolVal: type cannot be converted to boolean"
 -- Architecture information
 -- Not parameterized for now, assume x86 in 64-bit mode
 ptr64 :: Bool
-ptr64 = True 
+ptr64 = True
+
+bigEndian :: Bool
+bigEndian = False
 
 alignInt64 :: Int
 alignInt64 = 8
 
 alignFloat64 :: Int
 alignFloat64 = 8
+
+-- IEEE float specification dependent
+singleToBits :: Float -> Int
+singleToBits _ = error "singleToBits: not implemented" -- TODO
+
+floatToBits :: Double -> Int
+floatToBits _ = error "floatToBits: not implemented" -- TODO
 
 -- Positive integer
 type Block = Int
@@ -111,6 +121,7 @@ data MemoryChunk =
   | MFloat64
   | Many32
   | Many64
+  deriving (Eq)
 
 data Mode =
     ByValue MemoryChunk
@@ -120,6 +131,10 @@ data Mode =
 
 mptr :: MemoryChunk
 mptr = if ptr64 then MInt64 else MInt32
+
+quantitySize :: Quantity -> Int
+quantitySize Q32 = 4
+quantitySize Q64 = 8
 
 chunkSize :: MemoryChunk -> Int
 chunkSize MInt8Signed = 1
@@ -173,8 +188,41 @@ alloc (contents, access, nb) lo hi =
     access' = dmInsert nb perms access
     perms ofs _ = if (toPtrofs lo <= ofs && ofs < toPtrofs hi) then (Just Freeable) else Nothing
 
+injBytes :: [Int8] -> [Memval]
+injBytes = map Byte
+
+injValue :: Quantity -> Val -> [Memval]
+injValue q v =
+  map (\i -> Fragment v q i) [(sz-1), (sz-2)..0]
+  where sz = quantitySize q
+
+encodeInt :: Int -> Int -> [Int8]
+encodeInt sz i =
+  if bigEndian then reverse be else be
+  where
+    be = bytesOfInt sz i
+    bytesOfInt 0 _ = []
+    bytesOfInt sz' i' =
+      (fromIntegral $ i' `mod` 256):(bytesOfInt (sz' - 1) (i' `div` 256))
+
+mkUndef :: MemoryChunk -> [Memval]
+mkUndef c = replicate (chunkSize c) Undef
+
 encodeVal :: MemoryChunk -> Val -> [Memval]
-encodeVal _ _ = error "encodeVal: not implemented" -- TODO
+encodeVal c (VInt n) =
+  case c of
+    c' | c' `elem` [MInt8Signed,  MInt8Unsigned ] -> injBytes $ encodeInt 1 (fromIntegral n)
+    c' | c' `elem` [MInt16Signed, MInt16Unsigned] -> injBytes $ encodeInt 2 (fromIntegral n)
+    MInt32 -> injBytes $ encodeInt 4 (fromIntegral n)
+    _ -> mkUndef c
+encodeVal MInt32 v@(VPtr _ _) = if ptr64 then mkUndef MInt32 else injValue Q32 v
+encodeVal MInt64 v@(VPtr _ _) = if ptr64 then injValue Q64 v else mkUndef MInt64
+encodeVal MInt64 (VLong n) = injBytes $ encodeInt 8 (fromIntegral n)
+encodeVal MFloat32 (VSingle n) = injBytes $ encodeInt 4 $ singleToBits n
+encodeVal MFloat64 (VFloat n) = injBytes $ encodeInt 8 $ floatToBits n
+encodeVal Many32 v = injValue Q32 v
+encodeVal Many64 v = injValue Q64 v
+encodeVal c _ = mkUndef c
 
 decodeVal :: MemoryChunk -> [Memval] -> Val
 decodeVal _ _ = error "decodeVal: not implemented" -- TODO
