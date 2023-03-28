@@ -1,3 +1,3 @@
-## Whole-system correctness properties and proofs
+# Whole-system correctness properties and proofs
 
 ==TODO==

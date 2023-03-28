@@ -1,5 +1,5 @@
 ---
-title: Auto-generated xdcomms system model and specification
+title: Auto-generated XDCOMMS System Model and Specification
 author: Columbia University, as part of the GAPS-CLOSURE project
 date: March 21, 2023
 keywords: [books,programming,GAPS,CLOSURE,CLE,partitioning,cross-domain,multi-level-security]

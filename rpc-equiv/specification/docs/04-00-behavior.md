@@ -1,3 +1,0 @@
-# Behavioral specification
-
-==TODO==

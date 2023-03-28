@@ -1,11 +1,13 @@
 # Summary
 
-## High-level overview of xdcomms auto-generation
+## High-level overview of XDCOMMS code
 
 ==TODO== Introduce the idea of a cross domain function call and how programs are divided based on annotations identifying these calls.
 
-==TODO== Summarize section 3.4 of the CLOSURE documentation.
+==TODO== Mention auto-generation again.
 
-## Goals of xdcomms design and implementation
+==TODO== RPC generator modifies partitioned application. Codecs, wrappers, device specific code, ZMQ interface, marshall, serialize, etc.
+
+## Goals of XDCOMMS design and implementation
 
 ==TODO== Define correctness.

@@ -1,3 +1,0 @@
-## Inputs: The GEDL
-
-==TODO==
