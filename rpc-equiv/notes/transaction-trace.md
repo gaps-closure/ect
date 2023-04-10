@@ -41,7 +41,7 @@ typedef struct _tag {
 } gaps_tag;
 ```
 - `mux` is an ID for the source and destination application pair. `sec` is an ID for the security level of the data, and `typ` is an ID for the datatype being transferred.
-- `my_xdc_asyn_send` is then invoked to send the marshalled data (and constructed GAPS tag).
+- `my_xdc_asyn_send` is then invoked to send the marshalled data (and constructed GAPS tag). 
 
 ## HAL API layer
 
@@ -87,6 +87,10 @@ typedef struct _pdu {
 - `route_packets` then invokes `halmap_find` (`daemon/map.c`) to recover the destination device from `psel` (the halmap is initialized as part of configuration). Finally, it calls `write_pdu`.
 - `write_pdu` uses `pdu_into_packet` (the inverse of `pdu_from_packet`) to convert the `pdu` into the packet format expected at the destination device and re-encode the GAPS tag. Then, it calls `write_buf` to perform the write to the device according to the communication type (e.g. `zmq_send` for ZMQ, `sendto` for UDP, etc).
 - At this point, the packet leaves the HAL daemon and is en route to the destination application endpoint. HAL sends packets to "bookend" devices, "bump-in-the-wire" devices, or "host application" devices. A "bookend" device is an intermediate cross-domain guard co-located on the same host as the HAL and the sender application, or at the destination application host. A "bump-in-the-wire" device is an intermediate cross-domain guard located somewhere in the network. A "host application" device is simply the destination application endpoint.
+
+## In guards and the Network
+
+TK: After Rajesh conversation
 
 # Which pieces are auto-generated? What auto-generates them?
 

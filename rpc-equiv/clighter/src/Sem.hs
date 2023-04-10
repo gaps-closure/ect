@@ -35,6 +35,7 @@ data Val =
   | VFloat Double
   | VSingle Float
   | VPtr Block Ptrofs
+  deriving (Eq)
 
 vTrue :: Val
 vTrue = VInt (1 :: Int32)
@@ -68,12 +69,19 @@ alignInt64 = 8
 alignFloat64 :: Int
 alignFloat64 = 8
 
--- IEEE float specification dependent
+-- IEEE float specification dependent, see:
+-- https://flocq.gitlabpages.inria.fr/flocq/html/Flocq.IEEE754.Bits.html#join_bits
 singleToBits :: Float -> Int
 singleToBits _ = error "singleToBits: not implemented" -- TODO
 
 floatToBits :: Double -> Int
 floatToBits _ = error "floatToBits: not implemented" -- TODO
+
+singleOfBits :: Int -> Float
+singleOfBits _ = error "singleOfBits: not implemented" -- TODO
+
+floatOfBits :: Int -> Double
+floatOfBits _ = error "floatOfBits: not implemented" -- TODO
 
 -- Positive integer
 type Block = Int
@@ -104,7 +112,7 @@ permImplies (Just Freeable) Nonempty = True
 permImplies _ _ = False
 
 -- In-memory values
-data Quantity = Q32 | Q64
+data Quantity = Q32 | Q64 deriving (Eq)
 data Memval =
     Undef
   | Byte Int8
@@ -224,8 +232,80 @@ encodeVal Many32 v = injValue Q32 v
 encodeVal Many64 v = injValue Q64 v
 encodeVal c _ = mkUndef c
 
+signExt :: Int -> Int -> Int32
+signExt _ _ = error "signExt: not implemented" -- TODO
+
+zeroExt :: Int -> Int -> Int32
+zeroExt _ _ = error "zeroExt: Not implemented" -- TODO
+
+decodeInt :: [Int8] -> Int
+decodeInt bytes =
+  intOfBytes $ if bigEndian then reverse bytes else bytes
+  where
+    intOfBytes [] = 0
+    intOfBytes (b:bs) =
+      ((fromIntegral b) :: Int) + intOfBytes bs * 256
+
+loadResult :: MemoryChunk -> Val -> Val
+loadResult MInt8Signed (VInt n) = VInt $ signExt 8 $ fromIntegral n
+loadResult MInt8Unsigned (VInt n) = VInt $ zeroExt 8 $ fromIntegral n
+loadResult MInt16Signed (VInt n) = VInt $ signExt 16 $ fromIntegral n
+loadResult MInt16Unsigned (VInt n) = VInt $ zeroExt 16 $ fromIntegral n
+loadResult MInt32 (VInt n) = VInt n
+loadResult MInt32 v@(VPtr _ _) = if ptr64 then VUndef else v
+loadResult MInt64 (VLong n) = VLong n
+loadResult MInt64 v@(VPtr _ _) = if ptr64 then v else VUndef
+loadResult MFloat32 (VSingle f) = VSingle f
+loadResult MFloat64 (VFloat f) = VFloat f
+loadResult Many32 v@(VPtr _ _) = if ptr64 then VUndef else v
+loadResult Many32 v@(VInt _) = v
+loadResult Many32 v@(VSingle _) = v
+loadResult Many64 v = v
+loadResult _ _ = VUndef
+
+projBytes :: [Memval] -> Maybe [Int8]
+projBytes [] = Just []
+projBytes ((Byte i):vs) =
+  case projBytes vs of
+    Nothing -> Nothing
+    Just bs -> Just (i:bs)
+projBytes _ = Nothing
+
+projValue :: Quantity -> [Memval] -> Val
+projValue q ((Fragment v _ _):vs) =
+  if checkValue (quantitySize q) vs then v else VUndef
+  where
+    checkValue 0 [] = True
+    checkValue n ((Fragment v' q' n'):vs') =
+      v == v' && q == q' && (n - 1) == n' && checkValue (n - 1) vs'
+    checkValue _ _ = False
+projValue _ _ = VUndef
+
 decodeVal :: MemoryChunk -> [Memval] -> Val
-decodeVal _ _ = error "decodeVal: not implemented" -- TODO
+decodeVal c mvs =
+  case projBytes mvs of
+    Just bytes ->
+      case c of
+        MInt8Signed    -> VInt $ signExt 8 i
+        MInt8Unsigned  -> VInt $ zeroExt 8 i
+        MInt16Signed   -> VInt $ signExt 16 i
+        MInt16Unsigned -> VInt $ zeroExt 16 i
+        MInt32         -> VInt $ fromIntegral i
+        MInt64         -> VLong $ fromIntegral i
+        MFloat32       -> VSingle $ singleOfBits i
+        MFloat64       -> VFloat $ floatOfBits i
+        _ -> VUndef
+        where
+          i = decodeInt bytes
+    Nothing ->
+      case (c, ptr64) of
+        (MInt32, False) -> projDecode Q32
+        (Many32, _)     -> projDecode Q32
+        (MInt64, True)  -> projDecode Q64
+        (Many64, _)     -> projDecode Q64
+        _ -> VUndef
+        where
+          projDecode q = loadResult c $ projValue q mvs
 
 setN :: [Memval] -> Ptrofs -> (Ptrofs -> Memval) -> (Ptrofs -> Memval)
 setN [] _ contents = contents
@@ -269,6 +349,14 @@ storeVal :: MemoryChunk -> Mem -> Val -> Val -> Mem
 storeVal chunk m (VPtr loc ofs) v = store chunk m loc ofs v
 storeVal _ _ _ _ = error "storeVal: address is not a pointer value"
 
+storeBytes :: Mem -> Block -> Ptrofs -> [Memval] -> Mem
+storeBytes m@(contents, access, nb) loc ofs mvs =
+  if rangePerm m loc (fromPtrofs ofs) (fromPtrofs ofs + length mvs) PermCur Writeable
+  then
+    (dmInsert loc (setN mvs ofs (dmLookup loc contents)) contents, access, nb)
+  else
+    error "storeBytes: location not Writeable"
+
 load :: MemoryChunk -> Mem -> Block -> Ptrofs -> Val
 load chunk m@(contents, _, _) loc ofs =
   if validAccess m chunk loc ofs Readable
@@ -281,6 +369,14 @@ load chunk m@(contents, _, _) loc ofs =
 loadVal :: MemoryChunk -> Mem -> Val -> Val
 loadVal chunk m (VPtr loc ofs) = load chunk m loc ofs
 loadVal _ _ _ = error "loadVal: address is not a pointer value"
+
+loadBytes :: Mem -> Block -> Ptrofs -> Int -> [Memval]
+loadBytes m@(contents, _, _) loc ofs n =
+  if rangePerm m loc (fromPtrofs ofs) (fromPtrofs ofs + n) PermCur Readable
+  then
+    getN n ofs (dmLookup loc contents)
+  else
+    error "loadBytes: load is not permitted"
 
 -- Omitted: readonly, volatile
 permGlobVar :: GlobVar -> Permission
@@ -632,15 +728,45 @@ finalState :: State -> Maybe Int32
 finalState (ReturnState (VInt r) KStop _) = Just r
 finalState _ = Nothing
 
--- Using function_entry1 from CLight semantics: parameters as local variables
-functionEntry :: GEnv -> Function -> [Val] -> Mem -> (LEnv, TEnv, Mem)
-functionEntry _ _ _ _ = error "functionEntry: not implemented" -- TODO Clight.v/function_entry
+allocVariables :: GEnv -> LEnv -> Mem -> [(Ident, CType)] -> (LEnv, Mem)
+allocVariables ge le m vs =
+  foldl allocVar (le, m) vs
+  where
+    allocVar (le', m') (i, ty) =
+      let
+        (m'', b) = alloc m' 0 (sizeOf ge ty)
+        le'' = M.insert i (b, ty) le'
+      in
+        (le'', m'')
 
+bindParameters :: GEnv -> LEnv -> Mem -> [(Ident, CType)] -> [Val] -> Mem
+bindParameters ge le m params vals =
+  foldl bindParam m $ zip params vals
+  where
+    bindParam m' ((i, ty), v) =
+      assign ge ty m' (fst $ unsafeLookup i le) (0 :: Int32) v
+
+createUndefTemps :: [(Ident, CType)] -> TEnv
+createUndefTemps tmps = M.fromList $ map (\(i, _) -> (i, VUndef)) tmps
+
+-- Using function_entry1 from CLight semantics: parameters as local variables
+-- Omitted: assert params ++ lvars has no duplicates
+functionEntry :: GEnv -> Function -> [Val] -> Mem -> (LEnv, TEnv, Mem)
+functionEntry ge (_, params, lvars, tmps, _) vargs m =
+  let
+    (le, m') = allocVariables ge M.empty m (params ++ lvars)
+    m'' = bindParameters ge le m' params vargs
+  in
+    (le, createUndefTemps tmps, m'')
+
+-- Omitted: checks on loc' and ofs' for assign ByCopy
 assign :: GEnv -> CType -> Mem -> Block -> Ptrofs -> Val -> Mem
-assign _ ty m loc ofs v =
-  case accessMode ty of
-    ByValue chunk -> storeVal chunk m (VPtr loc ofs) v
-    ByCopy -> error "assign ByCopy: not implemented" -- TODO clight.v/assign_loc
+assign ge ty m loc ofs v =
+  case (accessMode ty, v) of
+    (ByValue chunk, _) ->
+      storeVal chunk m (VPtr loc ofs) v
+    (ByCopy, VPtr loc' ofs') ->
+      storeBytes m loc ofs $ (loadBytes m loc' ofs' (sizeOf ge ty))
     _ -> error "Cannot assign to a variable with a reference type"
 
 -- Omitted: observable event trace
