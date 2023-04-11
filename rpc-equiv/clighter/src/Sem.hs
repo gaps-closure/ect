@@ -5,6 +5,7 @@ import CLighter
 import Data.Int
 import Data.Bits as B
 import Data.Map as M hiding (foldl, map)
+import Data.Binary.IEEE754
 
 -----------------
 -- DEFAULT MAP --
@@ -63,28 +64,28 @@ ptr64 = True
 bigEndian :: Bool
 bigEndian = False
 
-alignInt64 :: Int
-alignInt64 = 8
+alignInt64 :: Integer
+alignInt64 = 8 :: Integer
 
-alignFloat64 :: Int
-alignFloat64 = 8
+alignFloat64 :: Integer
+alignFloat64 = 8 :: Integer
 
 -- IEEE float specification dependent, see:
 -- https://flocq.gitlabpages.inria.fr/flocq/html/Flocq.IEEE754.Bits.html#join_bits
-singleToBits :: Float -> Int
+singleToBits :: Float -> Integer
 singleToBits _ = error "singleToBits: not implemented" -- TODO
 
-floatToBits :: Double -> Int
+floatToBits :: Double -> Integer
 floatToBits _ = error "floatToBits: not implemented" -- TODO
 
-singleOfBits :: Int -> Float
+singleOfBits :: Integer -> Float
 singleOfBits _ = error "singleOfBits: not implemented" -- TODO
 
-floatOfBits :: Int -> Double
+floatOfBits :: Integer -> Double
 floatOfBits _ = error "floatOfBits: not implemented" -- TODO
 
 -- Positive integer
-type Block = Int
+type Block = Integer
 
 data Permission =
     Freeable  -- Can be freed, written, read, compared
@@ -116,7 +117,7 @@ data Quantity = Q32 | Q64 deriving (Eq)
 data Memval =
     Undef
   | Byte Int8
-  | Fragment Val Quantity Int
+  | Fragment Val Quantity Integer
 
 data MemoryChunk =
     MInt8Signed
@@ -140,11 +141,11 @@ data Mode =
 mptr :: MemoryChunk
 mptr = if ptr64 then MInt64 else MInt32
 
-quantitySize :: Quantity -> Int
-quantitySize Q32 = 4
+quantitySize :: Quantity -> Integer
+quantitySize Q32 = 4 
 quantitySize Q64 = 8
 
-chunkSize :: MemoryChunk -> Int
+chunkSize :: MemoryChunk -> Integer
 chunkSize MInt8Signed = 1
 chunkSize MInt8Unsigned = 1
 chunkSize MInt16Signed = 2
@@ -188,7 +189,7 @@ validPtr (_, access, _) b ofs =
 weakValidPtr :: Mem -> Block -> Ptrofs -> Bool
 weakValidPtr m b ofs = validPtr m b ofs || (ofs > 0 && validPtr m b (ofs - 1))
 
-alloc :: Mem -> Int -> Int -> (Mem, Block)
+alloc :: Mem -> Integer -> Integer -> (Mem, Block)
 alloc (contents, access, nb) lo hi = 
   ((contents', access', nb + 1), nb)
   where
@@ -204,7 +205,7 @@ injValue q v =
   map (\i -> Fragment v q i) [(sz-1), (sz-2)..0]
   where sz = quantitySize q
 
-encodeInt :: Int -> Int -> [Int8]
+encodeInt :: Integer -> Integer -> [Int8]
 encodeInt sz i =
   if bigEndian then reverse be else be
   where
@@ -214,7 +215,7 @@ encodeInt sz i =
       (fromIntegral $ i' `mod` 256):(bytesOfInt (sz' - 1) (i' `div` 256))
 
 mkUndef :: MemoryChunk -> [Memval]
-mkUndef c = replicate (chunkSize c) Undef
+mkUndef c = replicate (fromIntegral (chunkSize c)) Undef
 
 encodeVal :: MemoryChunk -> Val -> [Memval]
 encodeVal c (VInt n) =
@@ -232,19 +233,19 @@ encodeVal Many32 v = injValue Q32 v
 encodeVal Many64 v = injValue Q64 v
 encodeVal c _ = mkUndef c
 
-signExt :: Int -> Int -> Int32
+signExt :: Integer -> Integer -> Int32
 signExt _ _ = error "signExt: not implemented" -- TODO
 
-zeroExt :: Int -> Int -> Int32
+zeroExt :: Integer -> Integer -> Int32
 zeroExt _ _ = error "zeroExt: Not implemented" -- TODO
 
-decodeInt :: [Int8] -> Int
+decodeInt :: [Int8] -> Integer
 decodeInt bytes =
   intOfBytes $ if bigEndian then reverse bytes else bytes
   where
     intOfBytes [] = 0
     intOfBytes (b:bs) =
-      ((fromIntegral b) :: Int) + intOfBytes bs * 256
+      ((fromIntegral b) :: Integer) + intOfBytes bs * 256
 
 loadResult :: MemoryChunk -> Val -> Val
 loadResult MInt8Signed (VInt n) = VInt $ signExt 8 $ fromIntegral n
@@ -312,11 +313,11 @@ setN [] _ contents = contents
 setN (mv:mvs) ofs contents =
   setN mvs (ofs + 1) (\ofs' -> if ofs' == ofs then mv else (contents ofs'))
 
-getN :: Int -> Ptrofs -> (Ptrofs -> Memval) -> [Memval]
+getN :: Integer -> Ptrofs -> (Ptrofs -> Memval) -> [Memval]
 getN 0 _ _ = []
 getN i ofs contents = (contents ofs):(getN (i - 1) (ofs + 1) contents)
 
-alignChunk :: MemoryChunk -> Int
+alignChunk :: MemoryChunk -> Integer
 alignChunk MInt8Signed = 1
 alignChunk MInt8Unsigned = 1
 alignChunk MInt16Signed = 2
@@ -351,7 +352,7 @@ storeVal _ _ _ _ = error "storeVal: address is not a pointer value"
 
 storeBytes :: Mem -> Block -> Ptrofs -> [Memval] -> Mem
 storeBytes m@(contents, access, nb) loc ofs mvs =
-  if rangePerm m loc (fromPtrofs ofs) (fromPtrofs ofs + length mvs) PermCur Writeable
+  if rangePerm m loc (fromPtrofs ofs) (fromPtrofs ofs + fromIntegral (length mvs)) PermCur Writeable
   then
     (dmInsert loc (setN mvs ofs (dmLookup loc contents)) contents, access, nb)
   else
@@ -370,7 +371,7 @@ loadVal :: MemoryChunk -> Mem -> Val -> Val
 loadVal chunk m (VPtr loc ofs) = load chunk m loc ofs
 loadVal _ _ _ = error "loadVal: address is not a pointer value"
 
-loadBytes :: Mem -> Block -> Ptrofs -> Int -> [Memval]
+loadBytes :: Mem -> Block -> Ptrofs -> Integer -> [Memval]
 loadBytes m@(contents, _, _) loc ofs n =
   if rangePerm m loc (fromPtrofs ofs) (fromPtrofs ofs + n) PermCur Readable
   then
@@ -382,7 +383,7 @@ loadBytes m@(contents, _, _) loc ofs n =
 permGlobVar :: GlobVar -> Permission
 permGlobVar _ = Writeable
 
-idataSize :: InitData -> Int
+idataSize :: InitData -> Integer
 idataSize (InitInt8  _) = 1
 idataSize (InitInt16 _) = 2
 idataSize (InitInt32 _) = 4
@@ -392,10 +393,10 @@ idataSize (InitFloat64 _) = 8
 idataSize (InitAddrOf _ _) = if ptr64 then 8 else 4
 idataSize (InitSpace n) = max n 0
 
-idataSizes :: [InitData] -> Int
+idataSizes :: [InitData] -> Integer
 idataSizes idata = foldl (+) 0 $ map idataSize idata
 
-storeIdata :: GEnv -> Block -> (Mem, Int) -> InitData -> (Mem, Int)
+storeIdata :: GEnv -> Block -> (Mem, Integer) -> InitData -> (Mem, Integer)
 storeIdata ge b (m, p) idata =
   case idata of
     InitInt8    n -> (store MInt8Unsigned  m b ofs (VInt n),    p')
@@ -411,10 +412,10 @@ storeIdata ge b (m, p) idata =
       ofs = ((fromIntegral p) :: Ptrofs)
       p' = p + idataSize idata
 
-storeIdatas :: GEnv -> Mem -> Block -> Int -> [InitData] -> Mem
+storeIdatas :: GEnv -> Mem -> Block -> Integer -> [InitData] -> Mem
 storeIdatas ge m b p idata = fst $ foldl (storeIdata ge b) (m, p) idata
 
-storeZeros :: Mem -> Block -> Int -> Int -> Mem
+storeZeros :: Mem -> Block -> Integer -> Integer -> Mem
 storeZeros m b p n =
   foldl 
     (\m' p' -> store MInt8Unsigned m' b ((fromIntegral p') :: Ptrofs) $ VInt (0 :: Int32))
@@ -437,7 +438,7 @@ initMem :: GEnv -> Program -> Mem
 initMem ge (defs, _, _, _) = foldl (allocGlobal ge) emptyMem defs
 
 -- Every addr in [(b, lo), (b, hi)] has permission at least P
-rangePerm :: Mem -> Block -> Int -> Int -> PermType -> Permission -> Bool
+rangePerm :: Mem -> Block -> Integer -> Integer -> PermType -> Permission -> Bool
 rangePerm (_, access, _) b lo hi ty p =
   all hasPerm [lo..(hi-1)]
   where
@@ -447,7 +448,7 @@ rangePerm (_, access, _) b lo hi ty p =
 getPerms :: Mem -> Block -> Ptrofs -> PermType -> Maybe Permission
 getPerms (_, access, _) b ofs ty = (dmLookup b access) ofs ty
 
-dropPerm :: Mem -> Block -> Int -> Int -> Permission -> Mem
+dropPerm :: Mem -> Block -> Integer -> Integer -> Permission -> Mem
 dropPerm m@(contents, access, nb) b lo hi perm =
   let
     oldp = dmLookup b access
@@ -459,7 +460,7 @@ dropPerm m@(contents, access, nb) b lo hi perm =
     else
       error "dropPerm: insufficient permissions"
 
-free :: Mem -> (Block, Int, Int) -> Mem
+free :: Mem -> (Block, Integer, Integer) -> Mem
 free m (b, lo, hi) =
   if   rangePerm m b lo hi PermCur Freeable 
   then uncheckedFree m
@@ -473,7 +474,7 @@ free m (b, lo, hi) =
             (\ofs ty -> if toPtrofs lo <= ofs && ofs < toPtrofs hi then Nothing else getPerms m b ofs ty)
             access
 
-freeList :: Mem -> [(Block, Int, Int)] -> Mem
+freeList :: Mem -> [(Block, Integer, Integer)] -> Mem
 freeList m bs = foldl free m bs
 
 ------------------
@@ -534,11 +535,11 @@ findFunction ge (VPtr b i) =
     error "findFunction: value is not a function pointer"
 findFunction _ _ = error "findFunction: value is not a function pointer"
 
-coSizeOf :: GEnv -> CompositeDefinition -> Int
+coSizeOf :: GEnv -> CompositeDefinition -> Integer
 coSizeOf ge (StructDef _ ms) = 
   ((foldl (\cur m -> cur + (nextField ge cur m)) 0 ms) + 7) `div` 8
 
-sizeOf :: GEnv -> CType -> Int
+sizeOf :: GEnv -> CType -> Integer
 sizeOf _ TVoid = 1
 sizeOf _ (TInt I8 _) = 1
 sizeOf _ (TInt I16 _) = 2
@@ -553,12 +554,12 @@ sizeOf ge (TArray t n) = sizeOf ge t * (max 0 n)
 sizeOf ge@(_, cenv) (TStruct ident) = coSizeOf ge $ unsafeLookup ident cenv
 
 -- Omitted: member_is_padding check, since we don't support bitfields
-coAlignOf :: GEnv -> CompositeDefinition -> Int
+coAlignOf :: GEnv -> CompositeDefinition -> Integer
 coAlignOf ge (StructDef _ ms) =
   maximum $ map (\(MemberPlain _ ty) -> alignOf ge ty) ms
 
 -- Omitted: align_as attribute handling
-alignOf :: GEnv -> CType -> Int
+alignOf :: GEnv -> CType -> Integer
 alignOf _ TVoid = 1
 alignOf _ (TInt I8 _) = 1
 alignOf _ (TInt I16 _) = 2
@@ -572,32 +573,32 @@ alignOf _ (TFunction _ _) = 1
 alignOf ge (TArray t _) = alignOf ge t
 alignOf ge@(_, cenv) (TStruct ident) = coAlignOf ge $ unsafeLookup ident cenv
 
-align :: Int -> Int -> Int
+align :: Integer -> Integer -> Integer
 align n amount = ((n + amount - 1) `div` amount) * amount
 
-bitSizeOf :: GEnv -> CType -> Int
+bitSizeOf :: GEnv -> CType -> Integer
 bitSizeOf ge ty = sizeOf ge ty * 8
 
-bitAlignOf :: GEnv -> CType -> Int
+bitAlignOf :: GEnv -> CType -> Integer
 bitAlignOf ge ty = alignOf ge ty * 8
 
-nextField :: GEnv -> Int -> Member -> Int
+nextField :: GEnv -> Integer -> Member -> Integer
 nextField ge pos (MemberPlain _ ty) = align pos (bitAlignOf ge ty) + bitSizeOf ge ty
 
-layoutField :: GEnv -> Int -> Member -> Int
+layoutField :: GEnv -> Integer -> Member -> Integer
 layoutField ge pos (MemberPlain _ ty) = align pos (bitAlignOf ge ty) `div` 8
 
-fieldOffset :: GEnv -> Ident -> [Member] -> Int -> Int
+fieldOffset :: GEnv -> Ident -> [Member] -> Integer -> Integer
 fieldOffset _ i [] _ = error $ "fieldOffset: no member named: " ++ i
 fieldOffset ge i ((m@(MemberPlain mi _)):ms) pos =
   if   mi == i
   then layoutField ge pos m
   else fieldOffset ge i ms (nextField ge pos m)
 
-blockOfBinding :: GEnv -> (Ident, (Block, CType)) -> (Block, Int, Int)
+blockOfBinding :: GEnv -> (Ident, (Block, CType)) -> (Block, Integer, Integer)
 blockOfBinding ge (_, (b, ty)) = (b, 0, sizeOf ge ty)
 
-blocksOfEnv :: GEnv -> LEnv -> [(Block, Int, Int)]
+blocksOfEnv :: GEnv -> LEnv -> [(Block, Integer, Integer)]
 blocksOfEnv ge le = map (blockOfBinding ge) $ M.toList le
 
 ---------------------------------

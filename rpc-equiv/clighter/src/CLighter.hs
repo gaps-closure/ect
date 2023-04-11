@@ -36,7 +36,7 @@ data CType =
   | TLong Signedness
   | TFloat FloatSize
   | TPointer CType
-  | TArray CType Int
+  | TArray CType Integer
   | TFunction [CType] CType
   | TStruct Ident
 
@@ -90,10 +90,10 @@ type Function =
 
 type Ptrofs = Int32
 
-toPtrofs :: Int -> Ptrofs
+toPtrofs :: Integer -> Ptrofs
 toPtrofs = fromIntegral
 
-fromPtrofs :: Ptrofs -> Int
+fromPtrofs :: Ptrofs -> Integer
 fromPtrofs = fromIntegral
 
 data InitData = -- Initialization data for global variable
@@ -103,7 +103,7 @@ data InitData = -- Initialization data for global variable
   | InitInt64 Int64
   | InitFloat32 Float
   | InitFloat64 Double
-  | InitSpace Int
+  | InitSpace Integer
   | InitAddrOf Ident Ptrofs
 
 -- Omitted: booleans for read-only, volatile
