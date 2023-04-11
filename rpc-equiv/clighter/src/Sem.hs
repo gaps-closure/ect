@@ -232,7 +232,7 @@ encodeVal Many32 v = injValue Q32 v
 encodeVal Many64 v = injValue Q64 v
 encodeVal c _ = mkUndef c
 
-shiftIn :: Bool -> Integer -> Int32
+shiftIn :: Bool -> Int32 -> Int32
 shiftIn b x = if b then (x * 2 + 1) else x * 2
 
 signExt :: Int -> Integer -> Int32
@@ -240,7 +240,7 @@ signExt 1 x = if odd x then -1 else 0
 signExt n x = shiftIn (odd x) $ zeroExt (n - 1) (x `div` 2)
 
 zeroExt :: Int -> Integer -> Int32
-zeroExt 0 x = 0
+zeroExt 0 _ = 0
 zeroExt n x = shiftIn (odd x) $ zeroExt (n - 1) (x `div` 2)
 
 decodeInt :: [Int8] -> Integer
