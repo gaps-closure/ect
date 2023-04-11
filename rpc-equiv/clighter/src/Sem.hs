@@ -627,7 +627,10 @@ semNotint (VLong n) (TLong _) = VLong $ B.complement n
 semNotint _ _ = error "semNotint: Value/type is not an int or long"
 
 semNeg :: Val -> CType -> Val
-semNeg _ _ = error "semNeg: not implemented" -- TODO
+semNeg (VInt i) _ = VInt (-i)
+semNeg (VLong i) _ = VLong (-i)
+semNeg (VFloat f) _ = VFLoat (-f)
+semNeg (VSingle f) _ = VSingle (-f)
 
 semAbsfloat :: Val -> CType -> Val
 semAbsfloat _ _ = error "semAbsfloat: not implemented" -- TODO
