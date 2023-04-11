@@ -1,11 +1,11 @@
 module Sem (mkSemantics, State) where
 
 import CLighter
+import IEEE754
 
 import Data.Int
 import Data.Bits as B
 import Data.Map as M hiding (foldl, map)
-import Data.Binary.IEEE754
 
 -----------------
 -- DEFAULT MAP --
@@ -70,19 +70,18 @@ alignInt64 = 8 :: Integer
 alignFloat64 :: Integer
 alignFloat64 = 8 :: Integer
 
--- IEEE float specification dependent, see:
--- https://flocq.gitlabpages.inria.fr/flocq/html/Flocq.IEEE754.Bits.html#join_bits
+-- IEEE float specification dependent
 singleToBits :: Float -> Integer
-singleToBits _ = error "singleToBits: not implemented" -- TODO
+singleToBits f = floatToMerged 4 f
 
 floatToBits :: Double -> Integer
-floatToBits _ = error "floatToBits: not implemented" -- TODO
+floatToBits f = floatToMerged 8 f
 
-singleOfBits :: Integer -> Float
-singleOfBits _ = error "singleOfBits: not implemented" -- TODO
+singleOfBits :: Integer -> Int -> Float
+singleOfBits i bc = parseFloat $ encodeIntBE bc i
 
-floatOfBits :: Integer -> Double
-floatOfBits _ = error "floatOfBits: not implemented" -- TODO
+floatOfBits :: Integer -> Int -> Double
+floatOfBits i bc = parseFloat $ encodeIntBE bc i
 
 -- Positive integer
 type Block = Integer
@@ -293,8 +292,8 @@ decodeVal c mvs =
         MInt16Unsigned -> VInt $ zeroExt 16 i
         MInt32         -> VInt $ fromIntegral i
         MInt64         -> VLong $ fromIntegral i
-        MFloat32       -> VSingle $ singleOfBits i
-        MFloat64       -> VFloat $ floatOfBits i
+        MFloat32       -> VSingle $ singleOfBits i (length bytes)
+        MFloat64       -> VFloat $ floatOfBits i (length bytes)
         _ -> VUndef
         where
           i = decodeInt bytes
