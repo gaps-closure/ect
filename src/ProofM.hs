@@ -46,6 +46,7 @@ data LogEntry = LogString String -- ^ A arbitrary log string
                              , infComment :: String
                              }
 
+-- Log can be printed
 instance Show LogEntry where
   show (LogString ss) = intercalate "\n" $ map (";;; " ++) $ lines ss
   show (LogSMTLIB s) = s
